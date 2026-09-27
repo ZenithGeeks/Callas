@@ -1,10 +1,38 @@
-# Callas
+<h1 align="center">Callas</h1>
+<p align="center"><i>A guard for Thai scam calls and messages</i></p>
+
+<div align="center">
+  <img src="https://img.shields.io/badge/status-planning-lightgrey" alt="Status: planning"/>
+  <img src="https://img.shields.io/badge/language-Thai-blue" alt="Language: Thai"/>
+  <br>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"/>
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch"/>
+  <img src="https://img.shields.io/badge/Hugging%20Face-WangchanBERTa-FFD21E?logo=huggingface&logoColor=black" alt="Hugging Face WangchanBERTa"/>
+  <img src="https://img.shields.io/badge/vLLM-LLM%20serving-5A45FF" alt="vLLM"/>
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS"/>
+  <img src="https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white" alt="pytest"/>
+</div>
+
+<br>
 
 Callas protects people from Thai phone and message scams. It turns a call into text, works out who said what, and checks each turn for signs of a scam. For a normal call it answers with a short, safe voice reply. For a suspicious call it stops and warns the user.
 
 Callas works in Thai only. It does not connect to LINE, Messenger, Instagram, or a real phone line. Calls and messages go in through a web demo.
 
 > **Status:** planning. The design is written in [`docs/spec.html`](docs/spec.html). No code yet.
+
+## Contents
+
+- [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [Modules](#modules)
+- [Tech stack](#tech-stack)
+- [What we measure](#what-we-measure)
+- [Safety rules](#safety-rules)
+- [Planned layout](#planned-layout)
+- [Open questions](#open-questions)
 
 ## What it does
 
