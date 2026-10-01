@@ -52,8 +52,22 @@ templates.env.globals.update(
 )
 
 
+# Uploaded recordings live only in this folder. It is emptied at startup and shutdown, so a
+# crash or restart never leaves call audio behind.
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "callas-uploads"
+
+
+def clear_uploads() -> None:
+    if UPLOAD_DIR.is_dir():
+        for f in UPLOAD_DIR.iterdir():
+            if f.is_file():
+                f.unlink(missing_ok=True)
+    UPLOAD_DIR.mkdir(exist_ok=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    clear_uploads()
     app.state.rt = rt_mod.build()
     app.state.runs = call_run.RunRegistry()
     app.state.pace = float(os.environ.get("CALLAS_FAKE_DELAY", DEMO_PACE_SECONDS))
@@ -62,6 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         app.state.rt.close()
+        clear_uploads()
 
 
 app = FastAPI(title="Callas", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -187,7 +202,7 @@ async def _save_upload(upload: UploadFile) -> tuple[str | None, str | None]:
     ext = Path(name).suffix.lower()
     if ext not in AUDIO_EXTENSIONS:
         return None, "That file is not audio. Use a .wav, .mp3, .m4a or .ogg recording."
-    fd, path = tempfile.mkstemp(suffix=ext, prefix="callas-")
+    fd, path = tempfile.mkstemp(suffix=ext, prefix="callas-", dir=UPLOAD_DIR)
     size, head = 0, b""
     try:
         with os.fdopen(fd, "wb") as out:
@@ -234,7 +249,7 @@ async def call_simulate(request: Request, audio: UploadFile | None = None) -> HT
             return form_error(error)
         filename = Path(audio.filename).name
     else:  # demo mode: the fake pipeline ignores the file but still wants a path
-        fd, path = tempfile.mkstemp(suffix=".wav", prefix="callas-")
+        fd, path = tempfile.mkstemp(suffix=".wav", prefix="callas-", dir=UPLOAD_DIR)
         os.close(fd)
     run = request.app.state.runs.create(path, filename)
     view = call_run.RunView(filename, app_rt.is_demo)
