@@ -49,15 +49,16 @@
 
 <h3 id="tools-at-a-glance">Main tools at a glance</h3>
 <div class="table-wrap"><table><thead><tr><th>Job</th><th>Main tool</th><th>Backup / compare with</th></tr></thead><tbody>
-<tr><td>Speech to text (ASR)</td><td><span class="tool">pythaiasr</span></td><td><span class="tool">Thonburian Whisper</span></td></tr>
-<tr><td>Split speakers (diarization)</td><td><span class="tool">pyannote.audio</span></td><td>—</td></tr>
+<tr><td>Speech to text (ASR)</td><td><span class="tool">pythaiasr</span> (Typhoon ASR, ONNX, offline)</td><td><span class="tool">Thonburian Whisper</span> (also loads through pythaiasr)</td></tr>
+<tr><td>Split speakers (diarization)</td><td><span class="tool">pythaiasr</span> (Nemotron-3 diarization, ONNX)</td><td>pyannote segmentation 3.0 (ONNX, through pythaiasr)</td></tr>
 <tr><td>NER</td><td><span class="tool">WangchanBERTa</span></td><td><span class="tool">PyThaiNLP</span> NER</td></tr>
 <tr><td>Summary</td><td><span class="tool">WangchanBERTa</span> / <span class="tool">mT5-Thai</span></td><td><span class="tool">TextRank</span>; LLM on <span class="tool">vLLM</span></td></tr>
 <tr><td>Scam classifier</td><td><span class="tool">WangchanBERTa</span></td><td><span class="tool">TF-IDF + LogReg</span> (baseline); LLM on <span class="tool">vLLM</span></td></tr>
-<tr><td>LLM serving</td><td><span class="tool">vLLM</span> + open Thai LLM (model not decided)</td><td>—</td></tr>
-<tr><td>Reply text</td><td>LLM on <span class="tool">vLLM</span></td><td>fixed templates</td></tr>
-<tr><td>Voice reply (TTS)</td><td><span class="tool">FastThaiG2P</span> + <span class="tool">pythaitts</span></td><td>—</td></tr>
-<tr><td>Web frontend</td><td><span class="tool">Next.js</span> + <span class="tool">Tailwind</span>, designed in <span class="tool">Figma</span></td><td>—</td></tr>
+<tr><td>LLM serving</td><td><span class="tool">vLLM</span> + open-source LLM (now <code>qwen3.8-27b-fp8</code>)</td><td>—</td></tr>
+<tr><td>Reply text</td><td>LLM on <span class="tool">vLLM</span>, optional <span class="tool">DSPy</span> writer</td><td>fixed templates</td></tr>
+<tr><td>Voice reply (TTS)</td><td><span class="tool">PyThaiTTS</span> with the <span class="tool">FastThaiG2P</span> engine</td><td>—</td></tr>
+<tr><td>Pipeline</td><td><span class="tool">LangGraph</span></td><td>—</td></tr>
+<tr><td>Web frontend</td><td><span class="tool">Jinja</span> templates + <span class="tool">HTMX</span> + <span class="tool">Tailwind</span>, designed in <span class="tool">Figma</span></td><td>—</td></tr>
 <tr><td>Web backend</td><td><span class="tool">FastAPI</span></td><td>—</td></tr>
 <tr><td>Tests</td><td><span class="tool">pytest</span></td><td>—</td></tr>
 </tbody></table></div>
@@ -65,20 +66,26 @@
 <h3 id="modules">Modules</h3>
 <div class="table-wrap"><table><thead><tr><th>Module</th><th>What it does</th><th>Depends on</th></tr></thead><tbody>
 <tr><td>data-pipeline</td><td>Generate scam and normal Thai call scripts and messages; scrape public scam-report sites; load and clean 2 Kaggle datasets; make labeled train/test data (gate + 5 types + NER spans)</td><td>—</td></tr>
-<tr><td>llm-serving</td><td>Run one open LLM on our own GPU with <span class="tool">vLLM</span>; hold the prompts; own the speed and GPU memory settings for the whole pipeline</td><td>—</td></tr>
-<tr><td>asr-diarization</td><td>Turn call audio into Thai text and split it by speaker A/B (compare <span class="tool">pythaiasr</span> and <span class="tool">Thonburian Whisper</span>)</td><td>data-pipeline</td></tr>
+<tr><td>llm-serving</td><td>Run one open-source LLM with <span class="tool">vLLM</span> on a server the team runs; hold the prompts and the DSPy programs; own the speed and GPU memory settings for the whole pipeline</td><td>—</td></tr>
+<tr><td>asr-diarization</td><td>Turn call audio into Thai text and split it by speaker A/B, from a file or live from the microphone (compare Typhoon ASR and <span class="tool">Thonburian Whisper</span>)</td><td>data-pipeline</td></tr>
 <tr><td>nlp-core</td><td>Run NER, summary, and scam classifier (gate + 5 types) on call text or message text; LLM version of summary and classifier to compare</td><td>data-pipeline, llm-serving</td></tr>
-<tr><td>tts-voice-agent</td><td>Keep call memory; decide whether to auto-reply; have the LLM write a safe Thai reply and speak it (<span class="tool">FastThaiG2P</span> + TTS) for calls that are not important</td><td>nlp-core, llm-serving</td></tr>
-<tr><td>web-demo-app</td><td>Standalone web app (<span class="tool">Next.js</span> + <span class="tool">FastAPI</span>, UI designed in <span class="tool">Figma</span>): upload audio or type text, run the pipeline, show transcript/diarization, NER, summary, verdict + type, and play the TTS reply</td><td>asr-diarization, nlp-core, tts-voice-agent</td></tr>
+<tr><td>tts-voice-agent</td><td>Keep call memory; decide whether to auto-reply; mask call details, have the LLM write a safe Thai reply and speak it (<span class="tool">PyThaiTTS</span> + <span class="tool">FastThaiG2P</span>) for calls that are not important</td><td>nlp-core, llm-serving</td></tr>
+<tr><td>orchestrator</td><td>Run each call turn and each message through a <span class="tool">LangGraph</span> graph; hold call sessions and live calls; offer slots where nlp-core models plug in</td><td>asr-diarization, nlp-core, llm-serving, tts-voice-agent</td></tr>
+<tr><td>web-demo-app</td><td>Standalone web app (<span class="tool">FastAPI</span> + <span class="tool">Jinja</span> + <span class="tool">HTMX</span>, UI designed in <span class="tool">Figma</span>): type a message, upload a call, or take a live call from the microphone; show transcript/diarization, NER, summary, verdict + type, and play the TTS reply</td><td>orchestrator</td></tr>
 <tr><td>evaluation-report</td><td>Scripts that compute the numbers for the written report: precision/recall/F1 (gate + type), NER F1, summary quality (ROUGE/human), ASR WER, diarization DER, LLM vs. WangchanBERTa, call memory, reply safety, speed and GPU memory</td><td>data-pipeline, llm-serving, asr-diarization, nlp-core, tts-voice-agent</td></tr>
 </tbody></table></div>
-<p>Build order: data-pipeline and llm-serving at the same time, then asr-diarization and nlp-core at the same time, then tts-voice-agent, then web-demo-app. evaluation-report starts as soon as nlp-core and asr-diarization give their first output.</p>
+<p>Build order: data-pipeline and llm-serving at the same time, then asr-diarization and nlp-core at the same time, then tts-voice-agent, then orchestrator and web-demo-app. evaluation-report starts as soon as nlp-core and asr-diarization give their first output.</p>
+<p class="note">Status (October 2026): llm-serving, asr-diarization, tts-voice-agent, orchestrator and web-demo-app are built and tested. nlp-core runs on rule-based NER and the LLM until the WangchanBERTa models are trained. data-pipeline and evaluation-report are not started.</p>
 
 <h3 id="pipeline-flow">Diagrams</h3>
 <p class="note">Made in Eraser. Click a diagram to open it full size, or <a href="https://app.eraser.io/workspace/15jDoAO4Rlj2bQ5kTYqg">edit them in Eraser</a>.</p>
 <figure class="diagram">
-<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="System architecture: input, data pipeline, speech, LLM serving, NLP core, voice agent, web demo app, and evaluation report, with the data flowing between them"></a>
+<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="System architecture, left to right: browser pages, FastAPI web backend, pythaiasr speech (Typhoon ASR, Nemotron speaker split), the LangGraph orchestrator, nlp-core slots, the voice agent (decide, masking, leak check, voice) and LLM serving (vLLM, DSPy)"></a>
 <figcaption>System architecture</figcaption>
+</figure>
+<figure class="diagram">
+<a href="diagrams/decision-flow.png"><img src="diagrams/decision-flow.png" alt="Decision flow: message or call; recording or live mic; each turn goes into call memory and nlp-core; an escalated call or a scam warns the user; otherwise call details are masked, the LLM writes a reply, the leak rules and the optional DSPy judge check it, a template is the fallback, and the reply is spoken"></a>
+<figcaption>Decision flow</figcaption>
 </figure>
 <figure class="diagram">
 <a href="diagrams/call-sequence.png"><img src="diagrams/call-sequence.png" alt="Sequence of one live call: each speaker turn goes into call memory, nlp-core, and decide(); scams escalate, normal calls get an LLM reply that passes a leak check before TTS"></a>
@@ -93,14 +100,15 @@
 <ul>
 <li><p><strong>Runtime:</strong> <span class="tool">Python 3.10+</span> for all pipeline modules.</p></li>
 <li><p><strong>Repo:</strong> one git repo for everything.</p></li>
-<li><p><strong>Web frontend:</strong> <span class="tool">Next.js</span> (React, TypeScript) + <span class="tool">Tailwind</span>. UI designed in <span class="tool">Figma</span> and pulled into code with Figma MCP.</p></li>
-<li><p><strong>Web backend:</strong> <span class="tool">FastAPI</span>. It turns the pipeline modules into REST endpoints for the frontend.</p></li>
-<li><p><strong>ASR:</strong> <span class="tool">pythaiasr</span> (wav2vec2) is the main choice. The eval report compares <span class="tool">Thonburian Whisper</span> against it. Whisper goes into the live demo only if it is clearly better.</p></li>
-<li><p><strong>Diarization:</strong> <span class="tool">pyannote.audio</span> (works with any language), run on generated 2-speaker audio. There is no diarization model made for Thai.</p></li>
+<li><p><strong>Web app:</strong> <span class="tool">FastAPI</span> serves <span class="tool">Jinja</span> templates with <span class="tool">HTMX</span> and <span class="tool">Tailwind</span> (compiled with the standalone CLI, no Node). A simulated call streams turn by turn over server-sent events; a live call streams microphone audio over a WebSocket. UI designed in <span class="tool">Figma</span> first. This replaced the earlier Next.js plan so the whole project stays in Python.</p></li>
+<li><p><strong>Pipeline:</strong> <span class="tool">LangGraph</span> runs each call turn (remember, analyze, decide, then reply and speak, or escalate) and each message (analyze, verdict). The branch after decide is a plain Python function, so the LLM can never choose between warning and replying.</p></li>
+<li><p><strong>ASR:</strong> <span class="tool">pythaiasr</span> with Typhoon ASR (FastConformer, ONNX). It runs offline after the first download and also streams for live calls. The eval report compares <span class="tool">Thonburian Whisper</span> against it. Whisper goes into the live demo only if it is clearly better.</p></li>
+<li><p><strong>Diarization:</strong> Nemotron-3 diarization (ONNX) through <span class="tool">pythaiasr</span>. On a generated 34 s two-speaker call it labelled 97.8% of speech correctly; pyannote segmentation 3.0 found only one speaker (49.6%). <code>DIARIZER</code> switches between them. Live calls are labelled "Caller" for now, because pythaiasr has no streaming speaker split.</p></li>
 <li><p><strong>NER:</strong> <span class="tool">PyThaiNLP</span> NER or a token classifier built on <span class="tool">WangchanBERTa</span>.</p></li>
 <li><p><strong>Summary:</strong> fine-tuned <span class="tool">WangchanBERTa</span> / <span class="tool">mT5-Thai</span>. If that takes too long to build, use <span class="tool">TextRank</span> instead (it picks the key sentences from the text).</p></li>
 <li><p><strong>Scam classifier:</strong> fine-tuned <span class="tool">WangchanBERTa</span>, plus a simple <span class="tool">TF-IDF + LogReg</span> model as the baseline. The eval report compares the two.</p></li>
-<li><p><strong>LLM:</strong> one open Thai LLM served locally with <span class="tool">vLLM</span>. It gives nlp-core an extra summary and classifier option, and it writes the voice agent's reply text. Call text never goes to an outside LLM API.</p></li>
+<li><p><strong>LLM:</strong> one open-source LLM (now <code>qwen3.8-27b-fp8</code>) served with <span class="tool">vLLM</span> on a server the team runs. It gives nlp-core an extra summary and classifier option, and it writes the voice agent's reply text. Its hidden "thinking" is turned off (<code>VLLM_THINKING=false</code>), because with small output limits it used the whole budget and returned no answer. Call text never goes to a third-party LLM API.</p></li>
+<li><p><strong>Reply safety:</strong> before the LLM writes a reply, numbers, names and links from the call are masked. The reply then passes the leak rules and a Thai spelling check, and an optional <span class="tool">DSPy</span> judge can only block more. Any failure uses a fixed template.</p></li>
 <li><p><strong>Call memory:</strong> the voice agent remembers every turn of the current call, so a scam that only shows up after several turns is still caught. Memory is deleted when the call ends.</p></li>
 <li><p><strong>Context budget:</strong> text sent to nlp-core and the LLM has a fixed token limit. Recent turns go in word for word; older turns are replaced by a short summary.</p></li>
 <li><p><strong>Speed and memory:</strong> all models load once at server start and share one GPU. llm-serving sets the vLLM limits (quantization, <code>--gpu-memory-utilization</code>, <code>--max-model-len</code>) so everything fits. Target: under about 15s per input.</p></li>
@@ -111,8 +119,10 @@
 <ul>
 <li><p>ASR: <a href="https://github.com/PyThaiNLP/pythaiasr">pythaiasr</a></p></li>
 <li><p>G2P: <a href="https://github.com/awslabs/FastThaiG2P">FastThaiG2P</a></p></li>
-<li><p>TTS: repo not decided yet (see tts-voice-agent open questions)</p></li>
-<li><p>Diarization: <a href="https://github.com/pyannote/pyannote-audio">pyannote-audio</a></p></li>
+<li><p>TTS: <a href="https://github.com/PyThaiNLP/PyThaiTTS">PyThaiTTS</a> (FastThaiG2P engine)</p></li>
+<li><p>Diarization: Nemotron-3 inside <a href="https://github.com/PyThaiNLP/pythaiasr">pythaiasr</a></p></li>
+<li><p>Pipeline: <a href="https://docs.langchain.com/oss/python/langgraph/use-graph-api">LangGraph Graph API</a></p></li>
+<li><p>Reply tuning: <a href="https://dspy.ai">DSPy</a></p></li>
 <li><p>LLM serving: <a href="https://github.com/vllm-project/vllm">vLLM</a></p></li>
 </ul>
 
@@ -126,7 +136,7 @@
 <li><span class="job">Handle data</span> <code>pandas</code>, <code>jsonlines</code></li>
 <li><span class="job">Scraping</span> <code>requests</code> + <code>beautifulsoup4</code></li>
 <li><span class="job">Generate text</span> <span class="tool">LLM API</span> <span class="note">(provider and budget not decided yet)</span></li>
-<li><span class="job">Text to audio</span> <span class="tool">pythaitts</span> <span class="note">(same as in tts-voice-agent)</span></li>
+<li><span class="job">Text to audio</span> <span class="tool">PyThaiTTS</span> <span class="note">(FastThaiG2P engine, same as in tts-voice-agent)</span></li>
 </ul>
 <p><strong>Commands.</strong></p>
 <pre><code>Scrape:       python -m data_pipeline.scrape --source &lt;name&gt; --out data/raw/&lt;name&gt;.jsonl
@@ -172,20 +182,22 @@ Test:         pytest modules/data_pipeline/tests</code></pre>
 </ul>
 
 <h2 id="module-llm-serving">Module: llm-serving</h2>
-<p><strong>Objective.</strong> Run one open LLM on our own GPU with vLLM. nlp-core uses it as an extra summary and scam-classifier option, to compare against WangchanBERTa. tts-voice-agent uses it to write auto-reply text. This module also owns the speed and GPU memory settings, so every model in the pipeline fits on the demo computer and a full run stays under about 15s.</p>
+<p><strong>Objective.</strong> Run one open-source LLM with vLLM on a server the team runs. nlp-core uses it as an extra summary and scam-classifier option, to compare against WangchanBERTa. tts-voice-agent uses it to write auto-reply text. This module also owns the speed and GPU memory settings, so every model in the pipeline fits on the demo computer and a full run stays under about 15s.</p>
 <p><strong>Used by:</strong> nlp-core (LLM summary + LLM classifier), tts-voice-agent (reply text), evaluation-report (speed and GPU memory numbers).</p>
-<p><strong>Success:</strong> one local vLLM server with an OpenAI-compatible API, one fixed prompt per job, and settings that fit next to the other models on the demo GPU.</p>
+<p><strong>Success:</strong> one vLLM server with an OpenAI-compatible API, one fixed prompt per job, and settings that fit next to the other models on the demo GPU.</p>
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
 <li><span class="job">Serve the LLM</span> <span class="tool">vLLM</span> <span class="note">(OpenAI-compatible server)</span></li>
-<li><span class="job">Model</span> open LLM with good Thai <span class="note">(not decided; see Open questions)</span></li>
-<li><span class="job">Client</span> <code>openai</code> Python client pointed at the local server</li>
+<li><span class="job">Model</span> open-source LLM with good Thai <span class="note">(now <code>qwen3.8-27b-fp8</code>, thinking off)</span></li>
+<li><span class="job">Client</span> <code>openai</code> Python client pointed at our vLLM server</li>
+<li><span class="job">Reply tuning</span> <span class="tool">DSPy</span> <span class="note">(ChainOfThought reply writer and optional leak judge; tuned with BootstrapFewShot)</span></li>
 <li><span class="job">Smaller weights</span> AWQ 4-bit or FP8 quantization</li>
 </ul>
 <p><strong>Commands.</strong></p>
 <pre><code>Start server:  vllm serve &lt;model&gt; --max-model-len 8192 --gpu-memory-utilization 0.6 --enable-prefix-caching
-Health check:  curl http://localhost:8000/v1/models
+Health check:  python -m llm_serving.health
+Tune DSPy:     python -m llm_serving.dspy_optimize --out modules/llm_serving/compiled/reply.dspy.json
 Benchmark:     python -m llm_serving.bench --testset data/processed/test.jsonl
 Test:          pytest modules/llm_serving/tests</code></pre>
 <p><strong>Code style.</strong> Every LLM call goes through one client. Each job has its own prompt file, with a version number:</p>
@@ -198,11 +210,12 @@ class LLMClient:
 <p><strong>Speed and memory.</strong></p>
 <ul>
 <li><p><strong>Quantization:</strong> use AWQ 4-bit or FP8 weights so the LLM leaves room for the other models.</p></li>
-<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so WangchanBERTa, pythaiasr and pyannote still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
+<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so WangchanBERTa and the speech models still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
 <li><p><strong><code>--max-model-len</code>:</strong> set it to the call memory context budget, not the model's maximum. A shorter length means a smaller KV cache.</p></li>
 <li><p><strong>Prefix caching:</strong> each job's prompt starts with the same fixed text on every request, so vLLM reuses it instead of processing it again.</p></li>
-<li><p><strong>Short outputs:</strong> each job has a max output length (see <code>JOBS</code>). The classifier answers with one label, not an explanation.</p></li>
-<li><p><strong>Other models:</strong> WangchanBERTa and pythaiasr run in FP16 on the GPU. Every model loads once when the backend starts, never per request.</p></li>
+<li><p><strong>Short outputs:</strong> each job has a max output length (see <code>JOBS</code>). The classifier answers with one label, not an explanation. Thinking models must run with thinking off, or a 20-token answer comes back empty.</p></li>
+<li><p><strong>DSPy tuning:</strong> on 10 hard synthetic contexts the tuned reply writer gave 10/10 usable replies at 2.7 s each; the untuned one gave 5/10 at 9.6 s.</p></li>
+<li><p><strong>Other models:</strong> WangchanBERTa runs in FP16 on the GPU. The pythaiasr models (Typhoon ASR, Nemotron diarization) are ONNX and run on CPU or GPU. Every model loads once when the backend starts, never per request.</p></li>
 <li><p><strong>Timing:</strong> log the time of each stage (ASR, diarization, nlp-core, LLM, TTS) on every run, so we know where the 15s goes.</p></li>
 </ul>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> with a fake LLM client (CI has no GPU) for prompt building and output parsing. bench.py records tokens per second, time to first token, and peak GPU memory. These numbers go to evaluation-report.</p>
@@ -210,7 +223,7 @@ class LLMClient:
 <ul>
 <li><p><strong>Always:</strong> keep every LLM call behind <code>LLMClient</code>; turn the classifier's answer into one of the fixed labels, and treat anything else as "unknown", never a guess; log model name, prompt version, and time for every call.</p></li>
 <li><p><strong>Ask first:</strong> changing the model (every LLM score in the report changes); raising <code>--gpu-memory-utilization</code> if the other models then stop fitting.</p></li>
-<li><p><strong>Never:</strong> send call text to an outside LLM API; let the LLM decide between escalate and reply (that stays in the voice agent's rules).</p></li>
+<li><p><strong>Never:</strong> send call text to a third-party LLM API; let the LLM decide between escalate and reply (that stays in the voice agent's rules).</p></li>
 </ul>
 <p><strong>Success criteria.</strong></p>
 <ul>
@@ -220,7 +233,7 @@ class LLMClient:
 </ul>
 <p><strong>Open questions.</strong></p>
 <ul>
-<li><p>Which model? It needs good Thai and must fit the demo GPU. Candidates to test: Typhoon, OpenThaiGPT, Qwen.</p></li>
+<li><p>Which model for the report? The demo uses <code>qwen3.8-27b-fp8</code>. Typhoon and OpenThaiGPT are still worth comparing.</p></li>
 <li><p>How much GPU memory does the demo computer have? This decides the model size and quantization.</p></li>
 <li><p>Should data-pipeline also use this server to generate data, instead of a paid LLM API?</p></li>
 </ul>
@@ -232,13 +245,14 @@ class LLMClient:
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
-<li><span class="job">Speech to text</span> <span class="tool">pythaiasr</span> <span class="note">(main model, based on wav2vec2)</span></li>
-<li><span class="job">Compare with</span> <span class="tool">Thonburian Whisper</span> <span class="note">(used in the demo only if clearly better)</span></li>
-<li><span class="job">Split speakers</span> <span class="tool">pyannote.audio</span> <span class="note">(no Thai-only model exists)</span></li>
-<li><span class="job">Read/write audio</span> <code>torchaudio</code>, <code>soundfile</code></li>
+<li><span class="job">Speech to text</span> <span class="tool">pythaiasr</span> <span class="note">(Typhoon ASR, FastConformer ONNX; file and streaming)</span></li>
+<li><span class="job">Compare with</span> <span class="tool">Thonburian Whisper</span> <span class="note">(loads through pythaiasr; used in the demo only if clearly better)</span></li>
+<li><span class="job">Split speakers</span> Nemotron-3 diarization through <span class="tool">pythaiasr</span> <span class="note">(pyannote segmentation 3.0 as the backup)</span></li>
+<li><span class="job">Live calls</span> energy-based silence detection: a turn ends after 0.8 s of silence or 15 s of speech</li>
+<li><span class="job">Read/write audio</span> <code>soundfile</code>, <code>numpy</code></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Run ASR:         python -m asr_diarization.transcribe --audio &lt;path&gt; --model pythaiasr
+<pre><code>Run ASR:         python -m asr_diarization.transcribe --audio &lt;path&gt;
 Run diarization:  python -m asr_diarization.diarize --audio &lt;path&gt;
 Full pipeline:    python -m asr_diarization.pipeline --audio &lt;path&gt; --out transcript.json
 Benchmark ASR:    python -m asr_diarization.bench --model pythaiasr,thonburian_whisper --testset data/processed/test.jsonl
@@ -267,7 +281,8 @@ class PyThaiASR(ASRBackend):
 <p><strong>Open questions.</strong></p>
 <ul>
 <li><p>Target WER: do we set a minimum, or just report the number and explain our choice?</p></li>
-<li><p>Speed for the live demo: how many seconds per part of a call is OK on the demo computer?</p></li>
+<li><p>Speed for the live demo: streaming ASR takes about 11 ms per 100 ms chunk on the dev machine. Check it on the demo computer.</p></li>
+<li><p>The silence threshold for live calls (<code>VAD_RMS_THRESHOLD</code> = 0.015) still needs testing on a real microphone.</p></li>
 </ul>
 
 <h2 id="module-nlp-core">Module: nlp-core</h2>
@@ -334,7 +349,7 @@ def analyze(text: str) -&gt; NLPResult:
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
 <li><span class="job">Letters to sounds</span> <a href="https://github.com/awslabs/FastThaiG2P"><span class="tool">FastThaiG2P</span></a> <span class="note">(grapheme-to-phoneme)</span></li>
-<li><span class="job">Make speech</span> <span class="tool">pythaitts</span> <span class="note">(or the TTS engine inside it; exact repo not decided, see Open questions)</span></li>
+<li><span class="job">Make speech</span> <a href="https://github.com/PyThaiNLP/PyThaiTTS"><span class="tool">PyThaiTTS</span></a> with the FastThaiG2P engine <span class="note">(voice <code>thai_som</code>, 24 kHz)</span></li>
 <li><span class="job">Decision</span> simple if/else rules <span class="note">(no ML model needed, because nlp-core already gives structured output)</span></li>
 <li><span class="job">Reply text</span> LLM on <span class="tool">vLLM</span> <span class="note">(through llm-serving; fixed templates as the backup)</span></li>
 <li><span class="job">Call memory</span> <code>CallState</code> in our own code <span class="note">(in memory, one per call, deleted when the call ends)</span></li>
@@ -402,39 +417,56 @@ def safe_reply(result: NLPResult, state: CallState) -&gt; str:
 <li><p>Exact confidence threshold for escalate vs. auto-reply: start with a rough guess, then tune it after nlp-core's classifier is trained and we know how reliable its confidence scores are.</p></li>
 <li><p>How many recent turns stay word for word before older ones are summarized?</p></li>
 <li><p>Can a later normal turn ever undo an escalation? (Current rule: no.)</p></li>
-<li><p>Which pythaitts repo/package do we use exactly? (Several Thai TTS projects have similar names.)</p></li>
+</ul>
+
+<h2 id="module-orchestrator">Module: orchestrator</h2>
+<p><strong>Objective.</strong> Run the modules in order for each call turn and each message, keep call sessions, and run live calls. It is the only thing the web app talks to. nlp-core models plug into named slots, so the team can swap in WangchanBERTa without touching the pipeline.</p>
+<p><strong>Used by:</strong> web-demo-app.</p>
+<p><strong>Tech stack.</strong></p>
+<ul class="stack">
+<li><span class="job">Graphs</span> <span class="tool">LangGraph</span> <span class="note">(turn graph and message graph; per-call dependencies through <code>context_schema</code>)</span></li>
+<li><span class="job">Retry</span> <code>RetryPolicy</code> on analyze only: one retry when the LLM server cannot be reached</li>
+<li><span class="job">Explaining agent</span> tool-calling agent on vLLM that explains a verdict; it never feeds <code>decide()</code></li>
+<li><span class="job">nlp-core slots</span> <code>NLP_NER</code>, <code>NLP_CLASSIFIER</code>, <code>NLP_SUMMARIZER</code> pick the model for each slot</li>
+</ul>
+<p><strong>Commands.</strong></p>
+<pre><code>Draw the graphs: python -m orchestrator.show_graph --out docs/diagrams/langgraph.md
+Test:            pytest modules/orchestrator/tests</code></pre>
+<p><strong>Boundaries.</strong></p>
+<ul>
+<li><p><strong>Always:</strong> keep the branch after decide a plain function that reads only <code>Decision.auto_reply</code>; delete call memory when a call ends.</p></li>
+<li><p><strong>Never:</strong> add a checkpointer or a node cache (both would keep call text after the call ends); let LLM output change routing.</p></li>
 </ul>
 
 <h2 id="module-web-demo-app">Module: web-demo-app</h2>
-<p><strong>Objective.</strong> A standalone web app, and the part of the project people see and use. You upload a fake call (audio file) or type a message, watch the full pipeline run, and see the result: transcript/diarization, NER highlights, summary, scam verdict + type, and the TTS auto-reply (played, or shown as "escalated to user"). For calls, the result updates turn by turn, so you can see the moment the agent escalates. We design the UI in Figma first, then build it.</p>
+<p><strong>Objective.</strong> A standalone web app, and the part of the project people see and use. You type a message, upload a fake call (audio file), or take a live call from the microphone, watch the full pipeline run, and see the result: transcript/diarization, NER highlights, summary, scam verdict + type, and the TTS auto-reply (played, or shown as "escalated to user"). For calls, the result updates turn by turn, so you can see the moment the agent escalates. We design the UI in Figma first, then build it.</p>
 <p><strong>Used by:</strong> demo audience (live demo), team (for building and testing).</p>
 <p><strong>Success:</strong> a demo that works, looks good, runs fast enough, and clearly shows what the pipeline does at each step.</p>
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
-<li><span class="job">Frontend</span> <span class="tool">Next.js</span> (React, TypeScript) + <span class="tool">Tailwind</span></li>
-<li><span class="job">Design</span> <span class="tool">Figma</span>, pulled into code with Figma MCP <span class="note">(design comes first; code matches it)</span></li>
-<li><span class="job">Backend</span> <span class="tool">FastAPI</span> <span class="note">(turns asr-diarization, nlp-core, and tts-voice-agent into REST endpoints)</span></li>
+<li><span class="job">Pages</span> <span class="tool">Jinja</span> templates + <span class="tool">HTMX</span> + <span class="tool">Tailwind</span> <span class="note">(Tailwind standalone CLI; fonts and scripts self-hosted)</span></li>
+<li><span class="job">Design</span> <span class="tool">Figma</span> <span class="note">(design comes first; code matches it; exports in <code>docs/design/</code>)</span></li>
+<li><span class="job">Backend</span> <span class="tool">FastAPI</span> <span class="note">(thin endpoints over the orchestrator)</span></li>
+<li><span class="job">Live call</span> AudioWorklet sends 16 kHz PCM16 audio over a WebSocket; the mic pauses while Callas' reply plays</li>
 <li><span class="job">Audio</span> browser <code>&lt;audio&gt;</code> plays TTS replies; file upload for call audio</li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Backend dev:    uvicorn backend.main:app --reload
-Frontend dev:   npm run dev --prefix frontend
-Backend test:   pytest backend/tests
-Frontend build: npm run build --prefix frontend</code></pre>
+<pre><code>Run:            uvicorn backend.main:app --port 8077
+Demo mode:      CALLAS_FAKE=1 uvicorn backend.main:app --port 8077   (no models or GPU)
+Test:           pytest backend/tests
+Build the CSS:  tailwindcss -i backend/static/src/app.css -o backend/static/css/app.css --minify</code></pre>
 <p><strong>Code style.</strong> Each backend endpoint is a thin wrapper over the pipeline modules, with no business logic:</p>
-<pre><code>@router.post("/simulate-call")
-async def simulate_call(audio: UploadFile) -&gt; CallResult:
-    transcript = asr_diarization.pipeline.run(audio)
-    state = tts_voice_agent.CallState()
-    steps = [tts_voice_agent.on_turn(state, turn) for turn in transcript.turns]
-    return CallResult(transcript=transcript, steps=steps)</code></pre>
-<p>Frontend components call the backend through one typed API client, not with fetch calls spread across pages.</p>
-<p><strong>Testing strategy.</strong> Backend: <span class="tool">pytest</span> integration tests call each endpoint with test audio/text. They check the response format and that every pipeline step returned output. Frontend: check by hand against the Figma design before each demo practice; component tests (<code>Vitest</code>/<code>RTL</code>) are optional. Practice a full pipeline run at least twice before the live demo.</p>
+<pre><code>@app.post("/message/check")
+async def message_check(text: str = Form("")):
+    result = await run_in_threadpool(rt.sessions.analyze_message, text)
+    return render("partials/message_result.html", result=result)</code></pre>
+<p>Pages call the backend through HTMX attributes and server-rendered partials. The simulated call is one server-sent event stream; the live call is one WebSocket.</p>
+<p><strong>Testing strategy.</strong> <span class="tool">pytest</span> integration tests call each page, endpoint, stream and the WebSocket with demo-mode fakes. They check the output and that call data is deleted afterwards. Check the pages by hand against the Figma design before each demo practice. Practice a full pipeline run at least twice before the live demo.</p>
 <p><strong>Boundaries.</strong></p>
 <ul>
 <li><p><strong>Always:</strong> keep backend endpoints thin (they only call the modules in order; no model code copied from the modules); follow the approved Figma design, don't make up new layouts.</p></li>
-<li><p><strong>Ask first:</strong> adding a frontend library other than Next.js/Tailwind/the typed API client; changing the API format after the nlp-core/tts-voice-agent teams start using it.</p></li>
-<li><p><strong>Never:</strong> call any real external platform API (LINE/Messenger/IG/telephony); hardcode secrets in frontend code.</p></li>
+<li><p><strong>Ask first:</strong> adding a JavaScript library other than HTMX; changing the WebSocket or event format after other teams start using it.</p></li>
+<li><p><strong>Never:</strong> call any real external platform API (LINE/Messenger/IG/telephony); put secrets in templates or static files; keep an uploaded recording after its run ends.</p></li>
 </ul>
 <p><strong>Success criteria.</strong></p>
 <ul>
@@ -446,7 +478,6 @@ async def simulate_call(audio: UploadFile) -&gt; CallResult:
 <p><strong>Open questions.</strong></p>
 <ul>
 <li><p>Hosting: run on the demo computer, or put it online (e.g. a free plan) so others can try it before or after the demo?</p></li>
-<li><p>Do we make the Figma design before connecting the backend, or at the same time? This decides whether frontend work can start before nlp-core/tts-voice-agent have real endpoints. We will probably need fake data either way.</p></li>
 </ul>
 
 <h2 id="module-evaluation-report">Module: evaluation-report</h2>
