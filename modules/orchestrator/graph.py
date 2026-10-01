@@ -11,8 +11,10 @@ Turn graph:
 Safety rules that live here:
   * `route_after_decide` is a plain Python function that reads only `Decision.auto_reply`.
     No LLM output can change the route; only `tts_voice_agent.decision.decide` decides.
-  * The only node that makes speech text is `reply`, and it calls `safe_reply` (leak check,
-    template fallback). `speak` only voices `reply_text`.
+  * The only node that makes speech text is `reply`, and it calls `safe_reply` (redacted
+    context, leak check, optional judge that can only add blocks, template fallback). Only the
+    reply text goes into the state; chain-of-thought reasoning is dropped inside the writer.
+    `speak` only voices `reply_text`.
   * Call memory is the CallState objects in `Runtime.states`, in process memory only.
     The graphs are compiled without a checkpointer, so LangGraph stores nothing.
 """
@@ -28,6 +30,7 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from asr_diarization.types import Turn
+from callas_settings import get_settings
 from llm_serving.base import LLM
 from nlp_core.registry import analyze_with_tools
 from nlp_core.types import NLPResult
@@ -68,6 +71,10 @@ class Runtime:
     speaker: object with synthesize_bytes(text) -> bytes, or None to skip speech.
     ner / classifier / summarizer: registry names; None means the env-var default.
     states: call_id -> CallState. Owned by CallSessions; never persisted.
+    writer / judge: optional reply writer (`write(context, result)`) and leak judge
+    (`blocks(reply, context)`). When left as None they are built once from the settings:
+    REPLY_ENGINE=dspy gives a DSPy writer, LEAK_JUDGE=on gives a DSPy judge; the defaults
+    (prompt / off) give None, which keeps the plain LLM reply path. Pass fakes in tests.
     """
 
     llm: LLM
@@ -76,6 +83,19 @@ class Runtime:
     classifier: str | None = None
     summarizer: str | None = None
     states: dict[str, CallState] = field(default_factory=dict)
+    writer: Any | None = None
+    judge: Any | None = None
+
+    def __post_init__(self) -> None:
+        settings = get_settings()
+        if self.writer is None and settings.reply_engine == "dspy":
+            from llm_serving.dspy_programs import DSPyReplyWriter
+
+            self.writer = DSPyReplyWriter()
+        if self.judge is None and settings.leak_judge == "on":
+            from llm_serving.dspy_programs import DSPyLeakJudge
+
+            self.judge = DSPyLeakJudge()
 
     def analyze(self, text: str) -> NLPResult:
         return analyze_with_tools(
@@ -117,7 +137,13 @@ def build_turn_graph(rt: Runtime):
         return {"decision": decision}
 
     def reply(state: TurnState) -> dict:
-        text, template_used = safe_reply(state["nlp"], rt.states[state["call_id"]], rt.llm)
+        text, template_used = safe_reply(
+            state["nlp"],
+            rt.states[state["call_id"]],
+            rt.llm,
+            writer=rt.writer,
+            judge=rt.judge,
+        )
         decision = state["decision"]
         decision.reply_text, decision.template_used = text, template_used
         return {"reply_text": text, "template_used": template_used}

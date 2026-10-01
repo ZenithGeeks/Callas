@@ -42,6 +42,37 @@ for server-sent events; use `to_jsonable` on them), `end`, `simulate_call(audio_
 
 Tests for these are in `tests/test_orch_graph.py` (routing, sticky escalation, leak fallback).
 
+## DSPy reply and leak judge
+
+Two optional switches in `.env` (both default to the old behaviour). They need the extra:
+`pip install -e ".[dspy]"`.
+
+| env var | values | what it does |
+|---------|--------|--------------|
+| `REPLY_ENGINE` | `prompt` (default), `dspy` | `dspy` writes the reply with a DSPy `ChainOfThought` program (`llm_serving/dspy_programs.py`) on the vLLM server |
+| `LEAK_JUDGE` | `off` (default), `on` | `on` asks a DSPy judge whether the reply leaks anything from the call |
+
+Rules that hold for both:
+
+- The reply LLM (prompt or DSPy) only sees the redacted context: `tts_voice_agent.redact.redact_context`
+  swaps entities seen in the call, digits, spoken numbers and links for `[LABEL]`, `[NUMBER]`, `[LINK]`.
+- Final decision: `blocked = leaks_sensitive(reply) OR judge_blocks`. The rule check stays the hard
+  gate and runs first; the judge runs only when the rules pass and can only add blocks. If the judge
+  raises, times out, or does not answer a clear "no leak", the reply is blocked and a template is used.
+- Chain-of-thought reasoning is discarded inside the writer. It is never returned, logged, or put in
+  graph state or events. Logs carry only lengths, timings and reason codes (`judge_block`, `judge_error`).
+- The LLM still never decides warn vs reply; that is `decide()`.
+
+Optimize the writer offline, against your own vLLM server (never run in tests):
+
+```
+python -m llm_serving.dspy_optimize --out modules/llm_serving/compiled/reply.dspy.json
+python -m llm_serving.dspy_optimize --out reply.dspy.json --trainset my_contexts.jsonl
+```
+
+The default trainset is a small synthetic Thai set. It prints the dev score before and after, and
+`DSPyReplyWriter` loads `llm_serving/compiled/reply.dspy.json` on start if it exists.
+
 ## Add your WangchanBERTa model
 
 The three parts are protocols in `nlp_core/interfaces.py`:
