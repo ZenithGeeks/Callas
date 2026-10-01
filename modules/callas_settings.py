@@ -13,6 +13,7 @@ _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 _REPLY_ENGINES = ("prompt", "dspy")
 _LEAK_JUDGES = ("off", "on")
+DIARIZERS = ("nemotron", "pyannote_segmentation")
 
 
 class Settings(BaseSettings):
@@ -30,10 +31,13 @@ class Settings(BaseSettings):
 
     asr_model: str = "typhoon_asr"
 
+    # Speaker-split model: "nemotron" (Nemotron-3 diarization) or "pyannote_segmentation".
+    diarizer: str = "nemotron"
+
     tts_pretrained: str = "fastthaig2p"
     tts_speaker: str = "thai_som"
 
-    @field_validator("reply_engine", "leak_judge", mode="before")
+    @field_validator("reply_engine", "leak_judge", "diarizer", mode="before")
     @classmethod
     def _lower(cls, v):
         return v.strip().lower() if isinstance(v, str) else v
@@ -43,6 +47,13 @@ class Settings(BaseSettings):
     def _check_engine(cls, v: str) -> str:
         if v not in _REPLY_ENGINES:
             raise ValueError(f"REPLY_ENGINE must be one of {_REPLY_ENGINES}, got {v!r}")
+        return v
+
+    @field_validator("diarizer")
+    @classmethod
+    def _check_diarizer(cls, v: str) -> str:
+        if v not in DIARIZERS:
+            raise ValueError(f"DIARIZER must be one of {DIARIZERS}, got {v!r}")
         return v
 
     @field_validator("leak_judge")
