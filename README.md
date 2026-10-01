@@ -58,6 +58,16 @@ Text message ──► nlp-core ──► verdict
 
 ![System architecture](docs/diagrams/architecture.png)
 
+### Decision flow
+
+Fixed rules decide whether Callas warns or replies. A reply is written from masked call text, then checked by the leak rules (and the optional DSPy judge) before it is spoken.
+
+![Decision flow](docs/diagrams/decision-flow.png)
+
+### LangGraph pipeline
+
+The per-turn graph and the message graph live in [`modules/orchestrator/graph.py`](modules/orchestrator/graph.py). [`docs/diagrams/langgraph.md`](docs/diagrams/langgraph.md) draws them; regenerate it with `python -m orchestrator.show_graph --out docs/diagrams/langgraph.md`.
+
 ### Live call, turn by turn
 
 Each speaker turn goes into call memory, then nlp-core, then `decide()`. Once a call is marked as a scam it stays marked. A normal turn gets an LLM reply, and the reply passes a leak check before TTS speaks it.
