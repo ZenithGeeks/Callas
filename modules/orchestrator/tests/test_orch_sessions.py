@@ -1,10 +1,10 @@
 import json
 
 import pytest
-from conftest import FakeSpeaker
 
 from asr_diarization import pipeline
 from asr_diarization.types import Transcript, Turn
+from conftest import FakeSpeaker
 from llm_serving.fake import FakeLLM
 from orchestrator import CallSessions, Runtime, to_jsonable
 

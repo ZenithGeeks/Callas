@@ -31,6 +31,9 @@ tts = [
     "pythaitts>=0.6",
     "fastthaig2p[tts] @ git+https://github.com/awslabs/FastThaiG2P.git",
 ]
+dspy = [
+    "dspy>=3.4",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.6",
@@ -56,4 +59,4 @@ target-version = "py310"
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["asr_diarization", "callas_settings", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend"]
+known-first-party = ["asr_diarization", "callas_settings", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend", "conftest"]

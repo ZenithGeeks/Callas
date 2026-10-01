@@ -2,7 +2,6 @@ import base64
 import json
 
 from conftest import FakeSpeaker
-
 from llm_serving.fake import FakeLLM
 from orchestrator import CallSessions, Runtime
 from orchestrator.live import LiveCall

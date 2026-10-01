@@ -1,6 +1,5 @@
-from conftest import FakeSpeaker
-
 from asr_diarization.types import Turn
+from conftest import FakeSpeaker
 from llm_serving.fake import FakeLLM
 from orchestrator import CallSessions, Runtime
 from orchestrator.graph import route_after_decide
