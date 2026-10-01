@@ -1,0 +1,55 @@
+{# The parts of the simulated-call result that change while it streams. Each macro is rendered
+   on the server and sent as one server-sent event (event name = macro name). #}
+{% import "partials/_ui.html" as ui %}
+
+{% macro stages(view, fresh) %}
+{% for s in view.stages() %}{{ ui.stage(s.n, s.name, s.desc, s.state, s.right) }}{% endfor %}
+{%- endmacro %}
+
+{% macro verdict(view, fresh) %}
+{% if view.error %}
+<section class="border-[3px] border-ink px-5 py-8 lg:px-10" role="alert">
+  <p class="font-display text-[34px] font-bold leading-[1.2]">The call could not be read</p>
+  <p class="mt-2 text-[18px] leading-[1.6] text-muted">{{ view.error }}</p>
+</section>
+{% else %}
+{% set b = view.band(fresh) %}
+{% if b %}{{ ui.band(b) }}{% else %}{{ ui.placeholder("Reading the call", "The verdict appears as soon as the first turn is checked.") }}{% endif %}
+{% endif %}
+{%- endmacro %}
+
+{% macro strip(view, fresh) %}
+{% if view.turns %}
+{% for c in view.columns() %}{{ ui.strip_col(c.n, c.who, c.state, c.height, "reading", c.n == view.esc_turn, fresh) }}{% endfor %}
+{% else %}
+<p class="w-full border border-dashed border-rule px-4 py-10 text-center text-[15px] text-muted">Turns appear after the recording is read.</p>
+{% endif %}
+{%- endmacro %}
+
+{% macro transcript(view, fresh) %}
+{% for t in view.turns %}
+{% if t.status == 'scam' %}{% set tag, tone = 'Escalated here', 'alarm' %}
+{% elif t.status == 'held' %}{% set tag, tone = 'Held', '' %}
+{% elif t.status == 'reading' %}{% set tag, tone = 'Reading', '' %}
+{% else %}{% set tag, tone = '', '' %}{% endif %}
+{{ ui.trow(t.n, t.speaker, fmt_time(t.start), segments(t.text, view.entities), 'pending' if t.status == 'reading' else t.status, tag, tone, t.n == view.esc_turn, fresh) }}
+{% else %}
+<li class="py-6 text-[15px] text-muted">The transcript appears after the recording is read.</li>
+{% endfor %}
+{%- endmacro %}
+
+{% macro entities(view, fresh) %}
+{{ ui.entity_list(entity_rows(view.entities)) }}
+{%- endmacro %}
+
+{% macro summary(view, fresh) %}
+{{ ui.summary_box(view.summary) }}
+{%- endmacro %}
+
+{% macro log(view, fresh) %}
+{% for e in view.log() %}
+<li class="{% if e.kind == 'alarm' %}text-alarm{% else %}text-muted{% endif %}"><span class="font-num">{{ e.range }}</span> &nbsp;{{ e.text }} {{ ui.arrow_icon() }} {{ e.outcome }}</li>
+{% else %}
+<li class="text-muted">Each turn's decision appears here.</li>
+{% endfor %}
+{%- endmacro %}

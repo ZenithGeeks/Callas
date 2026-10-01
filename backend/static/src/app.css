@@ -1,0 +1,739 @@
+/* Callas stylesheet source. Build: see backend/README.md */
+@import "tailwindcss";
+@config "../../tailwind.config.js";
+@source "../../templates";
+@source "../js";
+
+/* ---- fonts: self-hosted, subset files from @fontsource (Kanit, Sarabun) ---- */
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/kanit-thai-500-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/kanit-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/kanit-thai-600-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/kanit-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/kanit-thai-700-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/kanit-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/kanit-thai-900-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Kanit";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/kanit-latin-900-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sarabun-thai-400-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sarabun-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sarabun-thai-400-italic.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sarabun-latin-400-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/sarabun-thai-600-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/sarabun-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/sarabun-thai-700-normal.woff2") format("woff2");
+  unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC;
+}
+@font-face {
+  font-family: "Sarabun";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/sarabun-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+:root {
+  --ink: #111111;
+  --stock: #ffffff;
+  --alarm: #cf2a14;
+  --alarm-deep: #a31f0c;
+  --alarm-tint: #fbe4df;
+  --safe: #0f7b5f;
+  --safe-tint: #e2f1ea;
+  --rule: #d9d6cf;
+  --muted: #55534e;
+  --paper: #f2f1ee;
+  color-scheme: light;
+}
+
+/* ---- base: browser surfaces ---------------------------------------------------------- */
+
+@layer base {
+  html {
+    background: var(--stock);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--stock);
+    color: var(--ink);
+    font-family: "Sarabun", "Leelawadee UI", Tahoma, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    caret-color: var(--alarm);
+  }
+  :lang(th) {
+    line-height: 1.6;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    border-radius: 0;
+    font: inherit;
+    color: inherit;
+    caret-color: var(--alarm);
+  }
+  ::selection {
+    background: var(--alarm-tint);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
+  a {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink) var(--paper);
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: var(--paper);
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--ink);
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+.font-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- buttons -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 20px;
+  font-family: "Kanit", "Sarabun", sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1;
+  border: 2px solid var(--ink);
+  background: var(--stock);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--ink);
+  color: #fff;
+}
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.htmx-request .btn-primary {
+  opacity: 0.7;
+}
+
+/* ---- the slip (3px ink box) ------------------------------------------------------------ */
+
+.slip {
+  border: 3px solid var(--ink);
+  background: var(--stock);
+}
+
+/* ---- numbered stage squares ------------------------------------------------------------- */
+
+.stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
+}
+.stage:first-child {
+  border-top: 0;
+}
+.stage-box {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--ink);
+  background: var(--stock);
+  color: var(--ink);
+  font-family: "Kanit", sans-serif;
+  font-weight: 900;
+  font-size: 28px;
+  line-height: 1;
+}
+.stage[data-state="busy"] .stage-box {
+  border-style: dashed;
+}
+.stage[data-state="scam"] .stage-box {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  color: #fff;
+}
+.stage[data-state="safe"] .stage-box {
+  background: var(--safe);
+  border-color: var(--safe);
+  color: #fff;
+}
+.stage-name {
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.3;
+}
+.stage[data-state="scam"] .stage-name {
+  color: var(--alarm);
+}
+.stage[data-state="safe"] .stage-name {
+  color: var(--safe);
+}
+.stage-desc {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.stage-right {
+  margin-left: auto;
+  flex: none;
+  padding-top: 14px;
+  font-family: "Kanit", sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.stage-right[data-tone="live"] {
+  color: var(--alarm);
+  font-weight: 600;
+}
+
+/* ---- turn strip -------------------------------------------------------------------------- */
+
+.well {
+  position: relative;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+@media (min-width: 1024px) {
+  .well {
+    height: 150px;
+  }
+}
+.bar {
+  width: 100%;
+  height: 100%;
+}
+.bar[data-state="normal"] {
+  background: var(--safe);
+  height: var(--h, 40%);
+}
+.bar[data-state="scam"] {
+  background: var(--alarm);
+}
+.bar[data-state="held"] {
+  background: var(--alarm-tint);
+  border: 2px dashed var(--alarm);
+}
+.bar[data-state="live"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed var(--ink);
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+.bar[data-state="live"] span {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .bar[data-state="live"] span {
+    display: inline;
+  }
+}
+.bar[data-state="idle"] {
+  border: 1px dashed var(--rule);
+}
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: -3px;
+}
+
+/* ---- transcript rows -------------------------------------------------------------------- */
+
+.trow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 18px 0;
+  border-top: 1px solid var(--rule);
+}
+.trow:first-child {
+  border-top: 0;
+}
+.trow-head {
+  display: contents;
+}
+.trow-label {
+  display: none;
+}
+@media (min-width: 640px) {
+  .trow {
+    grid-template-columns: 40px 64px minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  .trow-label {
+    display: block;
+  }
+}
+.badge {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  background: var(--stock);
+  color: var(--ink);
+  font-family: "Kanit", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+}
+@media (min-width: 640px) {
+  .badge {
+    width: 40px;
+    height: 40px;
+  }
+}
+.trow[data-speaker="B"] .badge {
+  background: var(--ink);
+  color: #fff;
+}
+.trow-turn {
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.trow-time {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.trow-text {
+  font-size: 19px;
+  line-height: 32px;
+  padding-right: 70px;
+  overflow-wrap: anywhere;
+}
+.trow[data-state="pending"] .trow-text {
+  color: var(--muted);
+}
+.trow[data-state="partial"] .trow-text {
+  font-style: italic;
+  color: var(--muted);
+}
+.trow-tag {
+  position: absolute;
+  top: 18px;
+  right: 0;
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+  background: var(--stock);
+  padding-left: 6px;
+}
+.trow-tag[data-tone="alarm"] {
+  color: var(--alarm);
+}
+.trow-tag[data-tone="safe"] {
+  color: var(--safe);
+}
+.trow-tag:empty {
+  display: none;
+}
+
+/* partial text caret: functional blink */
+.caret {
+  display: inline-block;
+  width: 3px;
+  height: 1.15em;
+  margin-left: 3px;
+  vertical-align: -0.2em;
+  background: var(--alarm);
+  animation: caret-blink 1s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---- entities -------------------------------------------------------------------------- */
+
+.ent {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+}
+.ent[data-tone="alarm"] {
+  text-decoration-color: var(--alarm);
+}
+.ent[data-tone="ink"] {
+  text-decoration-color: var(--ink);
+}
+.erow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  min-height: 50px;
+}
+.erow:first-child {
+  border-top: 0;
+}
+.etag {
+  flex: none;
+  padding: 2px 8px;
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--paper);
+  color: var(--ink);
+}
+.etag[data-tone="alarm"] {
+  background: var(--alarm-tint);
+  color: var(--alarm);
+}
+.evalue {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+/* ---- verdict band ---------------------------------------------------------------------- */
+
+.band {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  container-type: inline-size;
+}
+.band[data-kind="scam"] {
+  background: var(--alarm);
+}
+.band[data-kind="safe"] {
+  background: var(--safe);
+}
+.band[data-kind="unsure"] {
+  background: var(--ink);
+}
+.band-grid {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  gap: 32px;
+}
+.band-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.band-facts {
+  flex: 0 0 240px;
+  padding-top: 4px;
+}
+.band-inline {
+  display: none;
+}
+/* the word, its icon and the facts can never overlap: stack, then drop the facts */
+@container (max-width: 760px) {
+  .band-grid {
+    flex-direction: column;
+    gap: 24px;
+  }
+  .band-facts {
+    flex: 0 0 auto;
+  }
+}
+@container (max-width: 600px) {
+  .band-facts {
+    display: none;
+  }
+  .band-inline {
+    display: block;
+  }
+}
+.verdict-row {
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
+  font-size: clamp(56px, 13cqi, 128px);
+}
+.verdict-icon {
+  flex: none;
+  width: 0.6em;
+  height: 0.52em;
+}
+.verdict-word {
+  font-family: "Kanit", sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  font-size: 1em;
+  line-height: 0.94;
+}
+.verdict-sub {
+  font-family: "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: clamp(22px, 3.7cqi, 34px);
+  line-height: 1.25;
+}
+.big-fact {
+  font-family: "Kanit", sans-serif;
+  font-weight: 900;
+  font-size: 56px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the one authored moment: SCAM wipe-in and the pen circles ---------------------------- */
+
+.pen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pen ellipse {
+  stroke-dasharray: 6000;
+  stroke-dashoffset: 0;
+}
+
+@keyframes band-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes pen-draw {
+  from {
+    stroke-dashoffset: 6000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.band.is-fresh {
+  animation: band-wipe 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.is-fresh .pen ellipse {
+  animation: pen-draw 650ms ease-out both;
+}
+.is-fresh .pen ellipse:last-child {
+  animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .band.is-fresh,
+  .is-fresh .pen ellipse {
+    animation: none;
+  }
+  .caret {
+    animation: none;
+  }
+}
+
+/* ---- live level meter and reply player -------------------------------------------------- */
+
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 56px;
+}
+.meter i {
+  display: block;
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 6px;
+  background: var(--ink);
+}
+.meter i[data-off] {
+  background: var(--rule);
+}
+.status-dot {
+  width: 14px;
+  height: 14px;
+  background: var(--muted);
+  flex: none;
+}
+[data-listening="true"] .status-dot {
+  background: var(--alarm);
+}
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 40px;
+}
+.wave i {
+  display: block;
+  width: 3px;
+  background: var(--ink);
+}
+.wave i[data-off] {
+  background: var(--rule);
+}
+
+.field {
+  display: block;
+  width: 100%;
+  border: 3px solid var(--ink);
+  background: var(--stock);
+  padding: 16px 18px;
+  font-size: 19px;
+  line-height: 32px;
+  resize: vertical;
+  min-height: 190px;
+}
+.field::placeholder {
+  color: var(--muted);
+}
+
+.htmx-indicator {
+  display: none;
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: inline;
+}
