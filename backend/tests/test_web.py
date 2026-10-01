@@ -167,3 +167,28 @@ def test_ws_live_demo_ready_to_ended(client):
     assert [r["turn"] for r in replies] == [3]
     buf = io.BytesIO(__import__("base64").b64decode(replies[0]["audio_wav_b64"]))
     assert wave.open(buf).getframerate() == 16000
+
+
+def test_finished_run_text_and_stale_uploads_expire(tmp_path, monkeypatch):
+    """A finished run's snapshot holds call text: it must not outlive the reconnect window."""
+    from backend import call_run
+
+    clock = [1000.0]
+    monkeypatch.setattr(call_run.time, "monotonic", lambda: clock[0])
+    reg = call_run.RunRegistry()
+    done_file, idle_file = tmp_path / "done.wav", tmp_path / "idle.wav"
+    done_file.write_bytes(b"x")
+    idle_file.write_bytes(b"x")
+    done = reg.create(str(done_file), "done.wav")
+    done.started, done.finished, done.finished_at = True, True, clock[0]
+    done.snapshot = {"transcript": "call text"}
+    idle = reg.create(str(idle_file), "idle.wav")
+
+    clock[0] += call_run.RunRegistry.FINISHED_TTL + 1
+    assert reg.get(done.id) is None and done.snapshot == {}
+    assert not done_file.exists()
+    assert reg.get(idle.id) is idle  # still inside its pending window
+
+    clock[0] += call_run.RunRegistry.PENDING_TTL
+    assert reg.get(idle.id) is None
+    assert not idle_file.exists()

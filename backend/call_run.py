@@ -281,34 +281,46 @@ class Run:
     id: str
     path: str | None
     filename: str
-    created: float = field(default_factory=time.monotonic)
+    created: float = field(default_factory=lambda: time.monotonic())
     started: bool = False
     finished: bool = False
+    finished_at: float = 0.0
     snapshot: dict[str, str] = field(default_factory=dict)
 
 
 class RunRegistry:
-    """Pending and finished runs, kept in memory for an hour. Holds no call text."""
+    """Pending and finished runs. A finished run's snapshot holds call text (the rendered
+    transcript), so it lives only long enough for a browser reconnect, then it is dropped
+    with its temp file. Call memory is deleted when the call ends."""
 
-    TTL = 3600.0
+    PENDING_TTL = 300.0  # an upload whose event stream never opened
+    FINISHED_TTL = 60.0  # reconnect window for a finished run's final picture
 
     def __init__(self) -> None:
         self._runs: dict[str, Run] = {}
 
-    def create(self, path: str | None, filename: str) -> Run:
+    def sweep(self) -> None:
         now = time.monotonic()
         for rid, r in list(self._runs.items()):
-            if now - r.created > self.TTL:
+            if r.finished and now - r.finished_at > self.FINISHED_TTL:
                 self.drop(rid)
+            elif not r.started and now - r.created > self.PENDING_TTL:
+                self.drop(rid)
+
+    def create(self, path: str | None, filename: str) -> Run:
+        self.sweep()
         run = Run(uuid.uuid4().hex, path, filename)
         self._runs[run.id] = run
         return run
 
     def get(self, run_id: str) -> Run | None:
+        self.sweep()
         return self._runs.get(run_id)
 
     def drop(self, run_id: str) -> None:
         run = self._runs.pop(run_id, None)
+        if run:
+            run.snapshot = {}
         if run and run.path:
             Path(run.path).unlink(missing_ok=True)
 

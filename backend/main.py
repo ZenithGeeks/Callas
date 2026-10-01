@@ -17,6 +17,7 @@ import logging  # noqa: E402
 import os  # noqa: E402
 import tempfile  # noqa: E402
 import threading  # noqa: E402
+import time  # noqa: E402
 from collections.abc import AsyncIterator  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 
@@ -314,6 +315,7 @@ async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]
         view.finish()
         run.snapshot = _render_regions(view, False)
         run.finished = True
+        run.finished_at = time.monotonic()
         yield _sse("done", "done")
     finally:
         stop.set()
