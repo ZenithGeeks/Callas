@@ -1,0 +1,6 @@
+{# Result shell for one simulated call. It opens the event stream; each region below is
+   replaced by the server-sent event of the same name (see call_regions.html). #}
+{% import "partials/_ui.html" as ui %}
+<div class="contents" hx-ext="sse" sse-connect="/call/{{ run.id }}/events" sse-close="done">
+  {% include "partials/call_layout.html" %}
+</div>

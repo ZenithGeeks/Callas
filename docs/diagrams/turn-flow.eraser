@@ -1,0 +1,76 @@
+// Callas decision flow (Eraser flowchart)
+// The LLM never decides between warning and replying. Fixed rules do.
+title Callas decision flow
+direction down
+colorMode bold
+styleMode plain
+typeface clean
+
+Start [shape: oval, icon: play, label: "Input arrives"]
+Input type [shape: diamond, icon: help-circle, label: "Message or call?"]
+
+Message [color: gray] {
+  Analyze message [icon: file-text, label: "NER, summary, scam check"]
+  Show message verdict [shape: oval, icon: flag, label: "Show verdict: safe, suspicious, or scam"]
+}
+
+Audio in [color: teal] {
+  Audio source [shape: diamond, icon: mic, label: "Recording or live mic?"]
+  Transcribe file [icon: file-audio, label: "Transcribe and split speakers"]
+  Stream mic [icon: radio, label: "Stream text while caller speaks"]
+  Silence [shape: diamond, icon: pause, label: "0.8 s of silence or 15 s turn?"]
+  Next turn [icon: corner-down-right, label: "Next turn"]
+}
+
+Turn [color: purple] {
+  Remember [icon: layers, label: "Add turn to call memory"]
+  Analyze turn [icon: cpu, label: "NER, summary, scam check on whole call so far"]
+  Already escalated [shape: diamond, icon: alert-triangle, label: "Call already escalated?"]
+  Scam found [shape: diamond, icon: shield, label: "Scam, or answer unknown?"]
+}
+
+Warn [color: red] {
+  Escalate [icon: alert-octagon, label: "Mark call escalated (stays until call ends)"]
+  Warn user [shape: oval, icon: bell, label: "Warn user, no reply"]
+}
+
+Reply [color: green] {
+  Ask LLM [icon: message-circle, label: "LLM writes short reply"]
+  Reply usable [shape: diamond, icon: check-circle, label: "Reply returned, under 200 chars?"]
+  Leak check [shape: diamond, icon: lock, label: "Free of numbers, names, links, call data?"]
+  Use template [icon: file, label: "Use fixed template"]
+  Speak [icon: volume-2, label: "Speak reply (mic paused while it plays)"]
+}
+
+Call over [shape: diamond, icon: phone-off, label: "Call ended?"]
+Delete memory [shape: oval, icon: trash-2, label: "Delete call memory"]
+
+Start > Input type
+Input type > Analyze message: message
+Analyze message > Show message verdict
+Input type > Audio source: call
+Audio source > Transcribe file: recording
+Audio source > Stream mic: live
+Stream mic > Silence
+Silence > Stream mic: no
+Silence > Remember: yes
+Transcribe file > Remember: each turn in order
+Remember > Analyze turn
+Analyze turn > Already escalated
+Already escalated > Warn user: yes
+Already escalated > Scam found: no
+Scam found > Escalate: yes
+Escalate > Warn user
+Scam found > Ask LLM: no
+Ask LLM > Reply usable
+Reply usable > Use template: no
+Reply usable > Leak check: yes
+Leak check > Use template: no
+Leak check > Speak: yes
+Use template > Speak
+Warn user > Call over
+Speak > Call over
+Call over > Next turn: no
+Next turn > Stream mic: live
+Next turn > Remember: recording, next turn
+Call over > Delete memory: yes

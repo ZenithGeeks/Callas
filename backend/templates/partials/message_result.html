@@ -1,0 +1,28 @@
+{# Result of one message check. Replaces the contents of #result. #}
+{% import "partials/_ui.html" as ui %}
+{{ ui.band(band) }}
+
+<div class="mt-10 grid gap-x-8 gap-y-10 lg:mt-12 xl:grid-cols-[minmax(0,1fr)_340px]">
+  <div class="min-w-0">
+    <section aria-labelledby="read-h">
+      <div class="sec-rule"><h2 id="read-h" class="sec-h">Message, read</h2></div>
+      <p class="mt-4 whitespace-pre-line pb-8 text-[20px] leading-[32px]" lang="th">{{ ui.marked(segments(text, entities)) }}</p>
+    </section>
+    <section class="border-t border-rule pt-10" aria-labelledby="why-h">
+      <h2 id="why-h" class="sec-h">Why</h2>
+      {% if why %}
+      <p class="mt-4 text-[19px] leading-[32px]" lang="th">{{ why }}</p>
+      <p class="mt-3 text-[15px] leading-[1.5] text-muted">Written by the local LLM from the tool results above. It explains the verdict; fixed rules made it.</p>
+      {% else %}
+      <p class="mt-4 rounded-[12px] bg-paper px-4 py-3 text-[16px] leading-[1.6] text-muted" role="status">{{ why_error }}</p>
+      {% endif %}
+    </section>
+  </div>
+  <div class="min-w-0">
+    <section aria-labelledby="entities-h">
+      <div class="sec-rule"><h2 id="entities-h" class="sec-h">Entities</h2></div>
+      {{ ui.entity_list(entity_rows(entities), "No phone numbers, accounts, codes or links found.") }}
+    </section>
+    <div class="mt-10">{{ ui.summary_box(summary, "No summary.") }}</div>
+  </div>
+</div>

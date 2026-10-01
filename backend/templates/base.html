@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Callas{% endblock %}</title>
+<meta name="description" content="Callas checks Thai calls and messages for scams. It runs on this machine.">
+<link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+<script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/htmx-sse.min.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+{% block head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-ground font-body">
+<!--
+THESIS: Every check is issued as a numbered public warning bulletin; the verdict prints at poster scale, softened for calm reading. Refuses the dark security dashboard of gauges and glossy cards.
+OWN-WORLD: Warm off-white ground, soft white slips with faint shadows, tinted rose / sage / amber verdict panels with deep brick, green and ochre words; Kanit 600–700 headings, Sarabun bulletin text; 1px warm rules, rounded panels and pill tags, numbered stage circles, a hand-drawn pen circle on the escalation turn.
+STORY: The viewer sees what each stage produced and the exact turn where Callas escalated, then what to do.
+FIRST VIEWPORT: Left 392px: input slip and four numbered stages. Right: full-width verdict band (verdict word up to 88px) above the turn strip. Primary action in the input slip.
+FORM: Public warning bulletin, grounded list position 4, seed 9c7560f1.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+{% set tabs = [('message', '/message', 'Check a message'), ('call', '/call', 'Simulate a call'), ('live', '/live', 'Live call')] %}
+<header class="border-b border-rule">
+  <div class="mx-auto flex h-[128px] lg:h-[140px] max-w-[1536px] items-center px-4 lg:px-12">
+    <a href="/message" class="font-display font-bold text-[26px] lg:text-[28px] leading-none tracking-[-0.02em] text-ink no-underline">Callas</a>
+    <nav aria-label="Pages" class="ml-12 hidden lg:flex items-center gap-8">
+      {% for key, href, label in tabs %}
+      <a href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}
+         class="tab font-display text-[17px] leading-none no-underline {% if key == active %}font-semibold text-ink{% else %}font-medium text-muted hover:text-ink{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <p class="ml-auto hidden lg:block text-[15px] text-muted">Runs on this machine. Call text never leaves it.</p>
+    <details class="relative ml-auto lg:hidden">
+      <summary class="cursor-pointer list-none font-display font-semibold text-[16px] leading-none text-ink py-3">
+        {% for key, href, label in tabs %}{% if key == active %}{{ label }}{% endif %}{% endfor %}
+      </summary>
+      <div class="absolute right-0 top-full z-20 mt-1 w-[220px] rounded-[16px] border border-rule bg-surface shadow-[0_1px_2px_rgba(28,27,25,.05),0_6px_20px_rgba(28,27,25,.05)] overflow-hidden">
+        {% for key, href, label in tabs %}
+        <a href="{{ href }}" class="block px-4 py-3 font-display text-[16px] no-underline {% if key == active %}font-semibold text-ink bg-paper{% else %}font-medium text-muted{% endif %}">{{ label }}</a>
+        {% endfor %}
+        <p class="border-t border-rule px-4 py-3 text-[14px] text-muted">Runs on this machine. Call text never leaves it.</p>
+      </div>
+    </details>
+  </div>
+</header>
+<main class="mx-auto max-w-[1536px] px-4 pb-20 pt-6 lg:px-12 lg:pt-11">
+{% block main %}{% endblock %}
+</main>
+</body>
+</html>

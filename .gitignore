@@ -29,3 +29,6 @@ eval/results/*.png
 .idea/
 .DS_Store
 Thumbs.db
+
+# Impeccable decision-page scratch files
+.impeccable/questions/

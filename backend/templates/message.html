@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "partials/_ui.html" as ui %}
+{% block title %}Check a message | Callas{% endblock %}
+{% block main %}
+<div class="grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-[392px_minmax(0,1fr)]">
+  <section aria-labelledby="message-h" class="lg:col-start-1">
+    <h2 id="message-h" class="sec-h">Message</h2>
+    <p class="mt-3 text-[16px] leading-[1.6] text-muted">Paste a text, SMS or chat message in Thai.</p>
+    <form id="message-form" class="mt-5" hx-post="/message/check" hx-target="#result" hx-swap="innerHTML" hx-indicator="#checking" hx-disabled-elt="find button[type=submit]" autocomplete="off">
+      <label for="text" class="sr-only">Message text</label>
+      <textarea id="text" name="text" class="field" lang="th" rows="6" required aria-describedby="count form-error" data-max="{{ max_chars }}"></textarea>
+      <p id="count" class="mt-3 text-[14px] leading-[1.5] text-muted"><span class="font-num" data-count>0</span> characters · limit {{ max_chars }} ·
+        <button type="button" class="underline underline-offset-4" data-fill="แจ้งเตือน: บัญชีของท่านถูกระงับชั่วคราว กรุณายืนยันตัวตนที่ https://bank-verify.co/th ภายใน 24 ชม. หรือส่งรหัส OTP ที่ได้รับกลับมาที่เบอร์ 062-555-0147">use the synthetic demo message</button></p>
+      <div id="form-error" class="mt-4 empty:hidden" aria-live="assertive"></div>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button type="submit" class="btn btn-primary">Check message<span class="htmx-indicator" id="checking">&nbsp;...</span></button>
+        <button type="button" class="btn" data-clear>Clear</button>
+      </div>
+      <p class="mt-5 text-[15px] leading-[1.5] text-muted">Messages are checked once. They are not stored.</p>
+    </form>
+  </section>
+
+  <div id="result" class="min-w-0 lg:col-start-2">
+    {{ ui.placeholder("No result yet", "Paste a message and press Check message. The verdict prints here, with the words that gave it away.") }}
+  </div>
+</div>
+{% endblock %}

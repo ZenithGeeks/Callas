@@ -1,0 +1,109 @@
+"""WebSocket glue for the live call.
+
+The browser sends PCM16 LE mono 16 kHz frames (binary) and JSON controls
+{"type": "pause" | "resume" | "end"}. The server forwards LiveCall.poll_events() as JSON.
+
+The LiveCall interface (feed, pause, resume, poll_events, end) comes from orchestrator.live
+when it exists; otherwise, and in demo mode, DemoLiveCall plays a scripted call.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import logging
+import os
+from typing import Any
+
+from fastapi import WebSocket, WebSocketDisconnect
+from starlette.concurrency import run_in_threadpool
+
+from .live_demo import DemoLiveCall
+
+log = logging.getLogger(__name__)
+
+POLL_SECONDS = 0.1
+
+
+def live_backend_name(app_rt) -> str:
+    """ "real" when orchestrator.live is importable and we are not in demo mode, else "demo"."""
+    if app_rt.is_demo:
+        return "demo"
+    try:
+        from orchestrator import live  # noqa: F401
+    except ImportError:
+        return "demo"
+    return "real"
+
+
+def make_live_call(app_rt) -> Any:
+    if live_backend_name(app_rt) == "real":
+        from orchestrator.live import LiveCall
+
+        return LiveCall(app_rt.sessions)
+    return DemoLiveCall(speed=float(os.environ.get("CALLAS_LIVE_SPEED", "1")))
+
+
+async def serve(ws: WebSocket, call: Any) -> None:
+    ended = False
+
+    async def pump() -> None:
+        nonlocal ended
+        while not ended:
+            try:
+                events = await run_in_threadpool(call.poll_events)
+                for ev in events:
+                    await ws.send_json(ev)
+                    if ev.get("type") == "ended":
+                        ended = True
+            except (WebSocketDisconnect, RuntimeError):
+                return
+            except Exception:
+                log.exception("live call failed")
+                with contextlib.suppress(Exception):
+                    await ws.send_json(
+                        {"type": "error", "turn": None, "message": "The live call stopped."}
+                    )
+                return
+            if not ended:
+                await asyncio.sleep(POLL_SECONDS)
+
+    pump_task = asyncio.create_task(pump())
+    recv: asyncio.Future | None = None
+    try:
+        while True:
+            if recv is None:
+                recv = asyncio.ensure_future(ws.receive())
+            await asyncio.wait({recv, pump_task}, return_when=asyncio.FIRST_COMPLETED)
+            if not recv.done():
+                break  # the pump finished (call ended or failed)
+            msg, recv = recv.result(), None
+            if msg["type"] == "websocket.disconnect":
+                break
+            if msg.get("bytes") is not None:
+                await run_in_threadpool(call.feed, msg["bytes"])
+                continue
+            try:
+                kind = json.loads(msg.get("text") or "").get("type")
+            except (ValueError, AttributeError):
+                kind = None
+            if kind == "pause":
+                await run_in_threadpool(call.pause)
+            elif kind == "resume":
+                await run_in_threadpool(call.resume)
+            elif kind == "end":
+                await run_in_threadpool(call.end)
+                break
+            else:
+                await ws.send_json({"type": "error", "turn": None, "message": "Unknown message."})
+        # after end(), poll_events returns the closing events, including "ended"
+        await asyncio.wait_for(pump_task, timeout=5)
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
+    finally:
+        if recv is not None:
+            recv.cancel()
+        pump_task.cancel()
+        with contextlib.suppress(Exception):
+            await run_in_threadpool(call.end)
