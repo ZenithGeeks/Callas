@@ -192,3 +192,21 @@ def test_finished_run_text_and_stale_uploads_expire(tmp_path, monkeypatch):
     clock[0] += call_run.RunRegistry.PENDING_TTL
     assert reg.get(idle.id) is None
     assert not idle_file.exists()
+
+
+def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
+    """An upload whose stream never opens must not outlive the server process."""
+    from fastapi.testclient import TestClient
+
+    from backend import main
+
+    monkeypatch.setattr(main, "UPLOAD_DIR", tmp_path / "uploads")
+    stale = tmp_path / "uploads"
+    stale.mkdir()
+    (stale / "callas-old.wav").write_bytes(b"x")  # left by a crashed run
+    with TestClient(main.app) as client:
+        assert not (stale / "callas-old.wav").exists()  # cleared at startup
+        r = client.post("/call/simulate")  # demo mode: creates a temp file, stream never opened
+        assert r.status_code == 200
+        assert list(stale.iterdir())
+    assert list(stale.iterdir()) == []  # cleared at shutdown
