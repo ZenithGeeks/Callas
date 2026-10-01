@@ -385,7 +385,7 @@
 .trow {
   position: relative;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   column-gap: 14px;
   padding: 18px 0;
   border-top: 1px solid var(--rule);
@@ -401,7 +401,7 @@
 }
 @media (min-width: 640px) {
   .trow {
-    grid-template-columns: 40px 64px minmax(0, 1fr);
+    grid-template-columns: 40px 64px minmax(0, 1fr) auto;
     column-gap: 16px;
   }
   .trow-label {
@@ -447,7 +447,6 @@
 .trow-text {
   font-size: 19px;
   line-height: 32px;
-  padding-right: 70px;
   overflow-wrap: anywhere;
 }
 .trow[data-state="pending"] .trow-text {
@@ -457,17 +456,20 @@
   font-style: italic;
   color: var(--muted);
 }
+/* own grid column: the tag never covers transcript text */
 .trow-tag {
-  position: absolute;
-  top: 18px;
-  right: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--stock);
+  padding-left: 6px;
+  align-self: start;
+  padding-top: 6px;
+  white-space: nowrap;
   font-family: "Kanit", sans-serif;
   font-weight: 600;
   font-size: 13px;
   line-height: 1.4;
   color: var(--muted);
-  background: var(--stock);
-  padding-left: 6px;
 }
 .trow-tag[data-tone="alarm"] {
   color: var(--alarm);
