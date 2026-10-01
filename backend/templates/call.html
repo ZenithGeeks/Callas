@@ -4,7 +4,7 @@
 {% block main %}
 <div class="grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-[392px_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-y-12">
   <form id="call-form" class="slip p-5 lg:col-start-1 lg:row-start-1" hx-post="/call/simulate" hx-encoding="multipart/form-data" hx-target="#call-run" hx-swap="innerHTML" hx-trigger="submit, change from:#audio" hx-disabled-elt="find button[type=submit]">
-    <h2 class="font-display text-[22px] font-bold leading-[1.3]">Call recording</h2>
+    <h2 class="sec-h">Call recording</h2>
     <label for="audio" class="sr-only">Call recording file</label>
     <input id="audio" name="audio" type="file" accept=".wav,.mp3,.m4a,.ogg,audio/*" class="sr-only" data-max-mb="{{ max_mb }}">
     <p class="mt-4 break-all text-[17px] font-semibold leading-[1.4]" data-file-name>{% if demo %}No file chosen. Demo call ready.{% else %}No file chosen.{% endif %}</p>

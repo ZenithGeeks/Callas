@@ -2,8 +2,8 @@
    When `regions` is given they are filled; otherwise this is the empty state. #}
 {% import "partials/_ui.html" as ui %}
 <section class="max-lg:order-3 lg:col-start-1 lg:row-start-2" aria-labelledby="pipeline-h">
-  <h2 id="pipeline-h" class="font-display text-[24px] font-bold leading-[1.3]">Pipeline</h2>
-  <ol class="mt-5" sse-swap="stages">
+  <h2 id="pipeline-h" class="sec-h">Pipeline</h2>
+  <ol class="mt-3" sse-swap="stages">
     {% if regions %}{{ regions.stages }}{% else %}
     {{ ui.stage(1, "Listen", "Typhoon ASR, offline") }}
     {{ ui.stage(2, "Split speakers", "pyannote segmentation 3.0") }}
@@ -20,11 +20,11 @@
 
   <section class="mt-10 lg:mt-12" aria-labelledby="strip-h">
     <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-      <h2 id="strip-h" class="font-display text-[24px] font-bold leading-[1.3]">Turn by turn</h2>
+      <h2 id="strip-h" class="sec-h">Turn by turn</h2>
       <p class="text-[15px] leading-[1.5] text-muted">Each turn is checked with the whole call so far.</p>
     </div>
-    <div class="mt-5 flex gap-[6px] lg:gap-[7px]" sse-swap="strip">
-      {% if regions %}{{ regions.strip }}{% else %}<p class="w-full border border-dashed border-rule px-4 py-10 text-center text-[15px] text-muted">Turns appear here as they are checked.</p>{% endif %}
+    <div class="mt-3 flex gap-[6px] lg:gap-[7px]" sse-swap="strip">
+      {% if regions %}{{ regions.strip }}{% else %}<p class="w-full rounded-[12px] border border-dashed border-rule-strong px-4 py-10 text-center text-[15px] text-muted">Turns appear here as they are checked.</p>{% endif %}
     </div>
     {{ ui.legend() }}
   </section>
@@ -38,12 +38,12 @@
     </section>
     <div class="min-w-0">
       <section aria-labelledby="entities-h">
-        <div class="border-b-[3px] border-ink pb-3"><h2 id="entities-h" class="font-display text-[24px] font-bold leading-[1.3]">Entities</h2></div>
+        <div class="sec-rule"><h2 id="entities-h" class="sec-h">Entities</h2></div>
         <div sse-swap="entities">{% if regions %}{{ regions.entities }}{% else %}{{ ui.entity_list([]) }}{% endif %}</div>
       </section>
-      <div class="mt-8" sse-swap="summary">{% if regions %}{{ regions.summary }}{% else %}{{ ui.summary_box("") }}{% endif %}</div>
-      <section class="mt-8" aria-labelledby="log-h">
-        <h2 id="log-h" class="font-display text-[24px] font-bold leading-[1.3]">Decision log</h2>
+      <div class="mt-10" sse-swap="summary">{% if regions %}{{ regions.summary }}{% else %}{{ ui.summary_box("") }}{% endif %}</div>
+      <section class="mt-10" aria-labelledby="log-h">
+        <h2 id="log-h" class="sec-h">Decision log</h2>
         <ul class="mt-3 space-y-1 text-[15px] leading-[1.6]" sse-swap="log">
           {% if regions %}{{ regions.log }}{% else %}<li class="text-muted">Each turn's decision appears here.</li>{% endif %}
         </ul>

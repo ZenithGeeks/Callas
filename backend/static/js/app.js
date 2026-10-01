@@ -88,3 +88,75 @@
     });
   }
 })();
+
+/* ---- motion hooks ---------------------------------------------------------------------
+   Content is always visible. These only add a trigger class (see "motion" in app.css) when a
+   region swap brings something genuinely new: a verdict that changed, a first-time row, bar
+   or finished stage. Server pages only; live.js does the same for the live page. */
+(function () {
+  "use strict";
+  if (!window.MutationObserver) return;
+
+  var seen = new WeakMap(); // region element -> Set of keys already shown
+  var bandKey = new WeakMap(); // verdict slot -> "kind|word" last shown
+
+  function keys(region) {
+    var set = seen.get(region);
+    if (!set) seen.set(region, (set = new Set()));
+    return set;
+  }
+  function regionOf(node) {
+    return node.closest("[sse-swap], #result");
+  }
+  function firstTime(node, key) {
+    var region = regionOf(node);
+    if (!region) return false;
+    var set = keys(region);
+    if (set.has(key)) return false;
+    set.add(key);
+    return true;
+  }
+
+  function handle(node, order) {
+    if (node.matches("[data-placeholder]") && node.parentElement) bandKey.delete(node.parentElement);
+
+    if (node.matches("[data-band]")) {
+      var word = node.querySelector('[data-slot="word"]');
+      var key = node.getAttribute("data-kind") + "|" + (word ? word.textContent : "");
+      var slotEl = node.parentElement;
+      var prev = bandKey.get(slotEl);
+      bandKey.set(slotEl, key);
+      if (regionOf(node) && (slotEl.id === "result" || prev !== key)) node.classList.add("is-arriving");
+    } else if (node.matches(".trow")) {
+      if (firstTime(node, "r" + node.getAttribute("data-turn"))) node.classList.add("is-new");
+    } else if (node.matches(".bar")) {
+      var col = node.closest("[data-turn]");
+      var state = node.getAttribute("data-state");
+      if ((state === "normal" || state === "scam" || state === "held") && col) {
+        if (firstTime(node, "b" + col.getAttribute("data-turn") + state)) {
+          node.style.setProperty("--i", String(Math.min(order.n++, 4)));
+          node.classList.add("is-new");
+        }
+      }
+    } else if (node.matches(".stage")) {
+      var st = node.getAttribute("data-state");
+      if (st === "done" || st === "safe" || st === "scam") {
+        if (firstTime(node, "s" + node.getAttribute("data-stage") + st)) node.classList.add("is-new");
+      }
+    }
+  }
+
+  var SEL = "[data-band], [data-placeholder], .trow, .bar, .stage";
+  new MutationObserver(function (records) {
+    var order = { n: 0 };
+    records.forEach(function (rec) {
+      rec.addedNodes.forEach(function (node) {
+        if (node.nodeType !== 1) return;
+        if (node.matches(SEL)) handle(node, order);
+        node.querySelectorAll(SEL).forEach(function (n) {
+          handle(n, order);
+        });
+      });
+    });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();

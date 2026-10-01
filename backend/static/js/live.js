@@ -94,13 +94,19 @@
     el.error.textContent = "";
     if (!message) return;
     var p = document.createElement("p");
-    p.className = "border-l-[6px] border-alarm bg-alarm-tint px-4 py-3 text-[16px] leading-[1.6] text-ink";
+    p.className = "rounded-[12px] border border-alarm-line bg-alarm-tint px-4 py-3 text-[16px] leading-[1.6] text-ink";
     p.setAttribute("role", "alert");
     p.textContent = message;
     el.error.appendChild(p);
   }
   function slot(node, name) {
     return node.querySelector('[data-slot="' + name + '"]');
+  }
+  // Restart a CSS animation that is triggered by a class (see "motion" in app.css).
+  function replay(node, cls) {
+    node.classList.remove(cls);
+    void node.offsetWidth;
+    node.classList.add(cls);
   }
 
   // ---- level meter ----------------------------------------------------------------------
@@ -139,7 +145,9 @@
   function setStage(n, state, desc, right, tone) {
     var li = el.stages.querySelector('[data-stage="' + n + '"]');
     if (!li) return;
+    var before = li.getAttribute("data-state");
     li.setAttribute("data-state", state);
+    if (state === "done" && before !== "done") replay(li, "is-new"); // the check draws once
     if (desc != null) slot(li, "desc").textContent = desc;
     var r = slot(li, "right");
     r.textContent = right || "";
@@ -153,7 +161,7 @@
     setStage(4, "idle", "Fixed rules. Reply or warn.", "");
   }
   function stagesForListening() {
-    setStage(1, "idle", null, S.listening ? "Live" : "Stopped", S.listening ? "live" : "");
+    setStage(1, S.listening ? "busy" : "idle", null, S.listening ? "Live" : "Stopped", S.listening ? "live" : "");
   }
 
   // ---- strip ----------------------------------------------------------------------------
@@ -178,8 +186,11 @@
   }
   function setBar(col, state, height) {
     var well = col.querySelector(".well");
+    // partial text arrives every ~0.5 s: keep the same "listening" bar so its breathing does not restart
+    if (state === "live" && well.querySelector('.bar[data-state="live"]')) return;
     var bar = tpl("tpl-bar-" + state);
     if (height) bar.style.setProperty("--h", height + "%");
+    if (state === "normal" || state === "scam" || state === "held") bar.classList.add("is-new"); // grows from the baseline
     well.replaceChildren(bar);
   }
   function barHeight(text) {
@@ -197,6 +208,7 @@
     var band = el.bandSlot.querySelector("[data-band]");
     if (!band || S.bandKind !== kind) {
       band = tpl("tpl-band-" + kind);
+      band.classList.add("is-arriving"); // wash + rise, only when the kind changes
       if (fresh) band.classList.add("is-fresh");
       el.bandSlot.replaceChildren(band);
       S.bandKind = kind;
@@ -286,6 +298,7 @@
     row.setAttribute("data-speaker", "");
     slot(row, "time").textContent = fmt(S.listening ? (performance.now() - S.startedAt) / 1000 : 0);
     setTag(row, "Hearing", "alarm");
+    row.classList.add("is-new");
     el.rows.appendChild(row);
     el.rowsEmpty.hidden = true;
     S.partialRow = row;
@@ -301,7 +314,7 @@
     p.appendChild(caret);
     var n = S.turns.length + 1;
     setBar(colFor(n), "live");
-    setStage(1, "idle", null, "Live", "live");
+    setStage(1, "busy", null, "Live", "live");
   }
   function whoLabel(speaker) {
     return speaker === "A" ? "You" : "Caller";
@@ -321,7 +334,7 @@
     fillText(slot(row, "text"), ev.text, S.entities);
     slot(t.col, "who").textContent = whoLabel(ev.speaker);
     setBar(t.col, "idle");
-    setStage(2, "idle", null, "Done");
+    setStage(2, "done", null, "Done");
     setStage(3, "busy", "Turn " + n + (n > 1 ? " · checking with turns 1–" + n : " · checking"), "…");
   }
   function turnFor(ev) {
@@ -363,10 +376,10 @@
       setBar(t.col, "scam");
       var rowPen = tpl("tpl-pen-row");
       t.row.classList.add("is-fresh");
-      t.row.appendChild(rowPen);
+      slot(t.row, "text").appendChild(rowPen); // circle the sentence, not the badge
       var colPen = tpl("tpl-pen-col");
       t.col.classList.add("is-fresh");
-      t.col.appendChild(colPen);
+      t.col.querySelector(".well").appendChild(colPen); // circle the bar, not its labels
       slot(t.col, "tlabel").classList.add("text-alarm");
       el.afterEsc.hidden = false;
     } else {
@@ -375,7 +388,7 @@
       setBar(t.col, "normal", barHeight(t.text));
     }
     var n = t.n;
-    setStage(3, "idle", "Checked turns 1–" + n, "Done");
+    setStage(3, "done", "Checked turns 1–" + n, "Done");
     if (S.escN != null) setStage(4, "scam", "Scam found at turn " + S.escN + ". Escalated. No reply.", "Done");
     else setStage(4, "safe", "Normal so far. Reply allowed.", "Done");
     renderBand();
@@ -407,6 +420,9 @@
     el.play.setAttribute("aria-label", playing ? "Pause the reply" : "Play the reply");
     el.play.dataset.playing = playing ? "true" : "false";
   }
+  function setProgress(fraction) {
+    el.play.style.setProperty("--p", String(Math.round(Math.min(1, Math.max(0, fraction)) * 1000) / 10));
+  }
   function bytesFromBase64(b64) {
     var bin = atob(b64);
     var bytes = new Uint8Array(bin.length);
@@ -427,6 +443,7 @@
       : (ev.template_used ? "Fixed reply passed the leak check" : "LLM reply passed the leak check") +
         " · FastThaiG2P + PyThaiTTS";
     if (S.replyUrl) URL.revokeObjectURL(S.replyUrl);
+    setProgress(0);
     if (!ev.audio_wav_b64) {
       S.replyUrl = null;
       el.audio.removeAttribute("src");
@@ -453,6 +470,7 @@
   });
   el.audio.addEventListener("ended", function () {
     setPlayIcon(false);
+    setProgress(1);
     drawWave(1);
     S.replyPlaying = false;
     syncPause();
@@ -461,6 +479,7 @@
     var d = el.audio.duration || 0;
     el.replyTime.textContent = fmt(el.audio.currentTime) + " / " + fmt(d);
     drawWave(d ? el.audio.currentTime / d : 0);
+    setProgress(d ? el.audio.currentTime / d : 0);
   });
   el.audio.addEventListener("loadedmetadata", function () {
     el.replyTime.textContent = "0:00 / " + fmt(el.audio.duration || 0);
