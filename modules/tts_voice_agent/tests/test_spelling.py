@@ -27,7 +27,6 @@ def test_clean_thai_passes(text):
 
 def test_safe_reply_uses_template_for_garbled_thai():
     from nlp_core.types import NLPResult
-
     from tts_voice_agent.memory import CallState
     from tts_voice_agent.reply import safe_reply
 
