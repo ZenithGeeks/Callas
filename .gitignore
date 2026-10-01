@@ -13,6 +13,7 @@ node_modules/
 # Secrets
 .env
 .env.*
+!.env.example
 
 # Data and model outputs
 # (data/processed/{train,dev,test}.jsonl is committed so the split stays fixed)
