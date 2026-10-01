@@ -53,7 +53,8 @@ You need Python 3.10 or newer. The scam check, summary and reply need an LLM ser
 ```bash
 # 1. Install (pick the extras you need)
 python -m venv .venv
-.venv/Scripts/activate            # Windows. On macOS or Linux: source .venv/bin/activate
+source .venv/Scripts/activate     # Windows Git Bash. PowerShell: .venv\Scripts\Activate.ps1
+                                  # macOS or Linux: source .venv/bin/activate
 pip install -e ".[asr,tts,dev]"   # add ,dspy for the DSPy reply writer
 
 # 2. Settings
