@@ -9,8 +9,7 @@ typeface clean
 Browser [icon: monitor, color: gray] {
   Check a message page [icon: message-square]
   Simulate a call page [icon: upload]
-  Live call page [icon: mic]
-  Mic capture [icon: activity, label: "Mic capture (AudioWorklet, PCM16 16 kHz)"]
+  Live call page [icon: mic, label: "Live call page (mic in, verdicts and reply out)"]
 }
 
 Web backend [icon: server, color: blue, label: "Web backend (FastAPI, Jinja, HTMX)"] {
@@ -33,39 +32,39 @@ Speech [icon: headphones, color: teal, label: "Speech (pythaiasr)"] {
   Speaker split [icon: users, label: "Speaker split (pyannote segmentation ONNX)"]
 }
 
-NLP core [icon: cpu, color: orange, label: "nlp-core slots (team plugs WangchanBERTa here)"] {
-  NER slot [icon: tag, label: "NER: rules now, WangchanBERTa later"]
-  Classifier slot [icon: shield, label: "Scam check: LLM now, WangchanBERTa later"]
-  Summarizer slot [icon: align-left, label: "Summary: LLM now, WangchanBERTa later"]
+NLP core [icon: cpu, color: orange, label: "nlp-core slots (WangchanBERTa plugs in here)"] {
+  NER slot [icon: tag, label: "NER (rules today)"]
+  Classifier slot [icon: shield, label: "Scam check (LLM today)"]
+  Summarizer slot [icon: align-left, label: "Summary (LLM today)"]
 }
 
 Voice agent [icon: shield, color: red, label: "Voice agent"] {
   Decide rules [icon: git-merge, label: "decide(): fixed rules, escalation sticks"]
-  Safe reply [icon: lock, label: "safe_reply(): leak check, else template"]
+  Redact [icon: eye-off, label: "Mask call details before the LLM"]
+  Safe reply [icon: lock, label: "safe_reply(): leak rules, else template"]
   Voice [icon: volume-2, label: "PyThaiTTS + FastThaiG2P"]
 }
 
 LLM serving [icon: box, color: green] {
   LLM client [icon: code, label: "LLMClient + versioned prompts"]
+  DSPy [icon: sliders, label: "DSPy writer + leak judge (optional)"]
   vLLM server [icon: zap, label: "vLLM server (local GPU, settings from .env)"]
 }
 
 // Browser to backend
 Check a message page > Message route: text
 Simulate a call page > Call route: audio file
-Mic capture > Live socket: audio frames
-Live socket > Live call page: partial text, verdicts, reply audio
+Live call page > Live socket: mic audio, PCM16 16 kHz
 
 // Backend to orchestrator
 Message route > Message graph
 Message route > Analyst agent: why
 Call route > File ASR
-Live socket > Live call
+Live socket > Streaming ASR: audio frames
 
 // Speech to orchestrator
 File ASR > Speaker split
 Speaker split > Call sessions: turns A/B
-Live call > Streaming ASR: audio
 Streaming ASR > Live call: closed turn
 Live call > Call sessions
 Call sessions > Turn graph: call context
@@ -76,12 +75,15 @@ Turn graph > NER slot
 Turn graph > Classifier slot
 Turn graph > Summarizer slot
 Turn graph > Decide rules: NLP result
-Decide rules > Safe reply: normal only
+Decide rules > Redact: normal only
+Redact > Safe reply: masked context
 Safe reply > Voice: checked text
 
 // LLM use
 Classifier slot > LLM client
 Summarizer slot > LLM client
 Safe reply > LLM client: reply job
+Safe reply > DSPy: REPLY_ENGINE / LEAK_JUDGE
+DSPy > vLLM server
 Analyst agent > LLM client: tool calls
 LLM client > vLLM server

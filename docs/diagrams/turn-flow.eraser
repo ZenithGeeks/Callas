@@ -35,9 +35,11 @@ Warn [color: red] {
 }
 
 Reply [color: green] {
-  Ask LLM [icon: message-circle, label: "LLM writes short reply"]
+  Mask [icon: eye-off, label: "Mask numbers, names, links from the call"]
+  Ask LLM [icon: message-circle, label: "LLM writes short reply (prompt or DSPy)"]
   Reply usable [shape: diamond, icon: check-circle, label: "Reply returned, under 200 chars?"]
-  Leak check [shape: diamond, icon: lock, label: "Free of numbers, names, links, call data?"]
+  Leak check [shape: diamond, icon: lock, label: "Leak rules pass?"]
+  Judge [shape: diamond, icon: shield, label: "DSPy judge on: says no leak?"]
   Use template [icon: file, label: "Use fixed template"]
   Speak [icon: volume-2, label: "Speak reply (mic paused while it plays)"]
 }
@@ -61,12 +63,15 @@ Already escalated > Warn user: yes
 Already escalated > Scam found: no
 Scam found > Escalate: yes
 Escalate > Warn user
-Scam found > Ask LLM: no
+Scam found > Mask: no
+Mask > Ask LLM
 Ask LLM > Reply usable
 Reply usable > Use template: no
 Reply usable > Leak check: yes
 Leak check > Use template: no
-Leak check > Speak: yes
+Leak check > Judge: yes
+Judge > Use template: no or error
+Judge > Speak: yes, or judge off
 Use template > Speak
 Warn user > Call over
 Speak > Call over
