@@ -59,4 +59,4 @@ target-version = "py310"
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["asr_diarization", "callas_settings", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend"]
+known-first-party = ["asr_diarization", "callas_settings", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend", "conftest"]
