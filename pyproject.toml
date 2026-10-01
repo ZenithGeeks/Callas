@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "callas"
+version = "0.1.0"
+description = "A guard for Thai scam calls and messages"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.4",
+    "openai>=1.40",
+    "httpx>=0.27",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+asr = [
+    "pythaiasr>=2.2",
+    "onnxruntime>=1.18",
+    "soundfile>=0.12",
+]
+tts = [
+    "pythaitts>=0.6",
+    "fastthaig2p[tts] @ git+https://github.com/awslabs/FastThaiG2P.git",
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.setuptools]
+package-dir = { "" = "modules" }
+py-modules = ["callas_settings"]
+
+[tool.setuptools.packages.find]
+where = ["modules"]
+exclude = ["*.tests", "*.tests.*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["modules", "."]
+testpaths = ["modules", "backend"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
