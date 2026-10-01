@@ -22,6 +22,7 @@ from .constants import MAX_REPLY_CHARS
 from .leak import leak_reasons
 from .memory import CallState
 from .redact import redact_context
+from .spelling import looks_misspelled
 from .templates import pick_template
 
 log = logging.getLogger(__name__)
@@ -77,6 +78,9 @@ def safe_reply(
     reasons = leak_reasons(text, state.entities_seen)
     if reasons:
         log.warning("reply blocked by leak check: %s", ",".join(reasons))
+        return pick_template(result), True
+    if looks_misspelled(text):
+        log.warning("reply blocked: garbled Thai spelling, using template")
         return pick_template(result), True
     if judge is not None:
         t1 = time.perf_counter()

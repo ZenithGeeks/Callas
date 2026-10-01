@@ -138,7 +138,8 @@ class DSPyReplyWriter:
     @property
     def lm(self):
         if self._lm is None:
-            self._lm = build_lm()
+            # Temperature 0: sampling at 0.3 produced garbled Thai spelling on qwen3.8.
+            self._lm = build_lm(temperature=0.0)
         return self._lm
 
     def write(self, context: str, result: Any = None) -> str:
