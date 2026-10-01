@@ -26,6 +26,27 @@ The verdict level is `safe`, `suspicious` (scam label with low or unknown confid
 
 Every node records its run time in `state["timings"]`.
 
+## Graph API
+
+How the graphs follow the LangGraph Graph API guide:
+
+- Context schema: `graph.TurnContext` holds the per-run dependencies (llm, speaker, writer,
+  judge, registry names, the call states). Nodes read it as `runtime.context`. Each graph is
+  built once per `CallSessions`, and every invoke/stream passes `context=runtime.context()`.
+  `Runtime` is still the object you construct; `build_turn_graph(rt)` still works, and `rt` only
+  decides whether the speak node exists.
+- Retry policy: the analyze node (turn and message graphs) has `RetryPolicy(max_attempts=2,
+  initial_interval=0.3, retry_on=LLMUnavailable)`: one retry, only when the LLM server is
+  unreachable. Reply is not retried (`safe_reply` already falls back to a template), and other
+  errors are not retried.
+- No node cache: an in-memory cache keyed on node input would keep call text after the call
+  ends, which breaks the rule that call memory is deleted when the call ends. There is also no
+  checkpointer.
+- No `Command` routing: `route_after_decide` stays a plain function on `add_conditional_edges`.
+  Tests prove the route reads only `Decision.auto_reply`.
+- Print the graph: `build_turn_graph(rt).get_graph().draw_mermaid()` is local text.
+  `draw_mermaid_png()` sends the graph to the Mermaid.Ink web service, so it is not used.
+
 `sessions.CallSessions` is the entry point: `start`, `on_turn`, `stream_turn` (per-node updates,
 for server-sent events; use `to_jsonable` on them), `end`, `simulate_call(audio_path)`,
 `analyze_message(text)`.
