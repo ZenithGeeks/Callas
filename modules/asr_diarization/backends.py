@@ -8,6 +8,7 @@ from importlib import metadata
 from typing import Protocol
 
 import numpy as np
+
 from callas_settings import get_settings
 
 log = logging.getLogger(__name__)

@@ -1,4 +1,5 @@
 import pytest
+
 from nlp_core.entities import extract_entities
 
 

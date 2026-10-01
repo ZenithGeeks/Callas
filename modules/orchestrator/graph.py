@@ -25,8 +25,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
-from asr_diarization.types import Turn
 from langgraph.graph import END, START, StateGraph
+
+from asr_diarization.types import Turn
 from llm_serving.base import LLM
 from nlp_core.registry import analyze_with_tools
 from nlp_core.types import NLPResult

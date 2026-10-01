@@ -1,6 +1,6 @@
 import pytest
-from nlp_core.types import SCAM_TYPES, NLPResult
 
+from nlp_core.types import SCAM_TYPES, NLPResult
 from tts_voice_agent.constants import ESCALATE_THRESHOLD
 from tts_voice_agent.decision import decide
 from tts_voice_agent.memory import CallState

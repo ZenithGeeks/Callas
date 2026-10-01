@@ -1,6 +1,7 @@
 """Shared fakes: registry entries that record calls, fake speaker."""
 
 import pytest
+
 from nlp_core import registry
 from nlp_core.types import Entity
 

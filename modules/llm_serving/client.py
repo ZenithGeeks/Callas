@@ -7,8 +7,9 @@ import re
 import time
 
 import openai
-from callas_settings import get_settings
 from openai import OpenAI
+
+from callas_settings import get_settings
 
 from .base import JOBS
 from .prompts import load_prompt, render

@@ -1,5 +1,6 @@
-import nlp_core
 import pytest
+
+import nlp_core
 from llm_serving.client import LLMUnavailable
 from llm_serving.fake import FakeLLM
 from nlp_core.analyzer import Analyzer

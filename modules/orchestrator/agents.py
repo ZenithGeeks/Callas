@@ -11,6 +11,7 @@ from __future__ import annotations
 import warnings
 
 import openai
+
 from callas_settings import get_settings
 
 from .tools import TOOLS
