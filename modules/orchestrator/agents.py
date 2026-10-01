@@ -54,6 +54,7 @@ def build_chat_model():
         api_key=s.vllm_api_key.get_secret_value() or "EMPTY",
         timeout=s.vllm_timeout_s,
         temperature=0,
+        extra_body=s.llm_extra_body() or None,
     )
 
 

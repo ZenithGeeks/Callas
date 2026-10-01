@@ -63,6 +63,7 @@ def build_lm(max_tokens: int | None = None, temperature: float | None = None) ->
         timeout=s.vllm_timeout_s,
         num_retries=0,
         cache=False,
+        **({"extra_body": s.llm_extra_body()} if s.llm_extra_body() else {}),
     )
 
 

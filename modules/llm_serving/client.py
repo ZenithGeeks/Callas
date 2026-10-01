@@ -90,6 +90,7 @@ class LLMClient:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=TEMPERATURE[job],
                 max_tokens=JOBS[job],
+                extra_body=get_settings().llm_extra_body() or None,
             )
         except (openai.APIConnectionError, openai.APITimeoutError) as e:
             raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {e}") from e
