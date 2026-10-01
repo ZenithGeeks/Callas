@@ -68,12 +68,16 @@ def test_broken_compiled_file_falls_back(tmp_path):
     assert w.program.predict.demos == []
 
 
+def test_judge_uses_chain_of_thought():
+    assert isinstance(DSPyLeakJudge(lm=DummyLM([])).program, dspy.ChainOfThought)
+
+
 @pytest.mark.parametrize(
     "answer,blocked",
     [(False, False), (True, True), ("false", False), ("true", True), ("maybe", True), ("", True)],
 )
 def test_judge_dummy_lm(answer, blocked):
-    j = DSPyLeakJudge(lm=DummyLM([{"leaks": answer}]))
+    j = DSPyLeakJudge(lm=DummyLM([{"reasoning": "JUDGE-THOUGHT", "leaks": answer}]))
     assert j.blocks(REPLY, "A: สวัสดี") is blocked
 
 
@@ -102,8 +106,10 @@ def test_logs_have_no_text(caplog):
     caplog.set_level(logging.DEBUG)
     w = writer([{"reasoning": "SECRET-THOUGHT", "reply": REPLY}])
     w.write("A: ความลับของบทสนทนา", NLPResult())
-    DSPyLeakJudge(lm=DummyLM([{"leaks": False}])).blocks(REPLY, "A: ความลับของบทสนทนา")
+    judge = DSPyLeakJudge(lm=DummyLM([{"reasoning": "JUDGE-THOUGHT", "leaks": False}]))
+    assert judge.blocks(REPLY, "A: ความลับของบทสนทนา") is False
     assert "SECRET-THOUGHT" not in caplog.text and REPLY not in caplog.text
+    assert "JUDGE-THOUGHT" not in caplog.text
     assert "ความลับ" not in caplog.text
 
 

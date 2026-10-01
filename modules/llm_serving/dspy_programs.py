@@ -157,7 +157,9 @@ class DSPyLeakJudge:
 
     def __init__(self, lm: Any | None = None) -> None:
         self._lm = lm
-        self.program = dspy.Predict(JudgeLeak)
+        # Chain of thought: the judge reasons about the reply against the redacted call before
+        # answering. Its reasoning is dropped like the writer's; only `leaks` is read.
+        self.program = dspy.ChainOfThought(JudgeLeak)
 
     @property
     def lm(self):
