@@ -5,6 +5,7 @@ import openai
 import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
+
 from orchestrator import ToolCallingUnavailable, build_analyst_agent, explain
 from orchestrator.tools import classify_scam, extract_entities, summarize_text
 

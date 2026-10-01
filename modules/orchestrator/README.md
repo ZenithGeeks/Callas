@@ -88,3 +88,36 @@ server lists), `VLLM_API_KEY`, `VLLM_TIMEOUT_S`, plus `NLP_NER`, `NLP_CLASSIFIER
 Python dependencies: `langgraph`, `langchain-core`, `langchain-openai`.
 `langgraph.prebuilt.create_react_agent` is deprecated in favour of `langchain.agents.create_agent`
 (package `langchain`, not installed here); `agents.py` is the only place to change when moving.
+
+## Live calls
+
+`orchestrator.live.LiveCall` runs one live (microphone) call. Audio goes into
+`asr_diarization.streaming.LiveTranscriber`, which makes partial text and closed turns (energy VAD,
+pythaiasr streaming ASR, model loaded once per process). Each closed turn goes through the same turn
+graph on ONE worker thread, in order, so slow LLM or TTS work never blocks audio intake. Callas'
+replies are not added to call memory.
+
+Client to server (WebSocket):
+
+- binary frames: PCM16 little-endian, mono, 16 kHz
+- text JSON: `{"type":"pause"}` (drop audio; the browser pauses the mic while the reply plays),
+  `{"type":"resume"}`, `{"type":"end"}`
+
+Server to client (JSON, one per message):
+
+| type | fields |
+| --- | --- |
+| `ready` | `call_id` |
+| `partial` | `text` (running text of the open turn) |
+| `turn` | `speaker`, `start`, `end` (seconds since start), `text` |
+| `node` | `turn`, `node`, `data` (graph update; audio shown as its byte length) |
+| `verdict` | `turn`, `label_scam`, `label_type`, `confidence`, `escalated`, `reason`, `entities` (`text`, `label`, `start`, `end`), `summary` |
+| `reply` | `turn`, `text`, `template_used`, `audio_wav_b64` (null if no speaker or TTS failed). Not sent when the call is escalated |
+| `error` | `turn`, `message` (exception type only, never call text); the call stays alive |
+| `ended` | `call_id` (always last; call memory is deleted) |
+
+The WebSocket loop calls `feed(bytes)` for each binary frame, `poll_events()` to drain events, and
+`end()` on close.
+
+Tuning constants (`asr_diarization/streaming.py`): `VAD_RMS_THRESHOLD` (0.015; about 2-3x your room
+noise RMS), `SILENCE_CLOSE_S` (0.8), `MIN_TURN_S` (0.5), `MAX_TURN_S` (15.0), `PARTIAL_EVERY_S` (0.5).

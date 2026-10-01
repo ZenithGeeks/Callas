@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+
 from asr_diarization import pipeline
 from asr_diarization.diarize import Segment, label_for, relabel_and_merge
 

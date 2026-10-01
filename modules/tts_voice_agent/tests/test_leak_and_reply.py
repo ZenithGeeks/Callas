@@ -1,8 +1,8 @@
 import logging
 
 import pytest
-from nlp_core.types import Entity, NLPResult
 
+from nlp_core.types import Entity, NLPResult
 from tts_voice_agent.leak import leak_reasons, leaks_sensitive
 from tts_voice_agent.memory import CallState
 from tts_voice_agent.reply import safe_reply

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
+
 from llm_serving import client as client_mod
 from llm_serving.base import JOBS
 from llm_serving.client import LLMClient, LLMUnavailable, parse_label

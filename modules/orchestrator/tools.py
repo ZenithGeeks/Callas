@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict
 
 from langchain_core.tools import tool
+
 from nlp_core import registry
 
 
