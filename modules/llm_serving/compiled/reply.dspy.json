@@ -1,0 +1,86 @@
+{
+  "predict": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "call_context": "A: สวัสดีครับ มีพัสดุของคุณ [PERSON] มาส่ง แต่ไม่มีคนอยู่บ้าน",
+        "verdict": "benign",
+        "reasoning": "The caller is a delivery person attempting to deliver a package but found no one home. The verdict is benign, indicating this is a standard logistical call. The reply should be polite and neutral, acknowledging the situation without confirming the owner's presence or making specific promises about availability, while adhering to the constraint of not asking questions or using numbers/names.",
+        "reply": "ขอบคุณสำหรับข้อมูลครับ/ค่ะ ขออนุญาตแจ้งให้ทราบตามนี้ก่อนนะครับ/คะ"
+      },
+      {
+        "augmented": true,
+        "call_context": "A: ผมเป็นพนักงานส่งของ จะนำพัสดุไปส่งที่บ้านช่วงบ่าย",
+        "verdict": "benign",
+        "reasoning": "The caller identifies themselves as a delivery employee and states they will bring a package to the house in the afternoon. The verdict is benign, indicating this is a standard, non-malicious interaction. The response should be a polite, neutral acknowledgment that the person is currently unavailable to take the call, without confirming specific details or making promises.",
+        "reply": "ขออภัย ขณะนี้ไม่สามารถรับสายได้ กรุณาติดต่อกลับภายหลัง"
+      },
+      {
+        "augmented": true,
+        "call_context": "A: พัสดุตีกลับมาที่ [ORG] ครับ ช่วยโทรกลับด้วย",
+        "verdict": "benign",
+        "reasoning": "The caller is requesting a callback from an organization. Since the verdict is benign, the assistant should politely acknowledge the request without confirming the identity of the person or making specific promises, as the owner is currently unavailable.",
+        "reply": "ขออภัยค่ะ ขณะนี้ไม่สามารถรับสายได้ กรุณาติดต่อกลับในภายหลังนะคะ"
+      },
+      {
+        "call_context": "A: สนใจประกันสุขภาพไหมคะ มีโปรโมชั่นพิเศษเดือนนี้",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: แม่ฝากบอกว่าให้โทรกลับหน่อย มีเรื่องที่บ้าน",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: โทรมาจากคลินิกฟัน ขอเลื่อนนัดตรวจฟัน",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: ทางโรงเรียนโทรมาแจ้งเรื่องประชุมผู้ปกครองสัปดาห์หน้า",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: น้องชายอยากคุยด้วย เรื่องไปเที่ยวด้วยกัน",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: ป้าโทรมาถามว่าวันอาทิตย์จะมากินข้าวที่บ้านไหม",
+        "verdict": "benign"
+      },
+      {
+        "call_context": "A: ช่างแอร์โทรมานัดวันเข้าไปล้างแอร์ที่บ้าน",
+        "verdict": "benign"
+      }
+    ],
+    "signature": {
+      "instructions": "Write the spoken reply of an automatic answering assistant for a person who cannot take\na phone call. The call context is redacted: placeholders such as [NUMBER], [PERSON] or\n[LINK] stand for details that must never be repeated.",
+      "fields": [
+        {
+          "prefix": "Call Context:",
+          "description": "redacted Thai text of the call so far"
+        },
+        {
+          "prefix": "Verdict:",
+          "description": "short English verdict of the call, for example \"benign\""
+        },
+        {
+          "prefix": "Reasoning:",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Reply:",
+          "description": "short polite neutral Thai reply, 1-2 sentences, with no numbers, names, links or places, no promises, no questions to the caller, never confirming who answered"
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.13",
+      "dspy": "3.4.0",
+      "cloudpickle": "3.1"
+    }
+  }
+}

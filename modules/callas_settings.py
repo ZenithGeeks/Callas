@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     vllm_model: str = ""
     vllm_api_key: SecretStr = SecretStr("EMPTY")
     vllm_timeout_s: float = 30.0
+    # Thinking models (Qwen3 and similar) spend the whole small token budget on hidden
+    # reasoning and return no answer. Off sends chat_template_kwargs.enable_thinking=false.
+    vllm_thinking: bool = False
+
+    def llm_extra_body(self) -> dict:
+        """Extra request fields for every vLLM chat call."""
+        return {} if self.vllm_thinking else {"chat_template_kwargs": {"enable_thinking": False}}
 
     # How the voice reply is written: "prompt" (llm_serving prompt) or "dspy" (ChainOfThought).
     reply_engine: str = "prompt"

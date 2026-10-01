@@ -20,6 +20,7 @@ import dspy
 
 from tts_voice_agent.constants import MAX_REPLY_CHARS
 from tts_voice_agent.leak import leaks_sensitive
+from tts_voice_agent.spelling import looks_misspelled
 
 from .dspy_programs import COMPILED_REPLY, WriteReply, build_lm
 
@@ -79,6 +80,7 @@ def reply_metric(example, pred, trace=None) -> float:
         and len(text) <= MAX_REPLY_CHARS
         and is_thai_enough(text)
         and not leaks_sensitive(text, [])
+        and not looks_misspelled(text)
     )
     return 1.0 if ok else 0.0
 
