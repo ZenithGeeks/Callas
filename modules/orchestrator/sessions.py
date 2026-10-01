@@ -50,11 +50,13 @@ class CallSessions:
 
     def on_turn(self, call_id: str, turn: Turn) -> dict:
         """Run one turn through the graph and return the final state dict."""
-        return self._turn_graph.invoke(self._input(call_id, turn))
+        return self._turn_graph.invoke(self._input(call_id, turn), context=self.runtime.context())
 
     def stream_turn(self, call_id: str, turn: Turn) -> Iterator[dict]:
         """Yield {"node": name, "update": {...}} as each node finishes."""
-        for chunk in self._turn_graph.stream(self._input(call_id, turn), stream_mode="updates"):
+        for chunk in self._turn_graph.stream(
+            self._input(call_id, turn), context=self.runtime.context(), stream_mode="updates"
+        ):
             for node, update in chunk.items():
                 yield {"node": node, "update": update}
 
@@ -83,5 +85,7 @@ class CallSessions:
 
     def analyze_message(self, text: str) -> dict:
         """Verdict for one text message. No reply and no memory."""
-        out = self._message_graph.invoke({"text": text, "timings": {}})
+        out = self._message_graph.invoke(
+            {"text": text, "timings": {}}, context=self.runtime.context()
+        )
         return {"verdict": out["verdict"], "nlp": out["nlp"], "timings": out["timings"]}
