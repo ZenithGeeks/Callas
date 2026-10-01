@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "callas"
 version = "0.1.0"
@@ -28,6 +32,14 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
 ]
+
+[tool.setuptools]
+package-dir = { "" = "modules" }
+py-modules = ["callas_settings"]
+
+[tool.setuptools.packages.find]
+where = ["modules"]
+exclude = ["*.tests", "*.tests.*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["modules", "."]
