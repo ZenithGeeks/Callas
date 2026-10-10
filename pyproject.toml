@@ -19,6 +19,7 @@ dependencies = [
     "langgraph>=1.2",
     "langchain-core>=1.6",
     "langchain-openai>=1.6",
+    "pythainlp>=5.3",
 ]
 
 [project.optional-dependencies]
