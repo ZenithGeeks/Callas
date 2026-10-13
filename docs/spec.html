@@ -129,22 +129,22 @@
 <h2 id="module-data-pipeline">Module: data-pipeline</h2>
 <p><strong>Objective.</strong> There is no real Thai scam dataset for calls or messages. This module makes the labeled data that every other module trains or tests on. It includes generated scam/normal dialogues (turned into audio with TTS, plus transcripts), generated scam/normal text messages, scam-report text scraped from public sites, and the two Kaggle datasets. All of it is cleaned and merged into one format (gate + 5 types + NER spans + reference summary).</p>
 <p><strong>Used by:</strong> all other modules. evaluation-report uses the test split.</p>
-<p><strong>Success:</strong> one labeled dataset with a version number. It has calls and messages, scam and normal, and all 5 scam types. The train/dev/test split is fixed, so the team never needs to rebuild it.</p>
+<p><strong>Success:</strong> one labeled dataset with a version number. It has calls and messages, scam and normal, and all 5 scam types. The train/valid/test split is fixed, so the team never needs to rebuild it.</p>
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
-<li><span class="job">Handle data</span> <code>pandas</code>, <code>jsonlines</code></li>
+<li><span class="job">Handle data</span> <code>pandas</code></li>
 <li><span class="job">Scraping</span> <code>requests</code> + <code>beautifulsoup4</code></li>
 <li><span class="job">Generate text</span> <span class="tool">LLM API</span> <span class="note">(provider and budget not decided yet)</span></li>
 <li><span class="job">Text to audio</span> <span class="tool">PyThaiTTS</span> <span class="note">(FastThaiG2P engine, same as in tts-voice-agent)</span></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Scrape:       python -m data_pipeline.scrape --source &lt;name&gt; --out data/raw/&lt;name&gt;.jsonl
+<pre><code>Scrape:       python -m data_pipeline.scrape --source &lt;name&gt; --out data/raw/&lt;name&gt;.csv
 Synthesize:   python -m data_pipeline.synthesize --type &lt;scam_type|benign&gt; --n 200 --out data/synthetic/
-Clean/merge:  python -m data_pipeline.build_dataset --out data/processed/dataset.jsonl
+Clean/merge:  python -m data_pipeline.build_dataset --out data/processed/dataset.csv
 Split:        python -m data_pipeline.split --ratio 0.7,0.15,0.15 --seed 42
 Test:         pytest modules/data_pipeline/tests</code></pre>
-<p><strong>Record schema</strong> (one JSON object per line in <code>data/processed/dataset.jsonl</code>):</p>
+<p><strong>Record schema</strong> (one row per record in <code>data/processed/dataset.csv</code>, UTF-8 with BOM; the fields below are the columns):</p>
 <pre><code>{
   "id": "msg_00042",
   "channel": "call | message",
@@ -158,6 +158,7 @@ Test:         pytest modules/data_pipeline/tests</code></pre>
   "scam_start_turn": 3,
   "source": "synthetic | kaggle_jxxn03x | kaggle_kkorakott | scraped_&lt;site&gt;"
 }</code></pre>
+<p>A csv cell cannot hold a list, so <code>speaker_turns</code> and <code>entities</code> are stored as JSON text in their cell. <code>null</code> is an empty cell.</p>
 <p><code>label_type</code> is one of <code>fake_authority</code>, <code>romance</code>, <code>investment</code>, <code>phishing_otp</code>, <code>lottery</code>, or <code>null</code> when <code>label_scam</code> is <code>false</code>. <code>scam_start_turn</code> is the index of the first speaker turn where the scam shows; it is <code>null</code> for normal records and for messages.</p>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> for scrapers (test on saved sample pages, not the live internet), cleaners (remove duplicates, hide personal data), and a schema check on every merged record. Unit tests can't tell if the data is good. So after each generated batch, the team reads a sample (20 records per type) to check that it looks real and the labels are right, before merging. <code>build_dataset.py</code> stops with an error if any record fails the schema check, or if any scam type has too few examples.</p>
 <p><strong>Boundaries.</strong></p>
@@ -169,7 +170,7 @@ Test:         pytest modules/data_pipeline/tests</code></pre>
 <p><strong>Success criteria.</strong></p>
 <ul>
 <li><p>At least 150 labeled examples per scam type plus 150 normal ones, across both calls and messages.</p></li>
-<li><p>Fixed 70/15/15 train/dev/test split, stratified by label_type, committed as <code>data/processed/{train,dev,test}.jsonl</code>.</p></li>
+<li><p>Fixed 70/15/15 train/valid/test split, stratified by label_type, committed as <code>data/processed/{train,valid,test}.csv</code>.</p></li>
 <li><p>Every record passes the schema check.</p></li>
 <li><p>asr-diarization gets a set of records with audio (made with TTS), correct transcripts, and speaker turns.</p></li>
 <li><p>At least 50 scam calls where the scam only shows after several normal turns (<code>scam_start_turn</code> of 4 or more), for call memory tests.</p></li>
@@ -198,7 +199,7 @@ Test:         pytest modules/data_pipeline/tests</code></pre>
 <pre><code>Start server:  vllm serve &lt;model&gt; --max-model-len 8192 --gpu-memory-utilization 0.6 --enable-prefix-caching
 Health check:  python -m llm_serving.health
 Tune DSPy:     python -m llm_serving.dspy_optimize --out modules/llm_serving/compiled/reply.dspy.json
-Benchmark:     python -m llm_serving.bench --testset data/processed/test.jsonl
+Benchmark:     python -m llm_serving.bench --testset data/processed/test.csv
 Test:          pytest modules/llm_serving/tests</code></pre>
 <p><strong>Code style.</strong> Every LLM call goes through one client. Each job has its own prompt file, with a version number:</p>
 <pre><code>JOBS = {"summary": 200, "classify": 20, "reply": 80}   # job -&gt; max output tokens
@@ -255,7 +256,7 @@ class LLMClient:
 <pre><code>Run ASR:         python -m asr_diarization.transcribe --audio &lt;path&gt;
 Run diarization:  python -m asr_diarization.diarize --audio &lt;path&gt;
 Full pipeline:    python -m asr_diarization.pipeline --audio &lt;path&gt; --out transcript.json
-Benchmark ASR:    python -m asr_diarization.bench --model pythaiasr,thonburian_whisper --testset data/processed/test.jsonl
+Benchmark ASR:    python -m asr_diarization.bench --model pythaiasr,thonburian_whisper --testset data/processed/test.csv
 Test:             pytest modules/asr_diarization/tests</code></pre>
 <p><strong>Code style.</strong> Every ASR model uses the same interface, so pipeline.py and bench.py work with any of them:</p>
 <pre><code>class ASRBackend(Protocol):
@@ -300,10 +301,10 @@ class PyThaiASR(ASRBackend):
 <li><span class="job">LLM option</span> prompted LLM on <span class="tool">vLLM</span> <span class="note">(through llm-serving; for summary and classifier)</span></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Train classifier:   python -m nlp_core.classify.train --data data/processed/train.jsonl
-Train NER:          python -m nlp_core.ner.train --data data/processed/train.jsonl
+<pre><code>Train classifier:   python -m nlp_core.classify.train --data data/processed/train.csv
+Train NER:          python -m nlp_core.ner.train --data data/processed/train.csv
 Run inference:       python -m nlp_core.pipeline --text "&lt;input&gt;"
-Evaluate:            python -m nlp_core.eval --testset data/processed/test.jsonl
+Evaluate:            python -m nlp_core.eval --testset data/processed/test.csv
 Test:                pytest modules/nlp_core/tests</code></pre>
 <p><strong>Code style.</strong></p>
 <pre><code>@dataclass
@@ -356,7 +357,7 @@ def analyze(text: str) -&gt; NLPResult:
 </ul>
 <p><strong>Commands.</strong></p>
 <pre><code>Decide + reply:  python -m tts_voice_agent.respond --nlp-result result.json --out reply.wav
-Replay a call:   python -m tts_voice_agent.simulate --testset data/processed/test.jsonl --id &lt;call_id&gt;
+Replay a call:   python -m tts_voice_agent.simulate --testset data/processed/test.csv --id &lt;call_id&gt;
 Test:            pytest modules/tts_voice_agent/tests</code></pre>
 <p><strong>Code style.</strong></p>
 <pre><code>@dataclass
@@ -495,7 +496,7 @@ async def message_check(text: str = Form("")):
 <li><span class="job">Charts</span> <code>matplotlib</code>, <code>seaborn</code></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Run all evals:     python -m eval.run_all --testset data/processed/test.jsonl --out eval/results/
+<pre><code>Run all evals:     python -m eval.run_all --testset data/processed/test.csv --out eval/results/
 Classifier eval:    python -m eval.classify_eval
 NER eval:           python -m eval.ner_eval
 Summarization eval: python -m eval.summarize_eval
@@ -518,7 +519,7 @@ Test:               pytest eval/tests</code></pre>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> for the functions that compute the scores (fixed input, known correct score), because a bug here would make the report wrong without anyone noticing. Model quality is what the eval measures, so it isn't unit-tested. run_all.py checks that every result file was written, so a skipped eval can't slip into the report.</p>
 <p><strong>Boundaries.</strong></p>
 <ul>
-<li><p><strong>Always:</strong> compute every score on test.jsonl only, never train/dev; write the model and data version into each result file.</p></li>
+<li><p><strong>Always:</strong> compute every score on test.csv only, never train/valid; write the model and data version into each result file.</p></li>
 <li><p><strong>Ask first:</strong> before changing the test split after any model has been scored on it (old comparisons would no longer be valid).</p></li>
 <li><p><strong>Never:</strong> hand-edit a result file to make a number look better than what the script produced.</p></li>
 </ul>
