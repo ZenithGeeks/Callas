@@ -166,7 +166,7 @@ The explaining agent on the message page needs vLLM started with `--enable-auto-
 |---|---|---|
 | Fine-tune WangchanBERTa for NER, scam check or summary | `modules/nlp_core/` | Follow "Add your WangchanBERTa model" in [`modules/orchestrator/README.md`](modules/orchestrator/README.md). Register your model, then set `NLP_CLASSIFIER=wangchanberta` (or `NLP_NER`, `NLP_SUMMARIZER`). You do not need to change the pipeline |
 | Build the dataset | new `modules/data_pipeline/` | See the data-pipeline section in [`docs/spec.html`](docs/spec.html) for the record format and the split |
-| Eval scripts and report numbers | new `eval/` | Every number in the report must come from a script run on `test.jsonl` |
+| Eval scripts and report numbers | new `eval/` | Every number in the report must come from a script run on `test.csv` |
 | Web UI | `backend/` | Use demo mode (`CALLAS_FAKE=1`). The design is in Figma and `docs/design/` |
 
 ### Before you open a pull request

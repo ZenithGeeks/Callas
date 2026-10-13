@@ -1,0 +1,2 @@
+# Dialogues hold line breaks inside csv cells. Keep the bytes as written.
+*.csv -text
