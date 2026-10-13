@@ -16,7 +16,7 @@ node_modules/
 !.env.example
 
 # Data and model outputs
-# (data/processed/{train,dev,test}.jsonl is committed so the split stays fixed)
+# (data/processed/{train,valid,test}.csv is committed so the split stays fixed)
 data/raw/
 data/synthetic/
 *.wav
@@ -32,3 +32,6 @@ Thumbs.db
 
 # Impeccable decision-page scratch files
 .impeccable/questions/
+
+# Jupyter
+.ipynb_checkpoints/
