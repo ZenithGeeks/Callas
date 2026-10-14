@@ -36,6 +36,7 @@ _KEYWORDS = ("otp", "รหัส", "เลขบัญชี", "บัญชี
 _NAME_WORDS = ("คุณ", "นาย", "นาง", "ชื่อ", "พี่", "น้อง", "ดร", "ผู้กอง", "จ่า", "ร้อยตำรวจ")
 _ORG_WORDS = ("ธนาคาร", "ตำรวจ", "ศาล", "ไปรษณีย์", "ขนส่ง", "กรม", "บริษัท")
 _LATIN_WORD = re.compile(r"[a-z]{2,}")
+_DIGIT_RUN = re.compile(r"\d+")
 _STRIP_FOR_COMPARE = re.compile(r"[\s\-.]+")
 
 
@@ -49,13 +50,20 @@ def _compact(text: str) -> str:
     return _STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
 
 
-def leak_reasons(text: str, entities_seen: Iterable[Entity] = ()) -> list[str]:
-    """Why `text` is unsafe, as short codes (empty list = safe). Never includes the text."""
+def leak_reasons(
+    text: str, entities_seen: Iterable[Entity] = (), allowed_numbers: Iterable[str] = ()
+) -> list[str]:
+    """Why `text` is unsafe, as short codes (empty list = safe). Never includes the text.
+
+    Any digit run is blocked unless it is in `allowed_numbers`: the numbers of facts we put in
+    the prompt ourselves (today's date and time), never numbers from the call.
+    """
     norm = normalize(text)
     low = norm.lower()
     compact = _compact(text)
     reasons: list[str] = []
-    if any(unicodedata.decimal(c, None) is not None for c in norm):
+    allowed = set(allowed_numbers)
+    if any(run not in allowed for run in _DIGIT_RUN.findall(norm)):
         reasons.append("digit")
     if _THAI_RUN.search(low) or _THAI_RUN.search(compact) or _EN_RUN.search(low):
         reasons.append("digit_word_run")

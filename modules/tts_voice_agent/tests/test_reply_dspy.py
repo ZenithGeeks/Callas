@@ -62,6 +62,7 @@ def test_writer_receives_redacted_context():
     w = Writer()
     safe_reply(NLPResult(), state_with_call(), FakeLLM(), writer=w)
     (ctx,) = w.calls
+    ctx = ctx.split("\n", 1)[1]  # first line is the date and time facts
     assert NAME not in ctx and PHONE not in ctx and "x.example" not in ctx
     assert not any(c.isdigit() for c in ctx)
     assert "[PERSON]" in ctx and "[LINK]" in ctx
@@ -71,6 +72,7 @@ def test_prompt_path_also_gets_redacted_context():
     llm = FakeLLM()
     safe_reply(NLPResult(), state_with_call(), llm)
     (ctx,) = llm.calls_for("reply")
+    ctx = ctx.split("\n", 1)[1]  # first line is the date and time facts
     assert NAME not in ctx and PHONE not in ctx and not any(c.isdigit() for c in ctx)
 
 

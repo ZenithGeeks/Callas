@@ -12,8 +12,11 @@ counts as a block.
 from __future__ import annotations
 
 import logging
+import re
 import time
+from datetime import datetime, timedelta
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 from llm_serving.base import LLM
 from nlp_core.types import NLPResult
@@ -48,6 +51,32 @@ def _judge_verdict(judge: Any, text: str, context: str) -> str | None:
     return "judge_block" if verdict is True else "judge_error"
 
 
+_DAYS = "จันทร์ อังคาร พุธ พฤหัสบดี ศุกร์ เสาร์ อาทิตย์".split()
+_MONTHS = (
+    "มกราคม กุมภาพันธ์ มีนาคม เมษายน พฤษภาคม มิถุนายน "
+    "กรกฎาคม สิงหาคม กันยายน ตุลาคม พฤศจิกายน ธันวาคม"
+).split()
+
+
+def current_facts(now: datetime | None = None) -> str:
+    """Today's date and time in Thai (Bangkok time, Buddhist year), for the reply prompt."""
+    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
+    return (
+        f"วันนี้วัน{_DAYS[now.weekday()]}ที่ {now.day} {_MONTHS[now.month - 1]} "
+        f"{now.year + 543} เวลา {now:%H:%M} น."
+    )
+
+
+def fact_numbers(now: datetime | None = None) -> set[str]:
+    """Numbers a reply may contain: those of current_facts(), allowing the minute to tick over."""
+    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
+    return {
+        n
+        for delta in (-1, 0, 1)
+        for n in re.findall(r"\d+", current_facts(now + timedelta(minutes=delta)))
+    }
+
+
 def safe_reply(
     result: NLPResult,
     state: CallState,
@@ -55,9 +84,11 @@ def safe_reply(
     *,
     writer: ReplyWriter | None = None,
     judge: LeakJudge | None = None,
+    now: datetime | None = None,
 ) -> tuple[str, bool]:
     """Return (text, template_used). Never logs the LLM text itself."""
-    context = redact_context(state.context(), state.entities_seen)
+    facts = current_facts(now)
+    context = f"[ข้อมูลปัจจุบัน] {facts}\n" + redact_context(state.context(), state.entities_seen)
     t0 = time.perf_counter()
     try:
         if writer is not None:
@@ -75,7 +106,7 @@ def safe_reply(
     if len(text) > MAX_REPLY_CHARS:
         log.warning("reply too long (%d chars), using template", len(text))
         return pick_template(result), True
-    reasons = leak_reasons(text, state.entities_seen)
+    reasons = leak_reasons(text, state.entities_seen, fact_numbers(now))
     if reasons:
         log.warning("reply blocked by leak check: %s", ",".join(reasons))
         return pick_template(result), True
