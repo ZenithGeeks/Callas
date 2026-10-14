@@ -57,13 +57,18 @@ class CallState:
     def _truncate_summary(self, count_tokens: Callable[[str], int], budget: int) -> None:
         """Cut older_summary (keeping its newest end) until the whole context fits."""
         s = self.older_summary
-        lo, hi = 0, len(s)  # longest suffix of the summary that still fits
+        # turn tokens are constant across probes, so only the summary suffix is counted
+        room = budget - count_tokens(self._render(self.turns, ""))
+        lo, hi = 0, len(s) if room > 0 else 0  # longest suffix of the summary that still fits
         while lo < hi:
             mid = (lo + hi + 1) // 2
-            if count_tokens(self._render(self.turns, s[len(s) - mid :])) <= budget:
+            if count_tokens(s[len(s) - mid :]) <= room:
                 lo = mid
             else:
                 hi = mid - 1
+        # token counts of the pieces may not add up to the whole: verify, then shrink
+        while lo and count_tokens(self._render(self.turns, s[len(s) - lo :])) > budget:
+            lo -= max(1, lo // 8)
         self.older_summary = s[len(s) - lo :] if lo else ""
 
     def context(
@@ -77,17 +82,26 @@ class CallState:
         Over budget: fold turns older than the last RECENT_TURNS_VERBATIM into the summary,
         then truncate the summary; only if the recent turns alone are too long, fold those too.
         """
+        seen: dict[str, int] = {}  # identical strings are tokenized once
+
+        def count(text: str) -> int:
+            if text not in seen:
+                seen[text] = count_tokens(text)
+            return seen[text]
+
         text = self._render(self.turns)
-        if count_tokens(text) <= budget:
+        if count(text) <= budget:
             return text
         extra = len(self.turns) - RECENT_TURNS_VERBATIM
         if extra > 0:
             self._fold(extra, summarize)
         while True:
-            if count_tokens(self._render(self.turns)) > budget:
-                self._truncate_summary(count_tokens, budget)
             text = self._render(self.turns)
-            if count_tokens(text) <= budget:
+            if count(text) <= budget:
+                return text
+            self._truncate_summary(count, budget)
+            text = self._render(self.turns)
+            if count(text) <= budget:
                 return text
             self._fold(1, summarize)  # recent turns alone exceed the budget
 
