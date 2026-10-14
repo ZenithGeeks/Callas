@@ -362,7 +362,9 @@ async def live_page(request: Request) -> HTMLResponse:
 @app.websocket("/ws/live")
 async def ws_live(ws: WebSocket) -> None:
     await ws.accept()
-    call = live_ws.make_live_call(ws.app.state.rt)
+    # The first real call loads the streaming ASR model. Off the event loop, so other pages
+    # keep answering while it loads.
+    call = await run_in_threadpool(live_ws.make_live_call, ws.app.state.rt)
     await live_ws.serve(ws, call)
     try:
         await ws.close()

@@ -31,6 +31,15 @@ def test_pages_render_with_contract_comment(client, path):
     assert "/static/css/app.css" in r.text
 
 
+@pytest.mark.parametrize("path", ["/message", "/call", "/live"])
+def test_assets_use_paths_not_absolute_urls(client, path):
+    # Behind an https proxy (tailscale serve) the app sees plain http. An absolute
+    # http:// asset URL on an https page is blocked as mixed content.
+    html = client.get(path, headers={"Host": "callas.example.ts.net"}).text
+    assets = re.findall(r'(?:href|src)="([^"]*/static/[^"]*)"', html)
+    assert assets and all(a.startswith("/static/") for a in assets)
+
+
 def test_band_is_a_size_container(client):
     css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
     assert "container-type:inline-size" in css.replace(" ", "")
