@@ -23,19 +23,19 @@ The first turn sounds almost normal. A real parcel company could say it. The sca
 
 ```mermaid
 flowchart TD
-    A[Call audio or microphone] --> B[1. Speech to text]
-    B --> C[2. Speaker split]
-    C --> D[3. Call memory]
-    D --> E[4. NLP core: entities, summary, scam check]
-    E --> F{5. decide}
-    F -->|scam or unsure| G[Warn the user, stop replying]
-    F -->|normal| H[6. Hide numbers and names]
-    H --> I[LLM writes a short reply]
-    I --> J[7. Safety checks]
-    J -->|pass| K[8. Speak the reply]
-    J -->|fail| L[Use a fixed template instead]
+    A["Call audio or microphone"] --> B["Step 1: Speech to text"]
+    B --> C["Step 2: Speaker split"]
+    C --> D["Step 3: Call memory"]
+    D --> E["Step 4: NLP core (entities, summary, scam check)"]
+    E --> F{"Step 5: decide"}
+    F -->|"scam or unsure"| G["Warn the user, stop replying"]
+    F -->|"normal"| H["Step 6: Hide numbers and names"]
+    H --> I["LLM writes a short reply"]
+    I --> J{"Step 7: Safety checks"}
+    J -->|"pass"| K["Step 8: Speak the reply"]
+    J -->|"fail"| L["Use a fixed template instead"]
     L --> K
-    M[Text message] --> E
+    M["Text message"] --> E
 ```
 
 A text message skips steps 1 to 3 and 5 to 8. It only goes through the NLP core and gets a verdict.
