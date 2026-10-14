@@ -201,6 +201,8 @@ def build_turn_graph(rt: Runtime):
         )
         decision = state["decision"]
         decision.reply_text, decision.template_used = text, template_used
+        t = state["turn"]  # remember what we said, so the next reply can follow on from it
+        ctx.states[state["call_id"]].add(Turn("agent", t.end, t.end, text))
         return {"reply_text": text, "template_used": template_used}
 
     def speak(state: TurnState, ctx: TurnContext) -> dict:

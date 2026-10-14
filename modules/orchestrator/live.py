@@ -15,6 +15,7 @@ from .sessions import CallSessions, to_jsonable
 log = logging.getLogger(__name__)
 
 END_TIMEOUT_S = 30.0  # how long end() waits for queued turns
+REPLY_DELAY_S = 0.7  # extra quiet after a turn closes; a turn starting inside it is merged
 
 
 class LiveCall:
@@ -25,6 +26,7 @@ class LiveCall:
         self._events: queue.Queue[dict] = queue.Queue()
         self._turns: queue.Queue[tuple[int, Turn] | None] = queue.Queue()
         self._turn_no = 0
+        self._held: tuple[int, Turn | None] | None = None
         self._paused = False
         self._ended = False
         self._lock = threading.Lock()
@@ -78,21 +80,40 @@ class LiveCall:
         self.sessions.end(self.call_id)
         self._events.put({"type": "ended", "call_id": self.call_id})
 
-    def _run(self) -> None:
+    def _next_turn(self) -> tuple[int, Turn, list[int]] | None:
+        """Next turn to process. Waits REPLY_DELAY_S for the caller to go on and merges that."""
+        item, self._held = (self._held, None) if self._held else (self._turns.get(), None)
+        if item is None or item[1] is None:
+            return None
+        n, turn = item
+        merged: list[int] = []  # numbers of the turns folded into this one
         while True:
-            item = self._turns.get()
-            if item is None:
-                return
-            n, turn = item
             try:
-                self._process(n, turn)
+                nxt = self._turns.get(timeout=REPLY_DELAY_S)
+            except queue.Empty:
+                return n, turn, merged
+            if nxt is None:
+                self._held = (-1, None)  # process this turn first, then stop
+                return n, turn, merged
+            if nxt[1].speaker != turn.speaker:
+                self._held = nxt  # not a continuation; handled on the next call
+                return n, turn, merged
+            text = f"{turn.text} {nxt[1].text}"
+            merged.append(n)
+            n, turn = nxt[0], Turn(turn.speaker, turn.start, nxt[1].end, text)
+
+    def _run(self) -> None:
+        while (item := self._next_turn()) is not None:
+            n, turn, merged = item
+            try:
+                self._process(n, turn, merged)
             except Exception as exc:  # keep the call alive; never put call text in the message
                 log.warning("turn %d failed (%s)", n, type(exc).__name__)
                 self._events.put(
                     {"type": "error", "turn": n, "message": f"{type(exc).__name__}: turn failed"}
                 )
 
-    def _process(self, n: int, turn: Turn) -> None:
+    def _process(self, n: int, turn: Turn, merged: list[int]) -> None:
         put = self._events.put
         nlp = None
         reply: dict | None = None
@@ -104,19 +125,18 @@ class LiveCall:
                 nlp = update["nlp"]
             elif node == "decide":
                 decision = update["decision"]
-                put(
-                    {
-                        "type": "verdict",
-                        "turn": n,
-                        "label_scam": nlp.label_scam,
-                        "label_type": nlp.label_type,
-                        "confidence": nlp.confidence,
-                        "escalated": not decision.auto_reply,
-                        "reason": decision.reason,
-                        "entities": [to_jsonable(e) for e in nlp.entities],
-                        "summary": nlp.summary,
-                    }
-                )
+                verdict = {
+                    "type": "verdict",
+                    "label_scam": nlp.label_scam,
+                    "label_type": nlp.label_type,
+                    "confidence": nlp.confidence,
+                    "escalated": not decision.auto_reply,
+                    "reason": decision.reason,
+                    "entities": [to_jsonable(e) for e in nlp.entities],
+                    "summary": nlp.summary,
+                }
+                for turn_no in (*merged, n):  # folded turns share the merged turn's verdict
+                    put({**verdict, "turn": turn_no})
             elif node == "reply":
                 reply = {"text": update["reply_text"], "template_used": update["template_used"]}
             elif node == "speak":
