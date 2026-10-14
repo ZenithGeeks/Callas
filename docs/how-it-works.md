@@ -25,7 +25,7 @@ The first turn sounds almost normal. A real parcel company could say it. The sca
 flowchart TD
     A["Call audio or microphone"] --> B["Step 1: Speech to text"]
     B --> C["Step 2: Speaker split"]
-    C --> D["Step 3: Call memory"]
+    C --> D["Step 3: Clean the text, then call memory"]
     D --> E["Step 4: NLP core (entities, summary, scam check)"]
     E --> F{"Step 5: decide"}
     F -->|"scam or unsure"| G["Warn the user, stop replying"]
@@ -50,7 +50,9 @@ The LLM never decides whether to warn or to reply. Step 5 is plain `if` rules. W
 
 **Technique.** Automatic speech recognition (ASR). The model hears 16 kHz audio and predicts Thai characters.
 
-**Why it matters.** Every later step reads text. If the ASR writes `โอนเงนิ` instead of `โอนเงิน`, the later steps see a different word. That is why we also keep a check on text quality (see "Known limits" below).
+**Why it matters.** Every later step reads text. If the ASR writes `โอนเงนิ` instead of `โอนเงิน`, the later steps see a different word. Step 3 cleans the text a little, and there is an optional spelling fixer (see step 3).
+
+**Which model.** The default is `typhoon_asr`. `pythaiasr` 2.3 adds the Typhoon Nemotron streaming models. Set `ASR_MODEL=typhoon_nemotron_asr` to try one on uploaded recordings. Live calls still load the default model.
 
 **Live calls work differently.** The microphone sends small chunks of audio. We have to decide where one turn ends and the next starts:
 
@@ -79,9 +81,18 @@ A: สวัสดีครับ ผมโทรจากไปรษณีย�
 B: ผมไม่ได้สั่งของนะ
 ```
 
-## 3. Call memory
+## 3. Clean the text, then call memory
 
-**What happens.** Every turn goes into a `CallState`. It lives in RAM only and is deleted when the call ends.
+**Clean the text.** Each turn is cleaned once, when it enters memory, so every later step reads the same text. The steps are: Unicode NFC, PyThaiNLP's `normalize` (it fixes things like a doubled tone mark), and one space between words. The scam classifier notebook imports the same function, `nlp_core.text.normalize_text`, so training and the web system see the same form of text. The original ASR text is kept in `Turn.raw`.
+
+```text
+ASR:   สวัสดี   ครับ        (three spaces)
+Clean: สวัสดี ครับ
+```
+
+**Spelling fixer (off by default).** `AUTOCORRECT=pythainlp` fixes Thai words that are not in the dictionary. It skips digits, English, URLs, names and words after a title like `คุณ`. It can still pick a wrong word: `โอนเงนิ` becomes `ถอนเงิน` ("withdraw" for "transfer"), and a new unknown word costs about 0.4 s. On 247 clean turns from the test set it changed nothing, but that set has no real ASR mistakes. Do not turn it on until it is checked on real recordings.
+
+**Call memory.** Every turn goes into a `CallState`. It lives in RAM only and is deleted when the call ends.
 
 **Technique.** A sliding window with a summary. The newest 6 turns stay word for word. When the text gets over 1,500 tokens, older turns are folded into a short summary. Tokens are counted as Thai words with PyThaiNLP's `newmm` tokenizer.
 
@@ -156,7 +167,9 @@ Once a call is marked as a scam, it stays marked until it ends. A scammer cannot
 
 ## 6. Hide the sensitive parts
 
-**What happens.** If the call is normal, the LLM will write a reply. Before it reads the call, we replace every sensitive part with a label.
+**What happens.** If the call is normal, the LLM will write a reply. The reply prompt (`reply.v3.txt`) lets it answer the caller's last line, ask one short question, and state the current date and time, which are added as the first line of its context. For anything else it must say it does not know.
+
+Before the LLM reads the call, we replace every sensitive part with a label.
 
 **Technique.** Rule-based redaction. It uses the entity list from step 4a, plus rules for digits in any script, spoken numbers (`แปดหนึ่งสอง...`) and links.
 
@@ -190,7 +203,7 @@ After:  ต้องจ่ายค่าธรรมเนียม [MONEY] โ
 
 **Why it matters.** The reply is spoken in the user's name. One leaked account number or one "yes, he is home" gives a scammer exactly what they want. The check is strict on purpose. A false alarm costs a bland template. A miss costs real money.
 
-**The trade-off.** A strict check also blocks natural replies. That is why the agent sounds stiff. It blocks every digit, so it cannot say today's date. PR #33 changes this for the date and time only.
+**The trade-off.** A strict check also blocks natural replies. It blocks every digit except the numbers of today's date and time, which we put into the prompt ourselves. So the agent can answer "what is the date?" (`วันนี้วันที่ 14 ตุลาคมค่ะ`) but still cannot say a phone number. The check also still blocks `คุณ`, because the NER finds no names and `คุณ` is the only sign of one.
 
 ## 8. Voice
 
@@ -218,6 +231,8 @@ A slower scam, such as a romance scam over ten turns, never has one turn that is
 | Speech recognition | 1 | Typhoon ASR (`pythaiasr`) |
 | Voice activity detection | 1 (live) | Energy threshold per 20 ms frame |
 | Speaker diarization | 2 | Nemotron-3, or Pyannote |
+| Text normalization | 3 | PyThaiNLP `normalize` + Unicode NFC |
+| Spelling correction (optional) | 3 | PyThaiNLP `spell.correct` |
 | Word tokenization | 3, 7 | PyThaiNLP `newmm` |
 | Entity extraction | 4a | Regular expressions |
 | Summarization | 4b | Prompted LLM (Qwen on vLLM) |
@@ -230,23 +245,15 @@ A slower scam, such as a romance scam over ten turns, never has one turn that is
 
 - **Entities are rules only.** No names or organisations are found yet. The reply check blocks name words as a stand-in.
 - **The LLM's confidence is 1.0 or 0.0.** It names a label but gives no real probability. A fine-tuned classifier would give one.
-- **ASR mistakes pass straight through.** Later steps see whatever the ASR wrote.
+- **ASR mistakes mostly pass through.** The text cleanup fixes spacing and tone marks, not wrong words. The spelling fixer is off because it can change the meaning.
 - **The reply check is strict.** It protects the user and costs natural replies.
 - **We have no real Thai scam call dataset.** Training data is generated or scraped, so scores on it need careful reading.
-
-## Not merged yet
-
-These are in open pull requests and are not on `main` today.
-
-- **#33.** A conversational reply prompt, and the date and time in the reply.
-- **#35.** One shared `normalize_text` for training and the web system, and an optional spelling fixer for transcripts (`AUTOCORRECT=pythainlp`, off by default). It can pick a wrong word: `โอนเงนิ` becomes `ถอนเงิน` ("withdraw"), so we keep it off.
-- **#34.** `pythaiasr` 2.3, which adds the Typhoon Nemotron streaming models.
 
 ## Where to read the code
 
 | Step | Code |
 |---|---|
 | 1, 2 | `modules/asr_diarization/` |
-| 3, 5, 6, 7, 8 | `modules/tts_voice_agent/` (`memory.py`, `decision.py`, `redact.py`, `leak.py`, `spelling.py`, `speech.py`) |
+| 3, 5, 6, 7, 8 | `modules/tts_voice_agent/` (`memory.py`, `decision.py`, `redact.py`, `leak.py`, `spelling.py`, `speech.py`) and `modules/nlp_core/text.py` (text cleanup) |
 | 4 | `modules/nlp_core/` and the prompts in `modules/llm_serving/prompts/` |
 | The graph that joins them | `modules/orchestrator/graph.py` |
