@@ -6,7 +6,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from .leak import leaks_sensitive
+from .leak import leak_reasons
+from .reply import fact_numbers
 
 
 class Speaker:
@@ -34,7 +35,7 @@ class Speaker:
     @staticmethod
     def _check(text: str) -> None:
         # Defense in depth: replies are already checked, but never speak a number or secret.
-        if leaks_sensitive(text, []):
+        if leak_reasons(text, [], fact_numbers()):
             raise ValueError("refusing to synthesize text that fails the leak check")
 
     def synthesize(self, text: str, out_path: str) -> str:
