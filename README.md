@@ -151,6 +151,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`.
 | `VLLM_TIMEOUT_S` | `30` | Seconds before an LLM call gives up |
 | `ASR_MODEL` | `typhoon_asr` | Speech-to-text model (pythaiasr) |
 | `DIARIZER` | `nemotron` | Speaker split: `nemotron` or `pyannote_segmentation` |
+| `AUTOCORRECT` | `off` | Fix misspelled Thai words in each turn: `off` or `pythainlp` (slow, can pick a wrong word) |
 | `TTS_PRETRAINED` | `fastthaig2p` | Voice engine (PyThaiTTS) |
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |

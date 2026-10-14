@@ -11,6 +11,7 @@ class Turn:
     start: float  # seconds
     end: float  # seconds
     text: str
+    raw: str | None = None  # the ASR text before normalize and autocorrect, if they changed it
 
 
 @dataclass

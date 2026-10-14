@@ -11,7 +11,7 @@ from llm_serving.base import LLM
 from nlp_core.types import NLPResult
 
 from .decision import Decision, decide
-from .memory import CallState
+from .memory import CallState, clean_turn
 from .reply import safe_reply
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ class TurnOutcome:
 def on_turn(
     state: CallState, turn: Turn, analyze: Callable[[str], NLPResult], llm: LLM
 ) -> TurnOutcome:
+    turn = clean_turn(turn)
     state.add(turn)
     result = analyze(state.context())
     state.add_entities(result.entities)

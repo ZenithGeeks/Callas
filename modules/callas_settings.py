@@ -13,6 +13,7 @@ _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 _REPLY_ENGINES = ("prompt", "dspy")
 _LEAK_JUDGES = ("off", "on")
+_AUTOCORRECTS = ("off", "pythainlp")
 DIARIZERS = ("nemotron", "pyannote_segmentation")
 
 
@@ -38,13 +39,16 @@ class Settings(BaseSettings):
 
     asr_model: str = "typhoon_asr"
 
+    # Fix misspelled Thai words in each transcript turn: "off" or "pythainlp" (see nlp_core.text).
+    autocorrect: str = "off"
+
     # Speaker-split model: "nemotron" (Nemotron-3 diarization) or "pyannote_segmentation".
     diarizer: str = "nemotron"
 
     tts_pretrained: str = "fastthaig2p"
     tts_speaker: str = "thai_som"
 
-    @field_validator("reply_engine", "leak_judge", "diarizer", mode="before")
+    @field_validator("reply_engine", "leak_judge", "diarizer", "autocorrect", mode="before")
     @classmethod
     def _lower(cls, v):
         return v.strip().lower() if isinstance(v, str) else v
@@ -61,6 +65,13 @@ class Settings(BaseSettings):
     def _check_diarizer(cls, v: str) -> str:
         if v not in DIARIZERS:
             raise ValueError(f"DIARIZER must be one of {DIARIZERS}, got {v!r}")
+        return v
+
+    @field_validator("autocorrect")
+    @classmethod
+    def _check_autocorrect(cls, v: str) -> str:
+        if v not in _AUTOCORRECTS:
+            raise ValueError(f"AUTOCORRECT must be one of {_AUTOCORRECTS}, got {v!r}")
         return v
 
     @field_validator("leak_judge")
