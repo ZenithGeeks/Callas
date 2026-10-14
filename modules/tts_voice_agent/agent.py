@@ -34,6 +34,7 @@ def on_turn(
     decision = decide(result, state)
     if decision.auto_reply:
         decision.reply_text, decision.template_used = safe_reply(result, state, llm)
+        state.add(Turn("agent", turn.end, turn.end, decision.reply_text))
     log.info(
         "decision auto_reply=%s reason=%s template_used=%s",
         decision.auto_reply,

@@ -66,7 +66,7 @@ def test_retry_does_not_repeat_memory_writes(fakes):
     s = CallSessions(Runtime(llm=FakeLLM()))
     cid = s.start()
     s.on_turn(cid, turn("hello"))
-    assert len(s.runtime.states[cid].turns) == 1
+    assert [t.speaker for t in s.runtime.states[cid].turns].count("A") == 1
 
 
 def test_graphs_read_dependencies_from_context(fakes):

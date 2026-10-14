@@ -58,7 +58,9 @@ def test_simulate_call_feeds_turns_in_order_and_ends(fakes, monkeypatch):
     assert seen == ["call.wav"]
     analyzed = [i for i in items if i["node"] == "analyze"]
     assert [i["turn_index"] for i in analyzed] == [0, 1, 2]
-    assert analyzed[-1]["update"]["context"] == "A: one\nB: two\nA: three"
+    ctx = analyzed[-1]["update"]["context"]  # the agent's replies sit between the turns
+    assert ctx.startswith("A: one\nagent: ")
+    assert ctx.endswith("A: three") and "B: two" in ctx
     assert s.runtime.states == {}  # session ended
 
 
