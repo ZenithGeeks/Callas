@@ -184,7 +184,7 @@ ruff format modules backend
 - Add a test for every new rule or bug fix. Check that the test fails when you break the code it protects.
 - Keep `backend/` endpoints thin. Model code belongs in `modules/`.
 - Do not commit `.env`, API keys, model files, audio files or data under `data/raw/`.
-- The reply prompt (`modules/llm_serving/prompts/reply.v1.txt`) and the reply templates (`modules/tts_voice_agent/templates.py`) need team sign-off before you change them.
+- The reply prompt (`modules/llm_serving/prompts/reply.v3.txt`) and the reply templates (`modules/tts_voice_agent/templates.py`) need team sign-off before you change them.
 
 ## Safety rules
 
