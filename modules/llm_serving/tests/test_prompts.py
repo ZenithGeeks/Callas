@@ -7,7 +7,7 @@ from llm_serving.prompts import load_prompt, render, strip_comments
 @pytest.mark.parametrize("job", sorted(JOBS))
 def test_prompt_loads_with_placeholder_last(job):
     text, version = load_prompt(job)
-    assert version == "v1"
+    assert version == ("v2" if job == "reply" else "v1")
     assert "{context}" in text
     assert "#" not in "".join(ln[:1] for ln in text.splitlines())
     # fixed instructions come before the context (prefix caching)
