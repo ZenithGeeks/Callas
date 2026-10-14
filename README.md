@@ -88,6 +88,8 @@ Text message ──► nlp-core ──► verdict
 
 The LLM never decides whether to warn or reply. Fixed rules in `decide()` do that.
 
+New here? [`docs/how-it-works.md`](docs/how-it-works.md) walks through one scam call step by step: what each step does, which NLP technique it uses, why it is there, and real examples.
+
 ### System architecture
 
 ![System architecture](docs/diagrams/architecture.png)
