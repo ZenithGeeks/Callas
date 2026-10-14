@@ -80,7 +80,9 @@ def to_json_dict(transcript: Transcript) -> dict:
     return {
         "model": transcript.model,
         "model_version": transcript.model_version,
-        "speaker_turns": [asdict(t) for t in transcript.turns],
+        "speaker_turns": [  # the schema has no "raw": ASR output is the raw text
+            {k: v for k, v in asdict(t).items() if k != "raw"} for t in transcript.turns
+        ],
     }
 
 

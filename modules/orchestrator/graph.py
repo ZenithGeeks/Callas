@@ -41,7 +41,7 @@ from nlp_core.registry import analyze_with_tools
 from nlp_core.types import NLPResult
 from tts_voice_agent.constants import ESCALATE_THRESHOLD
 from tts_voice_agent.decision import Decision, decide
-from tts_voice_agent.memory import CallState
+from tts_voice_agent.memory import CallState, clean_turn
 from tts_voice_agent.reply import safe_reply
 
 log = logging.getLogger(__name__)
@@ -176,8 +176,9 @@ def build_turn_graph(rt: Runtime):
     """
 
     def remember(state: TurnState, ctx: TurnContext) -> dict:
-        ctx.states[state["call_id"]].add(state["turn"])
-        return {}
+        turn = clean_turn(state["turn"])  # one clean text for every tool and for the screen
+        ctx.states[state["call_id"]].add(turn)
+        return {"turn": turn}
 
     def analyze(state: TurnState, ctx: TurnContext) -> dict:
         cs = ctx.states[state["call_id"]]

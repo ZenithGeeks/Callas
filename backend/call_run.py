@@ -87,6 +87,7 @@ class RunView:
         turn.timings = update.get("timings", turn.timings)
         if node == "remember":
             turn.status = "reading"
+            turn.text = update["turn"].text  # the cleaned text
         elif node == "analyze":
             nlp = update["nlp"]
             keys = {(e.text, e.label) for e in self.entities}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from asr_diarization.types import Turn
 from nlp_core.types import Entity
@@ -21,6 +21,16 @@ def default_count_tokens(text: str) -> int:
 def default_summarize(text: str) -> str:
     """No-model fallback: keep the most recent part of the text."""
     return text[-SUMMARY_FALLBACK_CHARS:]
+
+
+def clean_turn(turn: Turn) -> Turn:
+    """The turn with clean text (normalized, maybe corrected); raw keeps the original ASR text."""
+    from nlp_core.text import autocorrect_text, normalize_text
+
+    text = autocorrect_text(normalize_text(turn.text))
+    if text == turn.text:
+        return turn
+    return replace(turn, text=text, raw=turn.raw if turn.raw is not None else turn.text)
 
 
 @dataclass
