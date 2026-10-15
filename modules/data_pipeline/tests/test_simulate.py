@@ -14,7 +14,7 @@ from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.budget import prompt_tokens
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.finish import drop_false_spelling, scam_start
-from data_pipeline.records import CallRecord, Generation, Judge, Turn
+from data_pipeline.records import Judge, Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -420,21 +420,9 @@ def test_a_chosen_receiver_gets_its_own_id_and_a_resume_must_match(tmp_path):
 
 
 def scam_record(asks, judge_at, reveal=2, holds=True):
-    """A record with turns A,B,A,B,A,B and the judge's answer; `asks` are the turn indexes
+    """Turns A,B,A,B,A,B, the reveal turn and the judge's answer; `asks` are the turn indexes
     with asks_now set."""
     turns = [Turn(speaker="AB"[i % 2], asks_now=i in asks) for i in range(6)]
-    generation = Generation(
-        schema=1,
-        config_name="",
-        config_hash="",
-        models={},
-        created_at="",
-        call={"reveal_turn": reveal},
-        voices={},
-        speech_style="",
-        turns=turns,
-    )
-    record = CallRecord(id="x", label_scam=True, label_type="phishing_otp", generation=generation)
     verdict = Judge(
         label_holds=holds,
         scam_start_turn=judge_at,
@@ -444,7 +432,7 @@ def scam_record(asks, judge_at, reveal=2, holds=True):
         issues="",
         reasoning="",
     )
-    return record, verdict
+    return turns, reveal, verdict
 
 
 def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
