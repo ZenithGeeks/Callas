@@ -366,7 +366,6 @@ def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
         reasoning="read the whole call against the intended type",
         label_holds=True,
         scam_start_turn=2 if scam else -1,
-        natural_thai=4,
         giveaway=False,
         summary="ผู้โทรขอรหัสจากผู้รับสาย" if scam else "ผู้โทรแจ้งเรื่องการส่งพัสดุ",
         issues="none",

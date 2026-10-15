@@ -83,3 +83,19 @@ def test_a_skipped_judge_keeps_its_key_order():
 def test_a_turn_from_a_newer_store_with_unknown_keys_is_refused():
     with pytest.raises(TypeError):
         Turn.from_dict({"speaker": "A", "volume": 3})
+
+
+def test_a_judge_stored_with_a_natural_thai_score_keeps_it():
+    old = {
+        "prompt_tokens": 900,
+        "label_holds": True,
+        "scam_start_turn": 2,
+        "natural_thai": 3,
+        "giveaway": False,
+        "summary": "สรุป",
+        "issues": "none",
+        "reasoning": "r",
+    }
+    assert as_json(Judge.from_dict(old).to_dict()) == as_json(old)
+    new = {k: v for k, v in old.items() if k != "natural_thai"}
+    assert as_json(Judge.from_dict(new).to_dict()) == as_json(new)

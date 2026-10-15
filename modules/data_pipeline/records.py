@@ -79,11 +79,13 @@ class Judge:
 
     label_holds: bool  # the call shows what its label says
     scam_start_turn: int  # -1: no scam move
-    natural_thai: int  # 1 to 5
     giveaway: bool  # the call gives itself away as made up
     summary: str
     issues: str
     reasoning: str
+    # 1 to 5, how natural the Thai sounds. Only in answers stored before #98: the judge scored
+    # calls down for spelling mistakes that were not there, so it is no longer asked.
+    natural_thai: int | None = None
     prompt_tokens: int | None = None  # None in answers stored before prompt sizes were kept
     skipped: str = ""  # finish.TOO_LONG_FOR_JUDGE when the call was not judged at all
 
@@ -96,7 +98,7 @@ class Judge:
         answer = {
             "label_holds": self.label_holds,
             "scam_start_turn": self.scam_start_turn,
-            "natural_thai": self.natural_thai,
+            **({} if self.natural_thai is None else {"natural_thai": self.natural_thai}),
             "giveaway": self.giveaway,
             "summary": self.summary,
             "issues": self.issues,
