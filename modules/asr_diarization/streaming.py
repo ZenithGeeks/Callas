@@ -57,87 +57,87 @@ class LiveTranscriber:
 
     def __init__(self, engine_factory: Callable[[], Engine] | None = None) -> None:
         self._engine = (engine_factory or default_engine_factory)()
-        self._frame = int(SAMPLE_RATE * FRAME_S)
-        self._byte_left = b""  # odd byte carried to the next feed
-        self._samples = np.zeros(0, dtype=np.float32)  # less than one frame, carried over
-        self._t = 0.0  # seconds of audio consumed (start of the next frame)
+        self._frame_len = int(SAMPLE_RATE * FRAME_S)
+        self._odd_byte = b""  # odd byte carried to the next feed
+        self._leftover = np.zeros(0, dtype=np.float32)  # less than one frame, carried over
+        self._audio_s = 0.0  # seconds of audio consumed (start of the next frame)
         self._preroll: list[np.ndarray] = []
         self._reset_turn()
 
     def _reset_turn(self) -> None:
-        self._open = False
-        self._start = 0.0
+        self._turn_open = False
+        self._turn_start = 0.0
         self._last_speech_end = 0.0
         self._speech_s = 0.0
         self._silence_s = 0.0
-        self._since_partial = 0.0
-        self._text = ""
-        self._last_partial = ""
+        self._since_partial_s = 0.0
+        self._turn_text = ""
+        self._last_partial_text = ""
 
     def feed(self, pcm: bytes) -> list[dict]:
-        data = self._byte_left + pcm
-        self._byte_left = data[len(data) // 2 * 2 :]
+        data = self._odd_byte + pcm
+        self._odd_byte = data[len(data) // 2 * 2 :]
         audio = pcm16_to_float(data)
-        if len(self._samples):
-            audio = np.concatenate([self._samples, audio])
+        if len(self._leftover):
+            audio = np.concatenate([self._leftover, audio])
         events: list[dict] = []
-        n = len(audio) // self._frame * self._frame
-        for i in range(0, n, self._frame):
-            self._on_frame(audio[i : i + self._frame], events)
-        self._samples = audio[n:]
+        n = len(audio) // self._frame_len * self._frame_len
+        for i in range(0, n, self._frame_len):
+            self._on_frame(audio[i : i + self._frame_len], events)
+        self._leftover = audio[n:]
         return events
 
     def flush(self) -> list[dict]:
         """Close any open turn (call on end or pause)."""
         events: list[dict] = []
-        self._samples = np.zeros(0, dtype=np.float32)
-        self._byte_left = b""
+        self._leftover = np.zeros(0, dtype=np.float32)
+        self._odd_byte = b""
         self._preroll.clear()
-        if self._open:
+        if self._turn_open:
             self._close(events)
         return events
 
     def _on_frame(self, frame: np.ndarray, events: list[dict]) -> None:
-        t0, t1 = self._t, self._t + FRAME_S
-        self._t = t1
+        t0, t1 = self._audio_s, self._audio_s + FRAME_S
+        self._audio_s = t1
         speech = float(np.sqrt(np.mean(frame * frame))) >= VAD_RMS_THRESHOLD
-        if not self._open:
+        if not self._turn_open:
             if not speech:
                 self._preroll.append(frame)
                 del self._preroll[: -int(PREROLL_S / FRAME_S)]
                 return
-            self._open = True
-            self._start = max(0.0, t0 - len(self._preroll) * FRAME_S)
+            self._turn_open = True
+            self._turn_start = max(0.0, t0 - len(self._preroll) * FRAME_S)
             for f in self._preroll:
                 self._feed_engine(f)
             self._preroll.clear()
         self._feed_engine(frame)
-        self._since_partial += FRAME_S
+        self._since_partial_s += FRAME_S
         if speech:
             self._speech_s += FRAME_S
             self._silence_s = 0.0
             self._last_speech_end = t1
         else:
             self._silence_s += FRAME_S
-        if self._silence_s >= SILENCE_CLOSE_S or t1 - self._start >= MAX_TURN_S:
+        if self._silence_s >= SILENCE_CLOSE_S or t1 - self._turn_start >= MAX_TURN_S:
             self._close(events)
-        elif self._since_partial >= PARTIAL_EVERY_S:
-            self._since_partial = 0.0
-            if self._text.strip() and self._text != self._last_partial:
-                self._last_partial = self._text
-                events.append({"type": "partial", "text": self._text.strip()})
+        elif self._since_partial_s >= PARTIAL_EVERY_S:
+            self._since_partial_s = 0.0
+            if self._turn_text.strip() and self._turn_text != self._last_partial_text:
+                self._last_partial_text = self._turn_text
+                events.append({"type": "partial", "text": self._turn_text.strip()})
 
     def _feed_engine(self, frame: np.ndarray) -> None:
         piece = self._engine.feed_chunk(frame)
         if piece:  # Thai has no spaces between words, so pieces are joined as they come
-            self._text += piece
+            self._turn_text += piece
 
     def _close(self, events: list[dict]) -> None:
         tail = self._engine.flush()
         if tail:
-            self._text += tail
-        text = self._text.strip()
-        start, end, speech_s = self._start, self._last_speech_end, self._speech_s
+            self._turn_text += tail
+        text = self._turn_text.strip()
+        start, end, speech_s = self._turn_start, self._last_speech_end, self._speech_s
         self._engine.reset()
         self._reset_turn()
         if speech_s >= MIN_TURN_S and text:
@@ -146,10 +146,10 @@ class LiveTranscriber:
             )
 
 
-def pcm16_to_float(b: bytes) -> np.ndarray:
+def pcm16_to_float(pcm: bytes) -> np.ndarray:
     """Little-endian int16 mono bytes -> float32 in [-1, 1). A trailing odd byte is dropped."""
-    n = len(b) // 2 * 2
-    return np.frombuffer(b[:n], dtype="<i2").astype(np.float32) / 32768.0
+    n = len(pcm) // 2 * 2
+    return np.frombuffer(pcm[:n], dtype="<i2").astype(np.float32) / 32768.0
 
 
 def default_engine_factory() -> Engine:

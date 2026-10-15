@@ -61,15 +61,15 @@ def resolve_model(model: str | None = None) -> str:
 def get_diarizer(model_name: str):
     """Load the pythaiasr Diarization model once per model name and reuse it."""
     with _cache_lock:
-        inst = _cache.get(model_name)
-        if inst is None:
+        diarizer = _cache.get(model_name)
+        if diarizer is None:
             from pythaiasr import Diarization
 
             t0 = time.perf_counter()
-            inst = Diarization(model=model_name)
-            _cache[model_name] = inst
+            diarizer = Diarization(model=model_name)
+            _cache[model_name] = diarizer
             log.info("loaded diarizer model=%s in %.2fs", model_name, time.perf_counter() - t0)
-        return inst
+        return diarizer
 
 
 def relabel_and_merge(raw: list[dict], max_gap: float = 0.5) -> list[Segment]:
