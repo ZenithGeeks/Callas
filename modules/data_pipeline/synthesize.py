@@ -67,6 +67,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {written} calls to {args.export}")
         return 0
 
+    return _generate(parser, args, config, store)
+
+
+def _generate(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, config: Config, store: Store
+) -> int:
+    """Run the calls --type asks for and print how many were accepted, rejected or failed."""
     try:
         receiver = _chosen_receiver(args, config)
     except (ConfigError, ValueError, OSError) as exc:
@@ -94,7 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     counts = _run_jobs(jobs, args, config, store, receiver)
     if counts is None:
         return 2
+    return _print_counts(config, call_types, counts)
 
+
+def _print_counts(config: Config, call_types: tuple[str, ...], counts: Counter) -> int:
+    """Print one line for each call type. Returns 1 if any call hit an error, else 0."""
     print(f"config {config.name} (hash {config.hash})")
     errors = 0
     for call_type in call_types:
@@ -179,25 +190,26 @@ def _chosen_receiver(args: argparse.Namespace, config: Config) -> ReceiverProfil
             )
         return profiles[args.receiver]
     if args.receiver_file:
-        import yaml
-
-        data = yaml.safe_load(args.receiver_file.read_text(encoding="utf-8"))
-        profile = ReceiverProfile.model_validate(data)
-        if not profile.key:
-            raise ConfigError(
-                f"{args.receiver_file}: add a key (lowercase and _), e.g. key: aunt_noi"
-            )
-        if profile.key in {p.key for p in config.scenarios.receivers.profiles}:
-            raise ConfigError(
-                f"{args.receiver_file}: key {profile.key!r} is already a profile in "
-                "scenarios.yaml; pick another key, or use --receiver to choose that profile"
-            )
-        if profile.gender not in config.scenarios.receivers.genders:
-            raise ConfigError(
-                f"{args.receiver_file}: gender must be one of {config.scenarios.receivers.genders}"
-            )
-        return profile
+        return _receiver_from_file(args.receiver_file, config)
     return None
+
+
+def _receiver_from_file(path: Path, config: Config) -> ReceiverProfile:
+    """The person described in a YAML file. It needs its own key and a gender the config knows."""
+    import yaml
+
+    profile = ReceiverProfile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    receivers = config.scenarios.receivers
+    if not profile.key:
+        raise ConfigError(f"{path}: add a key (lowercase and _), e.g. key: aunt_noi")
+    if profile.key in {p.key for p in receivers.profiles}:
+        raise ConfigError(
+            f"{path}: key {profile.key!r} is already a profile in "
+            "scenarios.yaml; pick another key, or use --receiver to choose that profile"
+        )
+    if profile.gender not in receivers.genders:
+        raise ConfigError(f"{path}: gender must be one of {receivers.genders}")
+    return profile
 
 
 def _export(store: Store, path: Path, approved_only: bool) -> int:
@@ -237,7 +249,7 @@ def _run_jobs(
     config: Config,
     store: Store,
     receiver: ReceiverProfile | None = None,
-):
+) -> Counter | None:
     """Run every (call type, seed) job. Returns counts of (call type, status), or None if the
     LLM server, the config or Ctrl-C stopped the run."""
     counts: Counter = Counter()
