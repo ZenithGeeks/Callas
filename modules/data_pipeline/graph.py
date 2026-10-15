@@ -24,10 +24,11 @@ from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
 from .finish import RECORD_FIELDS, Ending, ended_early, finish_call
+from .records import Briefing, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import CALLER, RECEIVER, Briefing, Turn, is_model_error, write_plan, write_turn
+from .turns import CALLER, RECEIVER, is_model_error, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
 
@@ -57,9 +58,10 @@ class SimContext:
 def initial_state(record: dict) -> CallState:
     """The state of a stored call that is new or still in progress."""
     generation = record["generation"]
+    briefing = generation["briefing"]
     return {
-        "briefing": generation["briefing"],
-        "turns": generation["turns"],
+        "briefing": None if briefing is None else Briefing.from_dict(briefing),
+        "turns": [Turn.from_dict(turn) for turn in generation["turns"]],
         "status": generation["status"],
         "ending": None,
     }
@@ -72,7 +74,12 @@ def to_record(record: dict, state: CallState) -> dict:
     """
     record = copy.deepcopy(record)
     generation = record["generation"]
-    generation.update(briefing=state["briefing"], turns=state["turns"], status=state["status"])
+    briefing = state["briefing"]
+    generation.update(
+        briefing=None if briefing is None else briefing.to_dict(),
+        turns=[turn.to_dict() for turn in state["turns"]],
+        status=state["status"],
+    )
     for key, value in (state["ending"] or {}).items():
         (record if key in RECORD_FIELDS else generation)[key] = value
     return record
@@ -106,14 +113,14 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     runs again, the state still has the old turns, so a turn is never added twice.
     """
     turns = state["turns"]
-    plan_steps = (state["briefing"] or {}).get("plan", [])
+    plan_steps = state["briefing"].plan if state["briefing"] else []
     try:
         turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
     except ContextTooLong as exc:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
         log.warning("%s: %s", ctx.record["id"], exc)
-        update = {"status": "rejected", "ending": ended_early(turns)}
+        update = {"status": "rejected", "ending": ended_early([t.to_dict() for t in turns])}
         ctx.store.save(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
@@ -141,7 +148,7 @@ def next_speaker(
     turns = state["turns"]
     if state["status"] != "in_progress":
         return "finish"
-    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
+    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1].end_call):
         return "finish"
     return "caller" if len(turns) % 2 == 0 else "receiver"
 

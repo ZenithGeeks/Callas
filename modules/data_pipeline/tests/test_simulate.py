@@ -13,6 +13,7 @@ from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.finish import scam_start
+from data_pipeline.records import Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -493,7 +494,8 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = turn_module.receiver_view(turns, simulate.SlotFiller(call, CONFIG.details), CONFIG)
+    typed = [Turn.from_dict(turn) for turn in turns]
+    view = turn_module.receiver_view(typed, simulate.SlotFiller(call, CONFIG.details), CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
 
 
