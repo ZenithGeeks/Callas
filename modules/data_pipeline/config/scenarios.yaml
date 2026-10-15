@@ -21,13 +21,15 @@ scams:
   - key: police_warrant
     role: police officer from a central investigation unit
     org: กองบัญชาการตำรวจสอบสวนกลาง
-    goal: get the receiver to move their money to {BANK_ACCOUNT} 'for checking'
+    goal: get the receiver to read out their ID card number and bank account number 'to verify
+      identity', then move their money to {BANK_ACCOUNT} 'for checking'
     tactics: says the receiver's bank account was used for money laundering, threatens arrest, forbids
       telling family, offers to 'clear the name' if money is moved now
   - key: dsi_case
     role: DSI investigator
     org: กรมสอบสวนคดีพิเศษ
-    goal: get the receiver to add a LINE contact and send ID card photos, then transfer {MONEY}
+    goal: get the receiver to read out their ID card number and birth date 'to match the case
+      file', then add a LINE contact and transfer {MONEY}
     tactics: claims a parcel in the receiver's name held drugs or fake passports, transfers the call to
       a 'senior officer', asks for a video call statement
   - key: revenue_tax
@@ -43,7 +45,8 @@ scams:
   - key: court_summons
     role: court clerk
     org: ศาล
-    goal: get the receiver to call back {PHONE} and pay a 'fine' of {MONEY}
+    goal: get the receiver to confirm their ID card number and address 'to find the case', then
+      call back {PHONE} and pay a 'fine' of {MONEY}
     tactics: says the receiver missed a court date about an unpaid card, warns of a warrant
   - key: customs_parcel
     role: customs officer

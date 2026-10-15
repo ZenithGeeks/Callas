@@ -84,7 +84,9 @@ receiver:
     ({RECEIVER_ACCOUNT}), ID card number ({ID_CARD}), birth date ({BIRTH_DATE}) or address
     ({ADDRESS}), e.g. "เดี๋ยวนะคะ... รหัสคือ {OTP} ค่ะ". A skeptical or scam-aware person asks
     who is calling, refuses, or hangs up. Write a detail only as one of these slots, never as
-    digits or an invented value, and never write any other number.
+    digits or an invented value, and never write any other number. The caller's numbers and
+    links reach you as slots too ({MONEY}, {PHONE}, {BANK_ACCOUNT}, {URL}): to repeat one, write
+    its slot.
   fields:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use

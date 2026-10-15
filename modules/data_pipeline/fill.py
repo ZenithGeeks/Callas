@@ -51,6 +51,10 @@ RECEIVER_OWN_SLOTS = (
     "BIRTH_DATE",
     "ADDRESS",
 )
+# The caller's numbers and links. The receiver hears them as slots too, so a receiver that
+# repeats one writes the slot, not digits that get the call rejected as number_without_slot
+# (#99). Repeating one of these is not a leak: only RECEIVER_LEAK_SLOTS are.
+CALLER_NUMBER_SLOTS = ("PHONE", "BANK_ACCOUNT", "OTP", "URL", "MONEY")
 # Slots a caller cannot know: the person who answered owns these. A caller turn that uses one
 # is flagged (turns.write_turn). {RECEIVER_NAME} is not here: a caller may know the name.
 RECEIVER_ONLY_SLOTS = ("RECEIVER_PHONE", "RECEIVER_ACCOUNT", "ID_CARD", "BIRTH_DATE", "ADDRESS")

@@ -499,11 +499,12 @@ LEAKY = [
 
 
 def test_receiver_prompt_stays_small():
-    """The receiver's prompt without the call (#64 added about 30 tokens to 776)."""
+    """The receiver's prompt without the call (#64 added about 30 tokens to 776, #99 about 45
+    more)."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(persona="{}", voice="v", stage="s", conversation="[0] ผู้โทร: สวัสดีครับ")
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 850
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 880
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):
@@ -550,6 +551,20 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     typed = [Turn.from_dict(turn) for turn in turns]
     view = turn_module.receiver_view(typed, simulate.SlotFiller(call, CONFIG.details), CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
+
+
+def test_the_receiver_hears_the_callers_numbers_as_slots(tmp_path):
+    echo = [dict(line="โอนไป {BANK_ACCOUNT} ใช่ไหมคะ โทรกลับ {PHONE} ได้ไหมคะ", end_call=False)] * 2
+    agents = make_agents(SCAM, echo, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    call = simulate.sample_config("phishing_otp", 1, CONFIG)
+    values = simulate.SlotFiller(call, CONFIG.details).values
+    last_view = agents.receiver.calls[-1]["conversation"]
+    assert "{BANK_ACCOUNT}" in last_view and values["BANK_ACCOUNT"] not in last_view
+    receiver_turns = [t for t in rec["generation"]["turns"] if t["speaker"] == "B"]
+    # repeating the caller's numbers is neither a leak nor a number without a slot
+    assert all(t["leaked"] == [] and t["problems"] == [] for t in receiver_turns)
+    assert values["PHONE"] in receiver_turns[0]["text"]
 
 
 def test_the_receiver_hears_a_name_chosen_in_the_studio_as_its_own_slot(tmp_path):
