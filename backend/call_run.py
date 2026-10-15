@@ -359,54 +359,92 @@ class RunRegistry:
             Path(run.path).unlink(missing_ok=True)
 
 
-async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterator[tuple[str, Any]]:
+@dataclass
+class TranscriptReady:
+    """ASR has run. `transcript` is None if the pipeline left no result on the worker thread."""
+
+    transcript: Any = None
+    seconds: float = 0.0
+
+
+@dataclass
+class GraphUpdate:
+    """One node of the call graph finished. `item` is what RunView.feed reads."""
+
+    item: dict
+
+
+@dataclass
+class CallEnded:
+    """The call finished normally. Always the last event of a run that did not fail."""
+
+
+@dataclass
+class CallFailed:
+    """The call raised. Always the last event of a run that failed."""
+
+    error: Exception
+
+
+CallEvent = TranscriptReady | GraphUpdate | CallEnded | CallFailed
+
+
+async def iter_updates(app_runtime, path: str, stop: threading.Event) -> AsyncIterator[CallEvent]:
     """Run CallSessions.simulate_call in one worker thread and yield what it produces.
 
-    Yields ("transcript", (Transcript, seconds)) once, then ("item", update) per node, then
-    ("end", None). A failure arrives as ("error", exception). Setting `stop` makes the worker
-    thread stop after its current update, which ends the call session.
+    Yields TranscriptReady once, then a GraphUpdate per node, then CallEnded. A failure ends the
+    stream with CallFailed instead. Setting `stop` makes the worker thread stop after its
+    current update, which ends the call session.
 
     The transcript is not part of the graph updates. runtime.py wraps the ASR function and
     stores its result in a thread-local, so _simulate must read it on the worker thread.
     """
     loop = asyncio.get_running_loop()
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue[CallEvent] = asyncio.Queue()
 
-    def put(kind: str, value: Any) -> None:
-        loop.call_soon_threadsafe(queue.put_nowait, (kind, value))
+    def put(event: CallEvent) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event)
 
     worker = threading.Thread(
-        target=_simulate, args=(app_rt, path, stop, put), name="simulate-call", daemon=True
+        target=_simulate, args=(app_runtime, path, stop, put), name="simulate-call", daemon=True
     )
     worker.start()
     try:
         while True:
-            kind, value = await queue.get()
-            yield kind, value
-            if kind in {"end", "error"}:
+            event = await queue.get()
+            yield event
+            if isinstance(event, (CallEnded, CallFailed)):
                 return
     finally:
         stop.set()
 
 
-def _simulate(app_rt, path: str, stop: threading.Event, put: Callable[[str, Any], None]) -> None:
+def _simulate(
+    app_runtime, path: str, stop: threading.Event, put: Callable[[CallEvent], None]
+) -> None:
     """Worker thread of iter_updates: run the call and hand every update to `put`."""
     transcript_sent = False
     updates = None
     try:
-        updates = app_rt.sessions.simulate_call(path)
+        updates = app_runtime.sessions.simulate_call(path)
         for item in updates:
             if not transcript_sent:  # ASR has run by the time the first update arrives
-                put("transcript", runtime.last_transcription())
+                put(_transcript_ready())
                 transcript_sent = True
             if stop.is_set():
                 break
-            put("item", item)
+            put(GraphUpdate(item))
         if not transcript_sent:
-            put("transcript", runtime.last_transcription())
-        put("end", None)
+            put(_transcript_ready())
+        put(CallEnded())
     except Exception as exc:
-        put("error", exc)
+        put(CallFailed(exc))
     finally:
         if updates is not None:
             updates.close()  # ends the call session even when stopped early
+
+
+def _transcript_ready() -> TranscriptReady:
+    """The ASR result of this thread's last pipeline.run, as an event."""
+    result = runtime.last_transcription()
+    return TranscriptReady(*result) if result else TranscriptReady()

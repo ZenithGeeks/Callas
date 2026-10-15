@@ -99,7 +99,7 @@ def build(force_demo: bool | None = None) -> AppRuntime:
     if is_demo:
         llm = demo.make_llm()
         demo.register_demo_parts(llm)
-        rt = Runtime(
+        runtime = Runtime(
             llm=llm, speaker=demo.FakeSpeaker(), ner="demo", classifier="demo", summarizer="demo"
         )
         asr_pipeline.run = _recording(demo.fake_pipeline_run)
@@ -107,6 +107,6 @@ def build(force_demo: bool | None = None) -> AppRuntime:
         from llm_serving.client import LLMClient
         from tts_voice_agent.speech import Speaker
 
-        rt = Runtime(llm=LLMClient(), speaker=Speaker())
+        runtime = Runtime(llm=LLMClient(), speaker=Speaker())
         asr_pipeline.run = _recording(original)
-    return AppRuntime("demo" if is_demo else "real", rt, CallSessions(rt), original)
+    return AppRuntime("demo" if is_demo else "real", runtime, CallSessions(runtime), original)

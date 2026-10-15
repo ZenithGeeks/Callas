@@ -24,8 +24,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from callas_settings import get_settings  # noqa: E402
 
-from . import basics, call, call_run, live, message, review, studio  # noqa: E402
-from . import runtime as rt_mod  # noqa: E402
+from . import basics, call, call_run, live, message, review, runtime, studio  # noqa: E402
 from .web import ROOT  # noqa: E402
 
 log = logging.getLogger("callas.web")
@@ -38,14 +37,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start the runtime and run registry; on shutdown close the runtime and delete uploads."""
     setup_tracing("callas-web", call_text=get_settings().trace_call_text)
     call.clear_uploads()
-    app.state.rt = rt_mod.build()
+    app.state.app_runtime = runtime.build()
     app.state.runs = call_run.RunRegistry()
     app.state.pace = float(os.environ.get("CALLAS_FAKE_DELAY", DEMO_PACE_SECONDS))
-    log.info("Callas web demo started in %s mode", app.state.rt.mode)
+    log.info("Callas web demo started in %s mode", app.state.app_runtime.mode)
     try:
         yield
     finally:
-        app.state.rt.close()
+        app.state.app_runtime.close()
         call.clear_uploads()
 
 

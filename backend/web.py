@@ -48,8 +48,8 @@ def render(name: str, **ctx) -> str:
 
 def page(request: Request, name: str, active: str, **ctx) -> HTMLResponse:
     """A full page. `active` marks the nav link; `demo` shows the demo badge."""
-    rt = request.app.state.rt
-    html = render(name, request=request, active=active, demo=rt.is_demo, **ctx)
+    app_runtime = request.app.state.app_runtime
+    html = render(name, request=request, active=active, demo=app_runtime.is_demo, **ctx)
     return HTMLResponse(html)
 
 

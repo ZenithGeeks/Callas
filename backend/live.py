@@ -46,7 +46,7 @@ async def ws_live(ws: WebSocket) -> None:
     # The first real call loads the streaming ASR model. Off the event loop, so other pages
     # keep answering while it loads.
     try:
-        call = await run_in_threadpool(live_ws.make_live_call, ws.app.state.rt)
+        call = await run_in_threadpool(live_ws.make_live_call, ws.app.state.app_runtime)
     except Exception:
         # A model that will not load (bad ASR_MODEL, missing files) must say so on screen,
         # not just close the socket. The cause is in the server log.

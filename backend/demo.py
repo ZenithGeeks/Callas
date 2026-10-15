@@ -20,7 +20,9 @@ from nlp_core.types import Entity
 
 DEMO_FILENAME = "call_parcel_police_07.wav"
 
-# (speaker, start seconds, text). Speaker A is the person being called, B is the caller.
+# (speaker, start seconds, text). Like any recording, A is the person being called
+# (views.CALLED_PERSON) and B is the caller. Generated calls in the dataset use the opposite
+# letters (dataset.GENERATED_CALLER).
 DEMO_TURNS: tuple[tuple[str, float, str], ...] = (
     ("B", 0.0, "สวัสดีครับ ผมโทรจากบริษัทขนส่งนะครับ มีพัสดุส่งถึงคุณครับ"),
     ("A", 6.0, "ค่ะ พัสดุอะไรคะ ไม่ได้สั่งอะไรไว้เลย"),

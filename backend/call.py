@@ -15,7 +15,7 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import BinaryIO
 
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -65,20 +65,20 @@ async def call_page(request: Request) -> HTMLResponse:
 @router.post("/call/simulate", response_class=HTMLResponse)
 async def call_simulate(request: Request, audio: UploadFile | None = None) -> HTMLResponse:
     """Save the recording, register a run, and return the empty result shell."""
-    app_rt = request.app.state.rt
+    app_runtime = request.app.state.app_runtime
     if audio is not None and audio.filename:
         try:
             path = await _save_upload(audio)
         except BadUpload as problem:
             return form_error(str(problem))
         filename = Path(audio.filename).name
-    elif app_rt.is_demo:
+    elif app_runtime.is_demo:
         path = _placeholder_recording()
         filename = demo.DEMO_FILENAME
     else:
         return form_error("Choose a recording first.")
     run = request.app.state.runs.create(path, filename)
-    view = call_run.RunView(filename, app_rt.is_demo)
+    view = call_run.RunView(filename, app_runtime.is_demo)
     regions = {name: Markup(html) for name, html in _render_regions(view, False).items()}
     return HTMLResponse(render("partials/call_shell.html", run=run, view=view, regions=regions))
 
@@ -149,18 +149,18 @@ def _placeholder_recording() -> str:
 async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]:
     """Run the analysis and yield an event whenever a region of the page changes."""
     app = request.app
-    app_rt = app.state.rt
-    view = call_run.RunView(run.filename, app_rt.is_demo)
+    app_runtime = app.state.app_runtime
+    view = call_run.RunView(run.filename, app_runtime.is_demo)
     sent: dict[str, str] = {}
     stop = threading.Event()
     try:
         yield ": open\n\n"
-        async for kind, value in call_run.iter_updates(app_rt, run.path, stop):
-            _apply_update(view, kind, value)
+        async for update in call_run.iter_updates(app_runtime, run.path, stop):
+            _apply_update(view, update)
             for event in _changed_regions(view, sent, fresh=view.take_fresh()):
                 yield event
-            if kind == "item" and app_rt.is_demo and app.state.pace:
-                await _pause_demo(app.state.pace, view, value)
+            if isinstance(update, call_run.GraphUpdate) and app_runtime.is_demo and app.state.pace:
+                await _pause_demo(app.state.pace, view, update.item)
         view.finish()
         run.snapshot = _render_regions(view, False)
         run.finished = True
@@ -173,19 +173,20 @@ async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]
             run.path = None
 
 
-def _apply_update(view: call_run.RunView, kind: str, value: Any) -> None:
-    """Record one update from call_run.iter_updates in the view."""
-    if kind == "transcript" and value:
-        view.set_transcript(*value)
-    elif kind == "item":
-        view.feed(value)
-    elif kind == "error":
-        log.error("call run failed: %s", type(value).__name__)
-        if isinstance(value, LLMUnavailable):
-            view.error = str(value)
+def _apply_update(view: call_run.RunView, update: call_run.CallEvent) -> None:
+    """Record one event from call_run.iter_updates in the view."""
+    if isinstance(update, call_run.TranscriptReady):
+        if update.transcript is not None:
+            view.set_transcript(update.transcript, update.seconds)
+    elif isinstance(update, call_run.GraphUpdate):
+        view.feed(update.item)
+    elif isinstance(update, call_run.CallFailed):
+        log.error("call run failed: %s", type(update.error).__name__)
+        if isinstance(update.error, LLMUnavailable):
+            view.error = str(update.error)
         else:
             view.error = "Something went wrong while reading the call."
-    elif kind == "end":
+    elif isinstance(update, call_run.CallEnded):
         view.finish()
 
 
