@@ -12,31 +12,31 @@ auto-replied.
 from __future__ import annotations
 
 from llm_serving.base import LLM
-from llm_serving.client import parse_label
 
 from .entities import extract_entities
-from .types import SCAM_TYPES, NLPResult
+from .registry import LLMClassifier, LLMSummarizer
+from .types import NLPResult
 
 
 class Analyzer:
+    """Run the rule NER and one LLM for the summary and the scam label."""
+
     def __init__(self, llm: LLM) -> None:
         self.llm = llm
 
     def analyze(self, text: str) -> NLPResult:
-        entities = extract_entities(text)
-        summary = self.llm.complete("summary", text).strip()
-        label = parse_label(self.llm.complete("classify", text))
+        """Entities from rules, summary and scam label from two LLM calls.
 
-        if label == "normal":
-            scam, kind, conf = False, None, 1.0
-        elif label in SCAM_TYPES:
-            scam, kind, conf = True, label, 1.0
-        else:
-            scam, kind, conf = True, None, 0.0
+        This path does not read NLP_NER, NLP_CLASSIFIER or NLP_SUMMARIZER; use
+        registry.analyze_with_tools for that.
+        """
+        entities = extract_entities(text)
+        summary = LLMSummarizer(self.llm).summarize(text)
+        label_scam, label_type, confidence = LLMClassifier(self.llm).predict(text)
         return NLPResult(
             entities=entities,
             summary=summary,
-            label_scam=scam,
-            label_type=kind,
-            confidence=conf,
+            label_scam=label_scam,
+            label_type=label_type,
+            confidence=confidence,
         )
