@@ -30,6 +30,8 @@ def record(rid="phishing_otp_00001", status="accepted", scam=True):
             "problems": [],
             "spelling": [],
             "audio": f"audio/{rid}/00_A.wav",
+            "spoken_text": "ขอรหัส หนึ่งสองสามสี่ห้าหก ด้วยค่ะ",
+            "prompt_tokens": 1234,
         },
         {
             "speaker": "B",
@@ -37,6 +39,7 @@ def record(rid="phishing_otp_00001", status="accepted", scam=True):
             "entities": [],
             "reasoning": "",
             "problems": ["number_without_slot"],
+            "leaked": ["OTP", "ID_CARD"],
             "spelling": [],
             "audio": f"audio/{rid}/01_B.wav",
         },
@@ -59,6 +62,7 @@ def record(rid="phishing_otp_00001", status="accepted", scam=True):
             "turns": turns,
             "judge": {"label_holds": True, "natural_thai": 4, "issues": "none", "reasoning": "r"},
             "scam_start_from": "caller",
+            "speech_style": "dash",
             "voices": {"A": "th_f_1", "B": "th_m_2"},
             "call": {"seed": 1, "scenario": {"key": "bank_security", "role": "bank staff"}},
         },
@@ -339,3 +343,19 @@ def test_reason_codes_from_the_simulator_have_words():
 
     for code in ("stray_brace", "line_break", "number_without_slot", "no_scam_move"):
         assert dataset.reason_text(code) != code
+
+
+def test_a_leaking_receiver_turn_is_tagged(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert html.count("Leaked: OTP, ID CARD") == 1
+    assert 'data-tone="alarm" data-leak lang="en">Leaked: OTP, ID CARD<' in html
+    assert dataset._leak_tag({"leaked": []}) == "" and dataset._leak_tag({}) == ""
+
+
+def test_the_detail_shows_spoken_text_prompt_size_and_speech_style(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Spoken: ขอรหัส หนึ่งสองสามสี่ห้าหก ด้วยค่ะ" in html
+    assert html.count("Prompt about 1234 tokens") == 1  # the other turn has no size
+    assert "with ขีด between digit groups" in html
+    assert dataset.reason_text("too_long_for_context") == "A prompt did not fit the context window"
+    assert "only the receiver knows" in dataset.reason_text("caller_used_receiver_slot")

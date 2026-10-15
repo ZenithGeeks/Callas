@@ -22,13 +22,16 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
                 "agent": "scam_caller" if speaker == "A" else "receiver",
                 "raw": text,
                 "text": text,
+                "spoken_text": "",
                 "entities": entities,
                 "asks_now": speaker == "A",
                 "end_call": False,
                 "reasoning": "r",
                 "problems": [],
+                "leaked": [],
                 "spelling": [],
                 "latency_s": 1.0,
+                "prompt_tokens": 321,
                 "audio": None,
                 "audio_s": None,
             }
@@ -60,6 +63,9 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
             "voices": {"A": "th_f_1", "B": "th_m_1"},
             "briefing": None,
             "turns": gen_turns,
+            "receiver_leaked": [],
+            "first_leak_turn": None,
+            "speech_style": "",
             "scam_start_from": "caller" if scam else None,
             "judge": {"label_holds": True},
         },
@@ -238,3 +244,82 @@ def test_import_json_folder_keeps_reviews_of_new_rows(tmp_path):
     store = Store(tmp_path / "calls.db")
     assert import_json_folder(store, folder) == (1, 0)
     assert store.load(record["id"])["review"]["status"] == "approved"
+
+
+def test_leak_fields_round_trip(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record(turns=2)
+    record["generation"]["turns"][1]["leaked"] = ["OTP", "ID_CARD"]
+    record["generation"]["receiver_leaked"] = ["ID_CARD", "OTP"]
+    record["generation"]["first_leak_turn"] = 1
+    store.save(record)
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["turns"][1]["leaked"] == ["OTP", "ID_CARD"]
+    assert loaded["generation"]["turns"][0]["leaked"] == []
+    assert loaded["generation"]["receiver_leaked"] == ["ID_CARD", "OTP"]
+    assert loaded["generation"]["first_leak_turn"] == 1
+
+
+def test_an_old_database_gets_the_new_columns(tmp_path):
+    """A calls.db made before the leak fields still opens, and its calls load with defaults."""
+    import sqlite3
+
+    path = tmp_path / "calls.db"
+    Store(path).save(make_record())
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
+    db.execute("ALTER TABLE calls DROP COLUMN first_leak_turn")
+    db.execute("ALTER TABLE turns DROP COLUMN leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
+    db.execute("ALTER TABLE calls DROP COLUMN speech_style")
+    db.commit()
+    db.close()
+
+    store = Store(path)  # adds the columns again
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["receiver_leaked"] == []
+    assert loaded["generation"]["first_leak_turn"] is None
+    assert loaded["generation"]["turns"][0]["leaked"] == []
+    Store(path)  # opening twice is fine
+
+
+def test_spoken_text_and_style_round_trip(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record(turns=2)
+    record["generation"]["speech_style"] = "dash"
+    record["generation"]["turns"][0]["spoken_text"] = "ขอรหัส หนึ่งสองสาม"
+    store.save(record)
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["speech_style"] == "dash"
+    assert loaded["generation"]["turns"][0]["spoken_text"] == "ขอรหัส หนึ่งสองสาม"
+
+
+class _RacingDb:
+    """Reports no columns, then fails the ALTER the way SQLite does when a second process won."""
+
+    def __init__(self, message):
+        self.message = message
+
+    def execute(self, sql):
+        import sqlite3
+
+        if sql.startswith("PRAGMA"):
+            return []
+        raise sqlite3.OperationalError(self.message)
+
+
+def test_a_column_another_process_just_added_is_ignored():
+    from data_pipeline.store import _add_missing_columns
+
+    _add_missing_columns(_RacingDb("duplicate column name: receiver_leaked"))
+
+
+def test_any_other_alter_error_is_raised():
+    import sqlite3
+
+    import pytest
+
+    from data_pipeline.store import _add_missing_columns
+
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        _add_missing_columns(_RacingDb("database is locked"))
