@@ -2,6 +2,7 @@
 
 RunView only collects what the graph produced (turn text, entities, decisions, timings) and
 shapes it for the templates. The scam decision itself always comes from the orchestrator.
+Read RunView first, then Run and RunRegistry, then iter_updates.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ import asyncio
 import threading
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,21 +19,16 @@ from typing import Any
 from orchestrator.graph import verdict_from
 
 from . import runtime
-from .views import (
-    Band,
-    confidence_word,
-    fmt_seconds,
-    fmt_time,
-    type_name,
-    who,
-)
+from .views import Band, confidence_word, fmt_seconds, type_name, who
 
 TERMINAL_NODES = frozenset({"escalate", "speak"})
 
 
 @dataclass
 class TurnView:
-    n: int
+    """One turn of the call and what the graph decided about it so far."""
+
+    n: int  # 1-based
     speaker: str
     start: float
     end: float
@@ -54,7 +50,47 @@ class TurnView:
         return 28 + min(len(self.text), 100) * 3 // 10
 
 
+@dataclass
+class Stage:
+    """One row of the four-step pipeline list."""
+
+    n: int
+    name: str
+    desc: str
+    state: str  # idle | busy | done | safe | scam
+    right: str  # time taken, or a short note
+
+
+@dataclass
+class Column:
+    """One bar of the turn strip."""
+
+    n: int
+    who: str
+    state: str  # idle | live | normal | scam | held
+    height: int
+
+
+@dataclass
+class LogEntry:
+    """A run of turns with the same outcome in the decision log."""
+
+    kind: str  # ok | alarm
+    text: str
+    outcome: str
+    first: int
+    last: int
+
+    @property
+    def range(self) -> str:
+        if self.first == self.last:
+            return f"T{self.first}"
+        return f"T{self.first}–T{self.last}"
+
+
 class RunView:
+    """Everything the result regions of the call page show, collected as updates arrive."""
+
     def __init__(self, filename: str, demo: bool) -> None:
         self.filename = filename
         self.demo = demo
@@ -71,9 +107,8 @@ class RunView:
         self.error: str | None = None
         self.fresh_pending = False
 
-    # ---- collecting -------------------------------------------------------------------
-
     def set_transcript(self, transcript: Any, seconds: float) -> None:
+        """Fill in the turns from the ASR result. `seconds` is the time ASR took."""
         self.model = transcript.model
         self.asr_seconds = seconds
         self.turns = [
@@ -82,36 +117,16 @@ class RunView:
         ]
 
     def feed(self, item: dict) -> None:
+        """Record one graph update: {"turn_index", "node", "update"}."""
         turn = self.turns[item["turn_index"]]
         node, update = item["node"], item["update"]
         turn.timings = update.get("timings", turn.timings)
         if node == "remember":
-            turn.status = "reading"
-            turn.text = update["turn"].text  # the cleaned text
+            self._remember(turn, update)
         elif node == "analyze":
-            nlp = update["nlp"]
-            keys = {(e.text, e.label) for e in self.entities}
-            self.entities += [e for e in nlp.entities if (e.text, e.label) not in keys]
-            self.summary = nlp.summary
-            verdict = verdict_from(nlp)
-            turn.level, turn.label_type, turn.confidence = (
-                verdict["level"],
-                verdict["label_type"],
-                verdict["confidence"],
-            )
+            self._analyze(turn, update)
         elif node == "decide":
-            decision = update["decision"]
-            turn.reason = decision.reason
-            if decision.auto_reply:
-                turn.status = "normal"
-            elif self.esc_turn is None:
-                turn.status = "scam"
-                self.esc_turn = turn.n
-                self.esc_level = turn.level if turn.level != "safe" else "suspicious"
-                self.esc_type, self.esc_confidence = turn.label_type, turn.confidence
-                self.fresh_pending = True
-            else:
-                turn.status = "held"
+            self._decide(turn, update)
 
     def finish(self) -> None:
         self.done = True
@@ -121,7 +136,33 @@ class RunView:
         fresh, self.fresh_pending = self.fresh_pending, False
         return fresh
 
-    # ---- shaping ----------------------------------------------------------------------
+    def _remember(self, turn: TurnView, update: dict) -> None:
+        turn.status = "reading"
+        turn.text = update["turn"].text  # the cleaned text
+
+    def _analyze(self, turn: TurnView, update: dict) -> None:
+        nlp = update["nlp"]
+        known = {(e.text, e.label) for e in self.entities}
+        self.entities += [e for e in nlp.entities if (e.text, e.label) not in known]
+        self.summary = nlp.summary
+        verdict = verdict_from(nlp)
+        turn.level = verdict["level"]
+        turn.label_type = verdict["label_type"]
+        turn.confidence = verdict["confidence"]
+
+    def _decide(self, turn: TurnView, update: dict) -> None:
+        decision = update["decision"]
+        turn.reason = decision.reason
+        if decision.auto_reply:
+            turn.status = "normal"
+        elif self.esc_turn is None:  # the first turn that is not answered is the escalation
+            turn.status = "scam"
+            self.esc_turn = turn.n
+            self.esc_level = turn.level if turn.level != "safe" else "suspicious"
+            self.esc_type, self.esc_confidence = turn.label_type, turn.confidence
+            self.fresh_pending = True
+        else:
+            turn.status = "held"
 
     @property
     def total(self) -> int:
@@ -132,19 +173,6 @@ class RunView:
         return sum(1 for t in self.turns if t.status in {"normal", "scam", "held"})
 
     @property
-    def speakers(self) -> int:
-        return len({t.speaker for t in self.turns})
-
-    @property
-    def meta(self) -> str:
-        if not self.turns:
-            return "Listening to the recording"
-        parts = [fmt_time(self.turns[-1].end), f"{self.speakers} speakers"]
-        if self.demo:
-            parts.append("synthetic demo call")
-        return " · ".join(parts)
-
-    @property
     def model_label(self) -> str:
         if self.demo:
             return "Scripted demo transcript"
@@ -153,128 +181,128 @@ class RunView:
     def stage_time(self, node: str) -> float:
         return sum(t.timings.get(node, 0.0) for t in self.turns)
 
-    def stages(self) -> list[dict]:
-        have = bool(self.turns)
+    def stages(self) -> list[Stage]:
+        """The four pipeline steps with their state and time."""
+        have_turns = bool(self.turns)
         running = not self.done and self.error is None
-        decided = self.decided > 0
-        if self.esc_turn is not None:
-            decide_state = "scam"
-            decide_desc = f"Fixed rules. Escalated at turn {self.esc_turn}."
-        elif decided:
-            decide_state = "safe"
-            decide_desc = (
-                "Fixed rules. Reply allowed so far." if running else "Fixed rules. No escalation."
-            )
-        else:
-            decide_state, decide_desc = "idle", "Fixed rules. Reply or warn."
+        has_decisions = self.decided > 0
+        decide_state, decide_desc = self._decide_stage(running)
         return [
-            {
-                "n": 1,
-                "name": "Listen",
-                "desc": self.model_label,
-                "state": "done" if have else "busy",
-                "right": fmt_seconds(self.asr_seconds) if have else "",
-            },
-            {
-                "n": 2,
-                "name": "Split speakers",
-                "desc": "pyannote segmentation 3.0",
-                "state": "done" if have else "busy",
-                "right": "with Listen" if have else "",
-            },
-            {
-                "n": 3,
-                "name": "Read",
-                "desc": "Entities · summary · scam check, per turn",
-                "state": ("busy" if running else "done") if have else "idle",
-                "right": fmt_seconds(self.stage_time("analyze")) if decided else "",
-            },
-            {
-                "n": 4,
-                "name": "Decide",
-                "desc": decide_desc,
-                "state": decide_state,
-                "right": fmt_seconds(self.stage_time("decide")) if decided else "",
-            },
+            Stage(
+                1,
+                "Listen",
+                self.model_label,
+                "done" if have_turns else "busy",
+                fmt_seconds(self.asr_seconds) if have_turns else "",
+            ),
+            Stage(
+                2,
+                "Split speakers",
+                "pyannote segmentation 3.0",
+                "done" if have_turns else "busy",
+                "with Listen" if have_turns else "",
+            ),
+            Stage(
+                3,
+                "Read",
+                "Entities · summary · scam check, per turn",
+                ("busy" if running else "done") if have_turns else "idle",
+                fmt_seconds(self.stage_time("analyze")) if has_decisions else "",
+            ),
+            Stage(
+                4,
+                "Decide",
+                decide_desc,
+                decide_state,
+                fmt_seconds(self.stage_time("decide")) if has_decisions else "",
+            ),
         ]
 
-    def columns(self) -> list[dict]:
-        cols = []
-        for t in self.turns:
-            state = {"pending": "idle", "reading": "live"}.get(t.status, t.status)
-            cols.append({"n": t.n, "who": t.who, "state": state, "height": t.height})
-        return cols
+    def _decide_stage(self, running: bool) -> tuple[str, str]:
+        """State and description of the "Decide" step."""
+        if self.esc_turn is not None:
+            return "scam", f"Fixed rules. Escalated at turn {self.esc_turn}."
+        if self.decided > 0:
+            return "safe", (
+                "Fixed rules. Reply allowed so far." if running else "Fixed rules. No escalation."
+            )
+        return "idle", "Fixed rules. Reply or warn."
+
+    def columns(self) -> list[Column]:
+        """The turn strip: one bar per turn."""
+        shown_as = {"pending": "idle", "reading": "live"}
+        return [Column(t.n, t.who, shown_as.get(t.status, t.status), t.height) for t in self.turns]
 
     def band(self, fresh: bool = False) -> Band | None:
+        """The verdict band, or None until the first turn is decided."""
         if self.esc_turn is not None:
-            conf = confidence_word(self.esc_confidence)
-            kind = "scam" if self.esc_level == "scam" else "unsure"
-            return Band(
-                kind,
-                "SCAM" if kind == "scam" else "UNSURE",
-                type_name(self.esc_type) if kind == "scam" else "Might be a scam. Type not known",
-                "Warn the user. No reply was spoken.",
-                "Escalated at",
-                f"Turn {self.esc_turn}",
-                f"of {self.total}. Stays escalated until the call ends.",
-                fact_extra=f"Confidence: {conf.lower()}",
-                inline_fact=(
-                    f"Escalated at turn {self.esc_turn} of {self.total}. Callas stopped replying."
-                ),
-                fresh=fresh,
-            )
+            return self._escalated_band(fresh)
         if self.decided == 0:
             return None
-        n = self.decided
-        plural = "turn" if n == 1 else "turns"
+        return self._normal_band()
+
+    def _escalated_band(self, fresh: bool) -> Band:
+        confidence = confidence_word(self.esc_confidence)
+        is_scam = self.esc_level == "scam"
+        return Band(
+            kind="scam" if is_scam else "unsure",
+            word="SCAM" if is_scam else "UNSURE",
+            subtype=type_name(self.esc_type) if is_scam else "Might be a scam. Type not known",
+            instruction="Warn the user. No reply was spoken.",
+            fact_label="Escalated at",
+            fact_big=f"Turn {self.esc_turn}",
+            fact_note=f"of {self.total}. Stays escalated until the call ends.",
+            fact_extra=f"Confidence: {confidence.lower()}",
+            inline_fact=(
+                f"Escalated at turn {self.esc_turn} of {self.total}. Callas stopped replying."
+            ),
+            fresh=fresh,
+        )
+
+    def _normal_band(self) -> Band:
+        count = self.decided
+        turns = "turn" if count == 1 else "turns"
         if self.done:
             note = "The call is finished. No scam signs found."
         else:
-            note = f"Turn {n + 1} is being read now. The verdict can still change."
+            note = f"Turn {count + 1} is being read now. The verdict can still change."
         return Band(
-            "safe",
-            "NORMAL",
-            f"No scam signs in {n} {plural}",
-            "Callas may answer. Every reply passes the leak check first.",
-            "Checked",
-            f"{n} {plural}",
-            note,
+            kind="safe",
+            word="NORMAL",
+            subtype=f"No scam signs in {count} {turns}",
+            instruction="Callas may answer. Every reply passes the leak check first.",
+            fact_label="Checked",
+            fact_big=f"{count} {turns}",
+            fact_note=note,
             inline_fact=note,
         )
 
-    def log(self) -> list[dict]:
+    def log(self) -> list[LogEntry]:
         """Decision log: runs of turns with the same outcome, e.g. T1-T3 normal."""
-        entries: list[dict] = []
-        for t in self.turns:
-            if t.status == "normal":
-                kind, text = "ok", "normal"
-                outcome = "reply allowed"
-            elif t.status == "scam":
-                kind = "alarm"
-                text = (
-                    "scam, high confidence"
-                    if "low-confidence" not in t.reason
-                    else "scam, low confidence"
-                )
-                outcome = "escalate" if "low-confidence" not in t.reason else "escalate for review"
-            elif t.status == "held":
-                kind, text, outcome = "ok", "already escalated", "no reply"
-            else:
+        entries: list[LogEntry] = []
+        for turn in self.turns:
+            outcome = _log_outcome(turn)
+            if outcome is None:
                 continue
-            if entries and entries[-1]["kind"] == kind and entries[-1]["text"] == text:
-                entries[-1]["last"] = t.n
+            kind, text, result = outcome
+            if entries and (entries[-1].kind, entries[-1].text) == (kind, text):
+                entries[-1].last = turn.n
             else:
-                entries.append(
-                    {"kind": kind, "text": text, "outcome": outcome, "first": t.n, "last": t.n}
-                )
-        for e in entries:
-            e["range"] = (
-                f"T{e['first']}" if e["first"] == e["last"] else f"T{e['first']}–T{e['last']}"
-            )
+                entries.append(LogEntry(kind, text, result, first=turn.n, last=turn.n))
         return entries
 
 
-# ---- running the call ---------------------------------------------------------------------
+def _log_outcome(turn: TurnView) -> tuple[str, str, str] | None:
+    """(kind, text, outcome) of a decided turn for the decision log, None while undecided."""
+    if turn.status == "normal":
+        return "ok", "normal", "reply allowed"
+    if turn.status == "held":
+        return "ok", "already escalated", "no reply"
+    if turn.status == "scam":
+        if "low-confidence" in turn.reason:
+            return "alarm", "scam, low confidence", "escalate for review"
+        return "alarm", "scam, high confidence", "escalate"
+    return None
 
 
 @dataclass
@@ -282,6 +310,8 @@ class Run:
     id: str
     path: str | None
     filename: str
+    # A lambda, not time.monotonic itself: tests replace time.monotonic and it must be looked
+    # up at call time.
     created: float = field(default_factory=lambda: time.monotonic())
     started: bool = False
     finished: bool = False
@@ -302,11 +332,11 @@ class RunRegistry:
 
     def sweep(self) -> None:
         now = time.monotonic()
-        for rid, r in list(self._runs.items()):
-            if r.finished and now - r.finished_at > self.FINISHED_TTL:
-                self.drop(rid)
-            elif not r.started and now - r.created > self.PENDING_TTL:
-                self.drop(rid)
+        for run_id, run in list(self._runs.items()):
+            if run.finished and now - run.finished_at > self.FINISHED_TTL:
+                self.drop(run_id)
+            elif not run.started and now - run.created > self.PENDING_TTL:
+                self.drop(run_id)
 
     def create(self, path: str | None, filename: str) -> Run:
         self.sweep()
@@ -339,29 +369,10 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
     def put(kind: str, value: Any) -> None:
         loop.call_soon_threadsafe(queue.put_nowait, (kind, value))
 
-    def work() -> None:
-        sent = False
-        gen = None
-        try:
-            gen = app_rt.sessions.simulate_call(path)
-            for item in gen:
-                if not sent:
-                    put("transcript", runtime.last_transcription())
-                    sent = True
-                if stop.is_set():
-                    break
-                put("item", item)
-            if not sent:
-                put("transcript", runtime.last_transcription())
-            put("end", None)
-        except Exception as exc:
-            put("error", exc)
-        finally:
-            if gen is not None:
-                gen.close()  # ends the call session even when stopped early
-
-    thread = threading.Thread(target=work, name="simulate-call", daemon=True)
-    thread.start()
+    worker = threading.Thread(
+        target=_simulate, args=(app_rt, path, stop, put), name="simulate-call", daemon=True
+    )
+    worker.start()
     try:
         while True:
             kind, value = await queue.get()
@@ -370,3 +381,26 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
                 return
     finally:
         stop.set()
+
+
+def _simulate(app_rt, path: str, stop: threading.Event, put: Callable[[str, Any], None]) -> None:
+    """Worker thread of iter_updates: run the call and hand every update to `put`."""
+    transcript_sent = False
+    updates = None
+    try:
+        updates = app_rt.sessions.simulate_call(path)
+        for item in updates:
+            if not transcript_sent:  # ASR has run by the time the first update arrives
+                put("transcript", runtime.last_transcription())
+                transcript_sent = True
+            if stop.is_set():
+                break
+            put("item", item)
+        if not transcript_sent:
+            put("transcript", runtime.last_transcription())
+        put("end", None)
+    except Exception as exc:
+        put("error", exc)
+    finally:
+        if updates is not None:
+            updates.close()  # ends the call session even when stopped early
