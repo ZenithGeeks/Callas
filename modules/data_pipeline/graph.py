@@ -2,8 +2,9 @@
 
     START -> plan -> caller <-> receiver -> finish -> END
 
-Read this file first. turns.py writes a turn, finish.py checks the finished call, audio.py
-speaks it, and simulate.run_call loads the call from the store and runs this graph.
+Read this file first. records.py has the call record and its parts, turns.py writes a turn,
+finish.py checks the finished call, audio.py speaks it, and simulate.run_call loads the call
+from the store and runs this graph.
 """
 
 from __future__ import annotations
