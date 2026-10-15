@@ -14,7 +14,7 @@ from __future__ import annotations
 from llm_serving.base import LLM
 
 from .entities import extract_entities
-from .registry import LLMClassifier, LLMSummarizer
+from .parts import LLMClassifier, LLMSummarizer
 from .types import NLPResult
 
 
