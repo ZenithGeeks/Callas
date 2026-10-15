@@ -23,8 +23,8 @@ from .audio import speak_turn
 from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
-from .finish import RECORD_FIELDS, Ending, ended_early, finish_call
-from .records import Briefing, Turn
+from .finish import Ending, ended_early, finish_call
+from .records import Briefing, CallRecord, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
@@ -68,10 +68,7 @@ def initial_state(record: dict) -> CallState:
 
 
 def to_record(record: dict, state: CallState) -> dict:
-    """The call as the store keeps it: a copy of `record` with the state written into it.
-
-    Ending fields go at the top of the record or in its generation block (finish.RECORD_FIELDS).
-    """
+    """The call as the store keeps it: a copy of `record` with the state written into it."""
     record = copy.deepcopy(record)
     generation = record["generation"]
     briefing = state["briefing"]
@@ -80,8 +77,24 @@ def to_record(record: dict, state: CallState) -> dict:
         turns=[turn.to_dict() for turn in state["turns"]],
         status=state["status"],
     )
-    for key, value in (state["ending"] or {}).items():
-        (record if key in RECORD_FIELDS else generation)[key] = value
+    ending = state["ending"]
+    if ending is None:
+        return record
+    record.update(
+        text=ending.text,
+        speaker_turns=ending.speaker_turns,
+        entities=ending.entities,
+        audio_path=ending.audio_path,
+        reference_summary=ending.reference_summary,
+        scam_start_turn=ending.scam_start_turn,
+    )
+    generation.update(
+        receiver_leaked=ending.receiver_leaked,
+        first_leak_turn=ending.first_leak_turn,
+        scam_start_from=ending.scam_start_from,
+        judge=None if ending.judge is None else ending.judge.to_dict(),
+        reasons=ending.reasons,
+    )
     return record
 
 
@@ -120,7 +133,7 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
         log.warning("%s: %s", ctx.record["id"], exc)
-        update = {"status": "rejected", "ending": ended_early([t.to_dict() for t in turns])}
+        update = {"status": "rejected", "ending": ended_early(turns)}
         ctx.store.save(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
@@ -134,9 +147,9 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     ctx = runtime.context
     update = {}
     if state["status"] == "in_progress":  # else a turn already ended the call
-        record = to_record(ctx.record, state)
+        record = CallRecord.from_dict(to_record(ctx.record, state))
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
-        update = {"ending": ending, "status": "rejected" if ending["reasons"] else "accepted"}
+        update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
     ctx.store.save(to_record(ctx.record, {**state, **update}))
     return update
 

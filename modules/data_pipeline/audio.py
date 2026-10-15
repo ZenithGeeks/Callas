@@ -40,8 +40,8 @@ def join_audio(
 ) -> tuple[str, list[tuple[float, float]]] | None:
     """Join the spoken turns into one file. Returns its path and each turn's (start, end) in
     it, or None when a turn has no audio."""
-    if not turns or any(turn["audio"] is None for turn in turns):
+    if not turns or any(turn.audio is None for turn in turns):
         return None
     rel = f"audio/{record_id}.wav"
-    times = join_call([folder / turn["audio"] for turn in turns], folder / rel, gap_s)
+    times = join_call([folder / turn.audio for turn in turns], folder / rel, gap_s)
     return rel, times
