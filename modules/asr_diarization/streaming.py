@@ -117,6 +117,8 @@ class LiveTranscriber:
         return events
 
     def _on_frame(self, frame: np.ndarray, events: list[PartialEvent | TurnEvent]) -> None:
+        """Handle one 20 ms frame: open a turn on speech, close it after silence or at the
+        maximum length, and add a partial event every PARTIAL_EVERY_S."""
         frame_start, frame_end = self._audio_s, self._audio_s + FRAME_S
         self._audio_s = frame_end
         is_speech = float(np.sqrt(np.mean(frame * frame))) >= VAD_RMS_THRESHOLD

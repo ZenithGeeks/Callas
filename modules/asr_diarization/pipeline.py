@@ -85,7 +85,12 @@ def _turns_from_segments(
         text = backend.transcribe_array(chunk, SAMPLE_RATE).strip()
         if text:
             turns.append(
-                Turn(segment.speaker, round(segment.start, 3), round(segment.end, 3), text)
+                Turn(
+                    speaker=segment.speaker,
+                    start=round(segment.start, 3),
+                    end=round(segment.end, 3),
+                    text=text,
+                )
             )
     return turns
 
@@ -95,7 +100,7 @@ def _single_turn(audio: np.ndarray, backend: ASRBackend) -> list[Turn]:
     text = backend.transcribe_array(audio, SAMPLE_RATE).strip()
     if not text:
         return []
-    return [Turn("A", 0.0, len(audio) / SAMPLE_RATE, text)]
+    return [Turn(speaker="A", start=0.0, end=len(audio) / SAMPLE_RATE, text=text)]
 
 
 def to_json_dict(transcript: Transcript) -> dict:
@@ -117,6 +122,7 @@ def write_json(transcript: Transcript, out_path: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Transcribe --audio, save the JSON to --out and print the text."""
     parser = argparse.ArgumentParser(description="Thai ASR + speaker split to transcript JSON.")
     parser.add_argument("--audio", required=True)
     parser.add_argument("--out", required=True, help="transcript.json path")

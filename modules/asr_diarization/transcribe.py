@@ -10,6 +10,7 @@ from asr_diarization.backends import PyThaiASR
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Print the text of --audio."""
     parser = argparse.ArgumentParser(description="Thai speech-to-text; prints the text.")
     parser.add_argument("--audio", required=True)
     parser.add_argument("--model", default=None, help="default: ASR_MODEL setting (typhoon_asr)")

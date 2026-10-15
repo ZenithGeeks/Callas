@@ -25,6 +25,8 @@ _cache_lock = threading.Lock()
 
 @dataclass
 class Segment:
+    """One stretch of a single speaker. start and end are seconds from the file start."""
+
     speaker: str  # "A", "B", ...
     start: float
     end: float
@@ -105,6 +107,7 @@ def label_for(index: int) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Print the speaker segments of --audio as JSON."""
     parser = argparse.ArgumentParser(description="Speaker diarization; prints segments as JSON.")
     parser.add_argument("--audio", required=True)
     parser.add_argument("--model", default=None, help="nemotron or pyannote_segmentation")
