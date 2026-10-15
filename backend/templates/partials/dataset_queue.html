@@ -1,0 +1,30 @@
+{# The queue: progress, type filter, view tabs, list. Swapped whole when the type or view changes.
+   Expects `listing` (dataset.Listing), `views` (dataset.VIEWS), `type_names`, `call_type`
+   (selected type or ""), `selected` (id of the open call). #}
+{% import "partials/_dataset.html" as ds %}
+{{ ds.progress(listing) }}
+{# #f-type and #f-view are read by the review form and by dataset.js, so a decision keeps the filter. #}
+<form class="mt-4" hx-get="/dataset" hx-target="#queue" hx-trigger="change" hx-push-url="true" aria-label="Filter by call type">
+  <input type="hidden" id="f-view" name="view" value="{{ listing.view }}">
+  <label class="sr-only" for="f-type">Call type</label>
+  <select id="f-type" name="type" class="select">
+    <option value="">All call types</option>
+    {% for k, v in type_names.items() %}
+    <option value="{{ k }}" {% if call_type == k %}selected{% endif %}>{{ v }}</option>
+    {% endfor %}
+  </select>
+</form>
+{{ ds.view_tabs(listing, views, call_type) }}
+<div id="dataset-list" class="mt-3 -mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+  {% if listing.rows %}
+  <ol class="qlist" aria-label="Simulated calls">
+    {% for r in listing.rows %}{{ ds.row(r, selected=(r.id == selected)) }}{% endfor %}
+  </ol>
+  {% elif listing.total %}
+  <p class="px-1 py-6 text-[15px] leading-[1.5] text-muted">
+    {% if listing.view == 'todo' %}Nothing left to review here.{% else %}No calls in this view.{% endif %}
+  </p>
+  {% else %}
+  <p class="px-1 py-6 text-[15px] leading-[1.5] text-muted">No simulated calls in this folder yet.</p>
+  {% endif %}
+</div>
