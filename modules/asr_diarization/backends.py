@@ -17,6 +17,8 @@ SAMPLE_RATE = 16_000
 
 
 class ASRBackend(Protocol):
+    """What the pipeline needs from an ASR engine: names for the transcript and two ways in."""
+
     name: str
     version: str
 
@@ -33,25 +35,27 @@ class PyThaiASR:
 
         self.name = model or get_settings().asr_model
         self.version = metadata.version("pythaiasr")
-        t0 = time.perf_counter()
+        started = time.perf_counter()
         self._asr = ASR(model=self.name, device=device)
         log.info(
             "loaded ASR model=%s pythaiasr=%s in %.2fs",
             self.name,
             self.version,
-            time.perf_counter() - t0,
+            time.perf_counter() - started,
         )
 
     def transcribe(self, audio_path: str) -> str:
+        """Transcribe a whole audio file."""
         return str(self._asr(audio_path)).strip()
 
     def transcribe_array(self, audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> str:
+        """Transcribe mono samples that are already in memory."""
         audio = np.asarray(audio, dtype=np.float32)
         return str(self._asr(audio, sampling_rate=sample_rate)).strip()
 
 
 def load_audio(audio_path: str, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Mono float32 array at sample_rate (pythaiasr handles mono mixdown and resampling)."""
-    from pythaiasr import load_audio as _load
+    from pythaiasr import load_audio as load_with_pythaiasr
 
-    return _load(audio_path, target_sr=sample_rate)
+    return load_with_pythaiasr(audio_path, target_sr=sample_rate)
