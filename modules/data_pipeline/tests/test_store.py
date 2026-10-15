@@ -323,3 +323,16 @@ def test_any_other_alter_error_is_raised():
 
     with pytest.raises(sqlite3.OperationalError, match="locked"):
         _add_missing_columns(_RacingDb("database is locked"))
+
+
+def test_a_call_record_is_saved_and_loaded_like_its_dict(tmp_path):
+    first, second = Store(tmp_path / "a.db"), Store(tmp_path / "b.db")
+    record = make_record(turns=3)
+    record["generation"]["judge"] = None
+    first.save(record)
+    call = first.load_call(record["id"])
+    assert call.generation.turns[0].entities[0]["label"] == "OTP"
+    second.save_call(call)
+    assert second.load(record["id"]) == first.load(record["id"])
+    assert [c.id for c in second.calls()] == [record["id"]]
+    assert second.load_call("missing_00001") is None

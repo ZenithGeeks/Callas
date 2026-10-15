@@ -13,6 +13,7 @@ from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.finish import scam_start
+from data_pipeline.records import CallRecord, Generation, Judge, Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -149,7 +150,7 @@ def test_resume_with_another_config_is_refused(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
     rec = simulate.new_record(simulate.sample_config("phishing_otp", 1, CONFIG), CONFIG, agents)
-    store.save(rec)
+    store.save_call(rec)
 
     other = tmp_path / "other_cfg"
     shutil.copytree(DEFAULT_DIR, other)
@@ -418,30 +419,45 @@ def test_a_chosen_receiver_gets_its_own_id_and_a_resume_must_match(tmp_path):
 
 
 def scam_record(asks, judge_at, reveal=2, holds=True):
-    """A record with turns A,B,A,B,A,B; `asks` are the turn indexes with asks_now set."""
-    turns = [{"speaker": "AB"[i % 2], "asks_now": i in asks} for i in range(6)]
-    return {
-        "id": "x",
-        "generation": {
-            "call": {"reveal_turn": reveal},
-            "turns": turns,
-            "judge": {"label_holds": holds, "scam_start_turn": judge_at},
-        },
-    }
+    """A record with turns A,B,A,B,A,B and the judge's answer; `asks` are the turn indexes
+    with asks_now set."""
+    turns = [Turn(speaker="AB"[i % 2], asks_now=i in asks) for i in range(6)]
+    generation = Generation(
+        schema=1,
+        config_name="",
+        config_hash="",
+        models={},
+        created_at="",
+        call={"reveal_turn": reveal},
+        voices={},
+        speech_style="",
+        turns=turns,
+    )
+    record = CallRecord(id="x", label_scam=True, label_type="phishing_otp", generation=generation)
+    verdict = Judge(
+        label_holds=holds,
+        scam_start_turn=judge_at,
+        natural_thai=4,
+        giveaway=False,
+        summary="",
+        issues="",
+        reasoning="",
+    )
+    return record, verdict
 
 
 def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
     # reveal turn 2 = speaker turn 4: an ask on turn 0 or 2 is too early, so the judge decides
-    assert scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
-    assert scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
-    assert scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
-    assert scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
+    assert scam_start(*scam_record({0, 2}, judge_at=4)) == (4, "judge")
+    assert scam_start(*scam_record({0, 2}, judge_at=-1)) == (None, None)
+    assert scam_start(*scam_record({0, 4}, judge_at=-1)) == (4, "caller")
+    assert scam_start(*scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
 
 
 def test_the_judge_fallback_must_point_at_a_caller_turn():
-    assert scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
-    assert scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
-    assert scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
+    assert scam_start(*scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
+    assert scam_start(*scam_record(set(), judge_at=2)) == (2, "judge")
+    assert scam_start(*scam_record(set(), judge_at=2, holds=False)) == (None, None)
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
@@ -493,8 +509,25 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = turn_module.receiver_view(turns, call, CONFIG)
+    typed = [Turn.from_dict(turn) for turn in turns]
+    view = turn_module.receiver_view(typed, simulate.SlotFiller(call, CONFIG.details), CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
+
+
+def test_the_receiver_hears_a_name_chosen_in_the_studio_as_its_own_slot(tmp_path):
+    import threading
+
+    from data_pipeline import live
+
+    greet = dict(line="สวัสดีครับ คุณ{RECEIVER_NAME}", asks_now=False, end_call=False)
+    agents = make_agents([greet, *SCAM[1:]], REPLIES, judge(start=2))
+    spec = live.CallSpec("phishing_otp", 1, None, None, "สมหญิง")
+    store = Store(tmp_path / "calls.db")
+    for _ in live.stream_call(spec, store, agents, CONFIG, None, live.Capture(), threading.Event()):
+        pass
+    assert "คุณสมหญิง" in store.load(spec.record_id)["generation"]["turns"][0]["text"]
+    heard = agents.receiver.calls[0]["conversation"]
+    assert "คุณ{RECEIVER_NAME}" in heard and "สมหญิง" not in heard
 
 
 # ---- a caller does not know the receiver's own details -------------------------------------

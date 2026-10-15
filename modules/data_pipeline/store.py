@@ -1,10 +1,10 @@
 """SQLite store for simulated calls: one file holds every call, its turns, the judge's verdict,
 the human review and the scam pattern notes.
 
-The simulator works on a call record (a dict in the spec's schema plus `generation` and `review`
-blocks, see simulate.new_record). `save()` writes the whole record in one transaction after every
-turn, and `load()` rebuilds it from the tables, so a stopped run resumes from the turns table.
-`export_records()` gives the plain records back for build_dataset.
+`save()` writes a whole call record (a dict in the spec's schema plus `generation` and `review`
+blocks) in one transaction after every turn, and `load()` rebuilds it from the tables, so a
+stopped run resumes from the turns table. The simulator uses `save_call()` and `load_call()`,
+which take and give the same record as a records.CallRecord. The web pages read the dicts.
 
 WAL mode lets the generator write while the /dataset page reads. Each thread gets its own
 connection (sqlite3 connections must not be shared across threads).
@@ -23,6 +23,8 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from .records import CallRecord
 
 DEFAULT_DB = Path("data/synthetic/calls.db")  # relative to where you run from: the repo root
 SCHEMA_VERSION = 1  # of the tables
@@ -278,6 +280,20 @@ class Store:
             "SELECT * FROM turns WHERE call_id = ? ORDER BY idx", (call_id,)
         ).fetchall()
         return _record(row, turns)
+
+    def load_call(self, call_id: str) -> CallRecord | None:
+        """The call as a CallRecord, or None."""
+        record = self.load(call_id)
+        return None if record is None else CallRecord.from_dict(record)
+
+    def save_call(self, record: CallRecord) -> None:
+        """Write a CallRecord the way save() writes the record's dict."""
+        self.save(record.to_dict())
+
+    def calls(self, call_type: str = "") -> Iterator[CallRecord]:
+        """Every call as a CallRecord, oldest id first, optionally of one call type."""
+        for record in self.records(call_type):
+            yield CallRecord.from_dict(record)
 
     def exists(self, call_id: str) -> bool:
         return (

@@ -2,16 +2,16 @@
 
     START -> plan -> caller <-> receiver -> finish -> END
 
-Read this file first. turns.py writes a turn, finish.py checks the finished call, audio.py
-speaks it, and simulate.run_call loads the call from the store and runs this graph.
+Read this file first. records.py has the call record and its parts, turns.py writes a turn,
+finish.py checks the finished call, audio.py speaks it, and simulate.run_call loads the call
+from the store and runs this graph.
 """
 
 from __future__ import annotations
 
-import copy
 import logging
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -23,11 +23,12 @@ from .audio import speak_turn
 from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
-from .finish import RECORD_FIELDS, Ending, ended_early, finish_call
+from .finish import Ending, ended_early, finish_call
+from .records import Briefing, CallRecord, Status, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import CALLER, RECEIVER, Briefing, Turn, is_model_error, write_plan, write_turn
+from .turns import CALLER, RECEIVER, is_model_error, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
 
@@ -37,7 +38,7 @@ class CallState(TypedDict):
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
-    status: Literal["in_progress", "accepted", "rejected"]
+    status: Status
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
 
 
@@ -51,31 +52,49 @@ class SimContext:
     store: Store
     voices: Voices | None  # None: text only
     filler: SlotFiller  # this call's values for the {SLOTS}
-    record: dict  # the call as loaded or created; to_record() lays the state over it
+    record: CallRecord  # the call as loaded or created; to_record() lays the state over it
 
 
-def initial_state(record: dict) -> CallState:
+def initial_state(record: CallRecord) -> CallState:
     """The state of a stored call that is new or still in progress."""
-    generation = record["generation"]
+    generation = record.generation
     return {
-        "briefing": generation["briefing"],
-        "turns": generation["turns"],
-        "status": generation["status"],
+        "briefing": generation.briefing,
+        "turns": generation.turns,
+        "status": generation.status,
         "ending": None,
     }
 
 
-def to_record(record: dict, state: CallState) -> dict:
-    """The call as the store keeps it: a copy of `record` with the state written into it.
-
-    Ending fields go at the top of the record or in its generation block (finish.RECORD_FIELDS).
-    """
-    record = copy.deepcopy(record)
-    generation = record["generation"]
-    generation.update(briefing=state["briefing"], turns=state["turns"], status=state["status"])
-    for key, value in (state["ending"] or {}).items():
-        (record if key in RECORD_FIELDS else generation)[key] = value
-    return record
+def to_record(record: CallRecord, state: CallState) -> CallRecord:
+    """The call as the store keeps it: `record` with the state written into it."""
+    generation = replace(
+        record.generation,
+        briefing=state["briefing"],
+        turns=state["turns"],
+        status=state["status"],
+    )
+    ending = state["ending"]
+    if ending is None:
+        return replace(record, generation=generation)
+    generation = replace(
+        generation,
+        receiver_leaked=ending.receiver_leaked,
+        first_leak_turn=ending.first_leak_turn,
+        scam_start_from=ending.scam_start_from,
+        judge=ending.judge,
+        reasons=ending.reasons,
+    )
+    return replace(
+        record,
+        text=ending.text,
+        speaker_turns=ending.speaker_turns,
+        entities=ending.entities,
+        audio_path=ending.audio_path,
+        reference_summary=ending.reference_summary,
+        scam_start_turn=ending.scam_start_turn,
+        generation=generation,
+    )
 
 
 def plan(state: CallState, runtime: Runtime[SimContext]) -> dict:
@@ -84,7 +103,7 @@ def plan(state: CallState, runtime: Runtime[SimContext]) -> dict:
     update = {}
     if ctx.call.label_scam and state["briefing"] is None:
         update["briefing"] = write_plan(ctx.agents, ctx.call, ctx.config, ctx.store)
-    ctx.store.save(to_record(ctx.record, {**state, **update}))
+    ctx.store.save_call(to_record(ctx.record, {**state, **update}))
     return update
 
 
@@ -106,19 +125,19 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     runs again, the state still has the old turns, so a turn is never added twice.
     """
     turns = state["turns"]
-    plan_steps = (state["briefing"] or {}).get("plan", [])
+    plan_steps = state["briefing"].plan if state["briefing"] else []  # a normal call has none
     try:
         turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
     except ContextTooLong as exc:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
-        log.warning("%s: %s", ctx.record["id"], exc)
+        log.warning("%s: %s", ctx.record.id, exc)
         update = {"status": "rejected", "ending": ended_early(turns)}
-        ctx.store.save(to_record(ctx.record, {**state, **update}))
+        ctx.store.save_call(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
         turn = speak_turn(ctx.voices, turn, len(turns), ctx.record, ctx.store.folder)
-    ctx.store.save(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
+    ctx.store.save_call(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
     return {"turns": [turn]}
 
 
@@ -126,11 +145,12 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx = runtime.context
     update = {}
-    if state["status"] == "in_progress":  # else a turn already ended the call
+    # Not in progress: a turn ended the call early and already put ended_early() in the state.
+    if state["status"] == "in_progress":
         record = to_record(ctx.record, state)
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
-        update = {"ending": ending, "status": "rejected" if ending["reasons"] else "accepted"}
-    ctx.store.save(to_record(ctx.record, {**state, **update}))
+        update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
+    ctx.store.save_call(to_record(ctx.record, {**state, **update}))
     return update
 
 
@@ -141,7 +161,7 @@ def next_speaker(
     turns = state["turns"]
     if state["status"] != "in_progress":
         return "finish"
-    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
+    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1].end_call):
         return "finish"
     return "caller" if len(turns) % 2 == 0 else "receiver"
 

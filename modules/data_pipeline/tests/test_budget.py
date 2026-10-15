@@ -19,7 +19,9 @@ from data_pipeline.budget import (
     trim_turns,
 )
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
+from data_pipeline.fill import SlotFiller
 from data_pipeline.patterns import MAX_ARTICLE_CHARS, extract
+from data_pipeline.records import Turn
 from data_pipeline.scenarios import sample_config
 from data_pipeline.store import Store
 from data_pipeline.tests.test_simulate import REPLIES, SCAM, judge, make_agents
@@ -45,11 +47,11 @@ def config_with_budget(tmp_path, agent, budget):
 def long_call(n=40):
     """n turns, A and B in turn, each about 40 tokens."""
     return [
-        {
-            "speaker": "AB"[i % 2],
-            "raw": f"ข้อความที่ {i} " + "ก" * 40,
-            "text": f"ข้อความที่ {i} " + "ก" * 40,
-        }
+        Turn(
+            speaker="AB"[i % 2],
+            raw=f"ข้อความที่ {i} " + "ก" * 40,
+            text=f"ข้อความที่ {i} " + "ก" * 40,
+        )
         for i in range(n)
     ]
 
@@ -155,12 +157,14 @@ def test_the_receiver_is_trimmed_too(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     turns = long_call(40)
     roomy = make_agents([], [dict(line="ค่ะ", end_call=False)], judge())
-    _, whole_tokens = turn_module.receiver_says(roomy, call, CONFIG, turns)
+    _, whole_tokens = turn_module.receiver_says(
+        roomy, call, CONFIG, turns, SlotFiller(call, CONFIG.details)
+    )
     tight = config_with_budget(tmp_path, "receiver", whole_tokens - 600)
     agents = make_agents([], [dict(line="ค่ะ", end_call=False)], judge(), config=tight)
-    turn_module.receiver_says(agents, call, tight, turns)
+    turn_module.receiver_says(agents, call, tight, turns, SlotFiller(call, tight.details))
     sent = agents.receiver.calls[0]["conversation"]
-    assert "earlier turns not shown" in sent and sent.endswith(turns[-1]["text"])
+    assert "earlier turns not shown" in sent and sent.endswith(turns[-1].text)
 
 
 def test_every_turn_records_its_prompt_size(tmp_path):
@@ -184,16 +188,16 @@ def test_the_planner_drops_the_oldest_notes(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     agents = make_agents([], [], judge())
     all_six = turn_module.write_plan(agents, call, CONFIG, store)
-    assert all_six["notes_used"] == [f"note {i}" for i in (5, 4, 3, 2, 1, 0)]
+    assert all_six.notes_used == [f"note {i}" for i in (5, 4, 3, 2, 1, 0)]
 
-    budget = all_six["prompt_tokens"] - 1
+    budget = all_six.prompt_tokens - 1
     tight = config_with_budget(tmp_path, "planner", budget)
     agents = make_agents([], [], judge(), config=tight)
     briefing = turn_module.write_plan(agents, call, tight, store)
-    used = briefing["notes_used"]
-    assert used == all_six["notes_used"][: len(used)] and 0 < len(used) < 6
+    used = briefing.notes_used
+    assert used == all_six.notes_used[: len(used)] and 0 < len(used) < 6
     assert "note 0" not in used  # the oldest went first
-    assert briefing["prompt_tokens"] <= budget
+    assert briefing.prompt_tokens <= budget
     assert "note 0" not in agents.planner.calls[0]["pattern_notes"]
 
 
@@ -327,7 +331,7 @@ def test_the_marker_says_turn_for_one_and_turns_for_more():
 
 def test_a_prompt_that_cannot_fit_is_not_sent(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
-    huge = [{"speaker": "A", "raw": "ก" * 5000, "text": "ก" * 5000}]  # one huge turn
+    huge = [Turn(speaker="A", raw="ก" * 5000, text="ก" * 5000)]  # one huge turn
     tight = config_with_budget(tmp_path, "scam_caller", 3000)
     agents = make_agents(
         [dict(line="ครับ", asks_now=False, end_call=False)], [], judge(), config=tight

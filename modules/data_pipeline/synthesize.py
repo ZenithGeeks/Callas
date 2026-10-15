@@ -24,6 +24,7 @@ import logging
 import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from pathlib import Path
 
 from callas_tracing import setup_tracing
@@ -200,18 +201,23 @@ def _chosen_receiver(args: argparse.Namespace, config: Config) -> ReceiverProfil
 
 
 def _export(store: Store, path: Path, approved_only: bool) -> int:
-    """Finished calls as one JSON object per line, without the generation and review blocks."""
+    """Finished calls as one JSON object per line, without the generation and review blocks.
+
+    Reads the store's dicts, not CallRecords: this is an edge, and converting every call to a
+    CallRecord and back made the export about 2.5 times slower.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
     with path.open("w", encoding="utf-8", newline="\n") as out:
         for record in store.records():
-            if record["generation"]["status"] != "accepted":
+            generation = record["generation"]
+            if generation["status"] != "accepted":
                 continue
             if approved_only and record["review"]["status"] != "approved":
                 continue
             plain = {k: v for k, v in record.items() if k not in ("generation", "review")}
-            plain["receiver_leaked"] = record["generation"].get("receiver_leaked", [])
-            plain["first_leak_turn"] = record["generation"].get("first_leak_turn")
+            plain["receiver_leaked"] = generation.get("receiver_leaked", [])
+            plain["first_leak_turn"] = generation.get("first_leak_turn")
             out.write(json.dumps(plain, ensure_ascii=False) + "\n")
             written += 1
     return written
@@ -276,13 +282,13 @@ def _skip_finished(
     reported, with a warning for any made with another config than this one."""
     todo, skipped, other_config = [], 0, 0
     for call_type, seed in jobs:
-        record = store.load(call_id(call_type, seed, receiver))
-        if record is None or record["generation"]["status"] == "in_progress":
+        record = store.load_call(call_id(call_type, seed, receiver))
+        if record is None or record.generation.status == "in_progress":
             todo.append((call_type, seed))
             continue
         skipped += 1
-        counts[(call_type, record["generation"]["status"])] += 1
-        other_config += record["generation"].get("config_hash") != config.hash
+        counts[(call_type, record.generation.status)] += 1
+        other_config += record.generation.config_hash != config.hash
     if skipped:
         print(f"skipped {skipped} calls that were already finished")
     if other_config:
@@ -317,12 +323,13 @@ def _run_one(
         if not is_model_error(exc):
             print(f"{wanted_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return wanted_id, "error"
-        record = store.load(wanted_id)
+        record = store.load_call(wanted_id)
         if record is None:
             return wanted_id, "error"
-        record["generation"]["status"] = "rejected"
-        record["generation"]["reasons"] = [f"llm_error:{type(exc).__name__}"]
-        store.save(record)
+        reasons = [f"llm_error:{type(exc).__name__}"]
+        generation = replace(record.generation, status="rejected", reasons=reasons)
+        store.save_call(replace(record, generation=generation))
+        return wanted_id, "rejected"
     return record["id"], record["generation"]["status"]
 
 

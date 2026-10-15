@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TypedDict
 
 import dspy
 import openai
@@ -23,6 +22,7 @@ from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, tr
 from .config import Config
 from .fill import RECEIVER_ONLY_SLOTS, RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
 from .patterns import render_notes
+from .records import Briefing, Turn
 from .scenarios import CallConfig
 from .spoken import pick_speech_style, spoken_text
 from .store import Store
@@ -30,36 +30,6 @@ from .store import Store
 log = logging.getLogger("data_pipeline")
 
 CALLER, RECEIVER = "A", "B"  # speaker ids in the record; the caller always speaks first
-
-
-class Turn(TypedDict):
-    """One line of the call, as kept in generation.turns."""
-
-    speaker: str  # CALLER or RECEIVER
-    agent: str  # scam_caller, legit_caller or receiver
-    raw: str  # the line as the agent wrote it, with {SLOTS}
-    text: str  # the line with this call's values in the slots
-    spoken_text: str  # what the voice is given: numbers written out (spoken.py)
-    entities: list[dict]  # the filled values: label and span within `text`
-    asks_now: bool  # the scam caller says this line makes its ask
-    end_call: bool  # the speaker hangs up after this line
-    reasoning: str
-    problems: list[str]  # reasons to reject the call that come from this line
-    leaked: list[str]  # receiver lines only: kinds of its own details it gave away
-    spelling: list[str]  # words that look misspelled
-    latency_s: float
-    prompt_tokens: int  # estimated size of the prompt that was sent
-    audio: str | None  # the spoken line, relative to the store's folder
-    audio_s: float | None
-
-
-class Briefing(TypedDict):
-    """The scam caller's plan, kept in generation.briefing."""
-
-    plan: list[str]  # the steps the caller follows
-    notes_used: list[str]  # summaries of the pattern notes the planner read
-    prompt_tokens: int
-    reasoning: str
 
 
 def write_turn(
@@ -77,31 +47,29 @@ def write_turn(
         agent, pred, tokens = caller_says(agents, call, config, turns, plan)
     else:
         agent = "receiver"
-        pred, tokens = receiver_says(agents, call, config, turns)
+        pred, tokens = receiver_says(agents, call, config, turns, filler)
     raw = (pred.line or "").strip()
     text, entities, problems = filler.fill(raw)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if not text:
         problems.append("empty_line")
-    return {
-        "speaker": speaker,
-        "agent": agent,
-        "raw": raw,
-        "text": text,
-        "spoken_text": spoken_text(text, entities, speech_style(call, config)),
-        "entities": entities,
-        "asks_now": bool(getattr(pred, "asks_now", False)),
-        "end_call": bool(pred.end_call),
-        "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
-        "problems": problems,
-        "leaked": receiver_leaks(raw) if speaker == RECEIVER else [],
-        "spelling": spelling(raw),
-        "latency_s": round(time.perf_counter() - started, 3),
-        "prompt_tokens": tokens,
-        "audio": None,
-        "audio_s": None,
-    }
+    return Turn(
+        speaker=speaker,
+        agent=agent,
+        raw=raw,
+        text=text,
+        spoken_text=spoken_text(text, entities, speech_style(call, config)),
+        entities=entities,
+        asks_now=bool(getattr(pred, "asks_now", False)),
+        end_call=bool(pred.end_call),
+        reasoning=(getattr(pred, "reasoning", "") or "").strip(),
+        problems=problems,
+        leaked=receiver_leaks(raw) if speaker == RECEIVER else [],
+        spelling=spelling(raw),
+        latency_s=round(time.perf_counter() - started, 3),
+        prompt_tokens=tokens,
+    )
 
 
 def caller_says(
@@ -130,7 +98,7 @@ def caller_says(
 
 
 def receiver_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[Turn]
+    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
     inputs = dict(
@@ -139,7 +107,7 @@ def receiver_says(
         voice=config.agents.speakers.voice[call.receiver.gender],
         stage=stage(config, len(turns) // 2),
     )
-    lines = receiver_lines(turns, call, config)
+    lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)
     return ask(agents, "receiver", **inputs, conversation=text), tokens
 
@@ -168,13 +136,13 @@ def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -
     # the notes are newest first: when the prompt is too long the oldest are dropped
     notes = trim_notes(notes, lambda kept: tokens_with(kept) <= budget)
     pred = ask(agents, "planner", **inputs, pattern_notes=render_notes(notes))
-    return {
-        "plan": [step.strip() for step in pred.plan if step.strip()],
+    return Briefing(
+        plan=[step.strip() for step in pred.plan if step.strip()],
         # summaries, not ids: a wiki sync re-creates the notes and gives them new ids
-        "notes_used": [note["summary"] for note in notes],
-        "prompt_tokens": tokens_with(notes),
-        "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
-    }
+        notes_used=[note["summary"] for note in notes],
+        prompt_tokens=tokens_with(notes),
+        reasoning=(getattr(pred, "reasoning", "") or "").strip(),
+    )
 
 
 def ask(agents: Agents, agent: str, **inputs) -> dspy.Prediction:
@@ -231,16 +199,18 @@ def conversation_lines(turns: list[Turn], config: Config, *, raw: bool) -> list[
     """One line per turn: the speaker's tag and what was said (`raw`: with the slots)."""
     speakers = config.agents.speakers
     tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
-    key = "raw" if raw else "text"
-    return [f"{tag[turn['speaker']]}: {turn[key]}" for turn in turns]
+    return [f"{tag[turn.speaker]}: {turn.raw if raw else turn.text}" for turn in turns]
 
 
-def receiver_lines(turns: list[Turn], call: CallConfig, config: Config) -> list[str]:
+def receiver_lines(turns: list[Turn], filler: SlotFiller, config: Config) -> list[str]:
     """The call as the receiver hears it, one line per turn: real values, except its own name
     and details, which stay the slots that its instructions call "your name", "your bank
     account" and so on. Without this the receiver did not recognise its own name and answered
-    "you have the wrong number"."""
-    values = SlotFiller(call, config.details).values
+    "you have the wrong number".
+
+    `filler` must be this call's: the studio can give the receiver another name than the seed.
+    """
+    values = filler.values
     own = sorted(RECEIVER_OWN_SLOTS, key=lambda slot: -len(values[slot]))
     lines = []
     for line in conversation_lines(turns, config, raw=False):
@@ -250,9 +220,9 @@ def receiver_lines(turns: list[Turn], call: CallConfig, config: Config) -> list[
     return lines
 
 
-def receiver_view(turns: list[Turn], call: CallConfig, config: Config) -> str:
+def receiver_view(turns: list[Turn], filler: SlotFiller, config: Config) -> str:
     """The receiver's lines as one text, before any cut to fit its prompt."""
-    lines = receiver_lines(turns, call, config)
+    lines = receiver_lines(turns, filler, config)
     return "\n".join(lines) if lines else config.agents.speakers.empty_call
 
 

@@ -29,7 +29,8 @@ from dspy.utils.callback import BaseCallback
 from .agents import SIGNATURES, Agents
 from .config import Config, ReceiverProfile, Scenario
 from .fill import SlotFiller
-from .scenarios import sample_config
+from .records import CallRecord, Generation
+from .scenarios import CallConfig, sample_config
 from .simulate import (
     CALL_GRAPH,
     SimContext,
@@ -171,9 +172,11 @@ class CallSpec:
 
 @dataclass
 class Event:
-    kind: str  # thinking | plan | turn | verdict
+    """One step for the studio page to show."""
+
+    kind: str  # thinking | plan | turn | ended | verdict
     agent: str  # who is working or worked: planner, scam_caller, legit_caller, receiver, judge
-    record: dict
+    record: dict  # the call as the store keeps it (CallRecord.to_dict)
     index: int | None = None  # turn: 0-based position
     modules: list[ModuleRun] = field(default_factory=list)
 
@@ -193,27 +196,31 @@ def stream_call(
     if spec.scenario is not None:
         call = replace(call, scenario=spec.scenario)
     record = _open_record(store, call, config, agents, spec.receiver)
-    generation = record["generation"]
-    if generation["status"] != "in_progress":
-        raise CallConflict(f"{record['id']} is already finished")
-    call, name = _resume_overrides(spec, call, generation)
-    generation["call"]["receiver_name"] = name  # the overrides stay with the stored call
+    if record.generation.status != "in_progress":
+        raise CallConflict(f"{record.id} is already finished")
+    call, name = _resume_overrides(spec, call, record.generation)
+    # the overrides stay with the stored call
+    stored_call = {**record.generation.call, "receiver_name": name}
+    record = replace(record, generation=replace(record.generation, call=stored_call))
     filler = SlotFiller(call, config.details)
     if name:
         filler.values["RECEIVER_NAME"] = name
     context = SimContext(agents, config, call, store, voices, filler, record)
     caller = "scam_caller" if call.label_scam else "legit_caller"
 
-    def whose_turn(rec: dict) -> Event:
-        step = next_speaker(initial_state(rec), SimpleNamespace(context=context))
+    def whose_turn(record: CallRecord) -> Event:
+        step = next_speaker(initial_state(record), SimpleNamespace(context=context))
         agent = {"caller": caller, "receiver": "receiver", "finish": "judge"}[step]
-        return Event("thinking", agent, rec)
+        return Event("thinking", agent, record.to_dict())
 
-    for index, turn in enumerate(generation["turns"]):  # a resumed call: show what is there
-        yield Event("turn", turn["agent"], record, index)
-    pending = Event("thinking", "planner", record) if _needs_plan(record) else whose_turn(record)
+    for index, turn in enumerate(record.generation.turns):  # a resumed call: show what is there
+        yield Event("turn", turn.agent, record.to_dict(), index)
+    if record.label_scam and record.generation.briefing is None:
+        pending = Event("thinking", "planner", record.to_dict())
+    else:
+        pending = whose_turn(record)
     yield pending
-    written = len(generation["turns"])
+    written = len(record.generation.turns)
 
     updates = CALL_GRAPH.stream(
         initial_state(record),
@@ -222,34 +229,37 @@ def stream_call(
         stream_mode="updates",
     )
     for update in updates:
-        (node,) = update
-        record = store.load(record["id"])  # as the node saved it
+        (node,) = update  # stream_mode="updates" gives {node name: its update}, one per step
+        record = store.load_call(record.id)  # as the node saved it
         modules = capture.take()
+        turns = record.generation.turns
         if node == "plan":
-            if record["generation"]["briefing"] is not None:
-                yield Event("plan", "planner", record, modules=modules)
+            if record.generation.briefing is not None:
+                yield Event("plan", "planner", record.to_dict(), modules=modules)
         elif node == "finish":
-            yield Event("verdict", "judge", record, modules=modules)
+            yield Event("verdict", "judge", record.to_dict(), modules=modules)
             return
-        elif len(record["generation"]["turns"]) == written:
+        elif len(turns) == written:
             # the turn node ended the call early (a prompt that does not fit): no turn was added
-            yield Event("ended", pending.agent, record, written, modules)
+            yield Event("ended", pending.agent, record.to_dict(), written, modules)
             continue  # the finish step follows at once
         else:
-            written = index = len(record["generation"]["turns"])
-            yield Event("turn", node_agent(record, index - 1), record, index - 1, modules)
+            written = len(turns)
+            yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, modules)
         if cancel is not None and cancel.is_set():
             return
         pending = whose_turn(record)
         yield pending
 
 
-def _resume_overrides(spec: CallSpec, call: Any, generation: dict) -> tuple[Any, str]:
+def _resume_overrides(
+    spec: CallSpec, call: CallConfig, generation: Generation
+) -> tuple[CallConfig, str]:
     """The call and the receiver name to use. A call with no turns yet takes what the form asked
     for. A call being resumed keeps the scenario and name it was started with: the form may leave
     them empty but may not ask for others, because the turns already written used the old ones."""
-    stored = generation["call"]
-    if not generation["turns"] and generation["briefing"] is None:
+    stored = generation.call
+    if not generation.turns and generation.briefing is None:
         return call, spec.receiver_name
     scenario = Scenario.model_validate(stored["scenario"])
     name = stored.get("receiver_name", "")
@@ -266,24 +276,17 @@ def _resume_overrides(spec: CallSpec, call: Any, generation: dict) -> tuple[Any,
     return replace(call, scenario=scenario), name
 
 
-def node_agent(record: dict, index: int) -> str:
-    return record["generation"]["turns"][index]["agent"]
-
-
-def _needs_plan(record: dict) -> bool:
-    return bool(record["label_scam"]) and record["generation"]["briefing"] is None
-
-
 def mark_model_error(store: Store, record_id: str, exc: BaseException) -> None:
     """Same as the command line run: a model error that survived the retries rejects the call
     (llm_error:...). Any other error leaves the call unfinished so it can be resumed."""
     if not is_model_error(exc):
         return
-    record = store.load(record_id)
-    if record is not None and record["generation"]["status"] == "in_progress":
-        record["generation"]["status"] = "rejected"
-        record["generation"]["reasons"] = [f"llm_error:{type(exc).__name__}"]
-        store.save(record)
+    record = store.load_call(record_id)
+    if record is None or record.generation.status != "in_progress":
+        return
+    reasons = [f"llm_error:{type(exc).__name__}"]
+    generation = replace(record.generation, status="rejected", reasons=reasons)
+    store.save_call(replace(record, generation=generation))
 
 
 # ---- demo mode: a scripted LM and silent voices ----------------------------------------------

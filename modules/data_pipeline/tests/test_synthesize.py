@@ -22,7 +22,7 @@ class RateLimitError(Exception):
 def make_record(call_type="romance", seed=0, status="in_progress", config_hash=None, receiver=None):
     agents = Agents(CONFIG, lms={name: DummyLM([]) for name in SIGNATURES})
     call = sample_config(call_type, seed, CONFIG, receiver)
-    record = simulate.new_record(call, CONFIG, agents, receiver)
+    record = simulate.new_record(call, CONFIG, agents, receiver).to_dict()
     record["generation"]["status"] = status
     if config_hash:
         record["generation"]["config_hash"] = config_hash

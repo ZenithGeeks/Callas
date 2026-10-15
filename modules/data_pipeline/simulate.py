@@ -3,7 +3,8 @@
 `run_call` loads the call from the store (or creates it) and runs the call graph (graph.py) on
 it. The store is the only state: every node saves the call, so a stopped run picks up where it
 left off. Records follow the spec's schema; `generation` and `review` are extra and are dropped
-when the dataset is built.
+when the dataset is built. Inside, a call is a records.CallRecord; `run_call` returns it as the
+dict the store keeps.
 
 Naming: `call` is the CallConfig of one call (scenarios.py); `config` is the loaded YAML Config.
 """
@@ -14,7 +15,6 @@ import hashlib
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any
 
 from .agents import Agents
 from .config import Config, ConfigError, Scenario
@@ -28,6 +28,7 @@ from .graph import (
     retry_policy,
     to_record,
 )
+from .records import CallRecord, Generation
 from .scenarios import CallConfig, ReceiverProfile, sample_config
 from .store import RECORD_SCHEMA, Store
 from .tts import Voices, pick_voices
@@ -59,7 +60,7 @@ def run_call(
     voices: Voices | None = None,
     receiver: ReceiverProfile | None = None,
 ) -> dict:
-    """Generate (or finish) one call and return its record.
+    """Generate (or finish) one call and return its record as the store keeps it.
 
     `receiver` replaces the sampled receiver with a person chosen by hand; such calls get
     their own id (see record_id), so they never overwrite the sampled call for that seed.
@@ -69,8 +70,8 @@ def run_call(
     """
     call = sample_config(call_type, seed, config, receiver)
     record = _open_record(store, call, config, agents, receiver)
-    if record["generation"]["status"] != "in_progress":
-        return record
+    if record.generation.status != "in_progress":
+        return record.to_dict()
     call, filler = _as_started(call, record, config)
     context = SimContext(agents, config, call, store, voices, filler, record)
     # One step per turn plus plan and finish; a call that runs past this is a bug.
@@ -78,7 +79,7 @@ def run_call(
     state = CALL_GRAPH.invoke(
         initial_state(record), context=context, config={"recursion_limit": limit}
     )
-    return to_record(record, state)
+    return to_record(record, state).to_dict()
 
 
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
@@ -107,7 +108,7 @@ def new_record(
     config: Config,
     agents: Agents,
     receiver: ReceiverProfile | None = None,
-) -> dict[str, Any]:
+) -> CallRecord:
     """A new, empty call record for `call`.
 
     `receiver` is the hand-chosen receiver, if any: it decides the id and is remembered (as a
@@ -119,38 +120,22 @@ def new_record(
         call.receiver.gender,
         f"{call.call_type}:{call.seed}",
     )
-    return {
-        "id": call_id(call.call_type, call.seed, receiver),
-        "channel": "call",
-        "text": "",
-        "audio_path": None,
-        "speaker_turns": [],
-        "label_scam": call.label_scam,
-        "label_type": call.label_type,
-        "entities": [],
-        "reference_summary": "",
-        "scam_start_turn": None,
-        "source": "synthetic",
-        "generation": {
-            "schema": RECORD_SCHEMA,
-            "status": "in_progress",
-            "reasons": [],
-            "config_name": config.name,
-            "config_hash": config.hash,
-            "models": agents.models(),
-            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "call": {**call.to_dict(), "receiver_override": receiver_hash(receiver)},
-            "voices": {CALLER: caller_voice, RECEIVER: receiver_voice},
-            "speech_style": speech_style(call, config),
-            "briefing": None,
-            "turns": [],
-            "receiver_leaked": [],
-            "first_leak_turn": None,
-            "scam_start_from": None,
-            "judge": None,
-        },
-        "review": {"status": "pending", "note": "", "reviewed_at": None},
-    }
+    generation = Generation(
+        schema=RECORD_SCHEMA,
+        config_name=config.name,
+        config_hash=config.hash,
+        models=agents.models(),
+        created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        call={**call.to_dict(), "receiver_override": receiver_hash(receiver)},
+        voices={CALLER: caller_voice, RECEIVER: receiver_voice},
+        speech_style=speech_style(call, config),
+    )
+    return CallRecord(
+        id=call_id(call.call_type, call.seed, receiver),
+        label_scam=call.label_scam,
+        label_type=call.label_type,
+        generation=generation,
+    )
 
 
 def _open_record(
@@ -159,23 +144,23 @@ def _open_record(
     config: Config,
     agents: Agents,
     receiver: ReceiverProfile | None = None,
-) -> dict:
+) -> CallRecord:
     """The stored call to resume, or a new one. A half-done call needs its original config
     and the same hand-chosen receiver (or none) it was started with."""
     wanted_id = call_id(call.call_type, call.seed, receiver)
-    record = store.load(wanted_id)
+    record = store.load_call(wanted_id)
     if record is None:
         return new_record(call, config, agents, receiver)
-    generation = record["generation"]
-    if generation["status"] != "in_progress":
+    generation = record.generation
+    if generation.status != "in_progress":
         return record
-    made_with = generation.get("config_hash")
+    made_with = generation.config_hash
     if made_with != config.hash:
         raise ConfigError(
             f"{wanted_id} was started with config {made_with}, not {config.hash}; "
             "finish it with the old config, or delete it from the store"
         )
-    stored = generation["call"].get("receiver_override", "")
+    stored = generation.call.get("receiver_override", "")
     if stored != receiver_hash(receiver):
         raise ConfigError(
             f"{wanted_id} was started with a different receiver profile "
@@ -185,11 +170,13 @@ def _open_record(
     return record
 
 
-def _as_started(call: CallConfig, record: dict, config: Config) -> tuple[CallConfig, SlotFiller]:
+def _as_started(
+    call: CallConfig, record: CallRecord, config: Config
+) -> tuple[CallConfig, SlotFiller]:
     """The call and its slot values as the record was started. The studio can pick another
     scenario and receiver name than the seed does; both are kept in generation.call, so a
     command line resume must use them too (#63)."""
-    stored = record["generation"]["call"]
+    stored = record.generation.call
     call = replace(call, scenario=Scenario.model_validate(stored["scenario"]))
     filler = SlotFiller(call, config.details)
     if stored.get("receiver_name"):

@@ -75,17 +75,20 @@ graph TD;
 
 The state (`CallState`) holds only what changes during a call: the briefing, the turns, the status and the ending. Each node returns only the fields it changed. The agents, the store, the config and the call as it was loaded reach the nodes as LangGraph run context (`context_schema`), not as state. `to_record` lays the state over the loaded call to get the record the store saves.
 
+A call is a `CallRecord` (`records.py`): the spec's fields, a `Generation` block with the turns (`Turn`), the scam caller's plan (`Briefing`) and the judge's answer (`Judge`), and a `Review` block. They are dataclasses. Dicts appear only at the edge: `Store.load_call` and `Store.save_call` convert with `from_dict` and `to_dict`, `run_call` returns the dict, and the JSON export and the studio's events carry the dict. `to_dict` keeps the key order the store has always written, so the stored JSON does not change. The web pages read the dicts from `Store.load` and `Store.records`.
+
 There is no checkpointer. Every node saves the call to the SQLite store, so a stopped run resumes from the last saved turn. A node saves before it returns, and LangGraph adds the new turn to the state only after the node returns, so a retry after a failed save never adds it twice.
 
 ### Read the code in this order
 
 1. `graph.py`: the call graph. The state, the nodes `plan`, `caller`, `receiver` and `finish`, the routing function and `build_graph`.
-2. `turns.py`: one turn. What each agent is given, how the conversation is cut to fit the prompt, slot filling and the problems a line can have. Also the planner.
-3. `finish.py`: the finished call. Its text, the receiver's leaks, the judge, where the scam starts and the reasons to reject it.
-4. `audio.py`: speaking each turn and joining the call's audio.
-5. `simulate.py`: `run_call`, which loads or creates the record and runs the graph.
-6. `live.py`: the same graph streamed step by step for the `/studio` page.
-7. `synthesize.py`: the command line. Then `store.py`, `agents.py`, `config.py` and `fill.py`.
+2. `records.py`: the call record and its parts.
+3. `turns.py`: one turn. What each agent is given, how the conversation is cut to fit the prompt, slot filling and the problems a line can have. Also the planner.
+4. `finish.py`: the finished call. Its text, the receiver's leaks, the judge, where the scam starts and the reasons to reject it.
+5. `audio.py`: speaking each turn and joining the call's audio.
+6. `simulate.py`: `run_call`, which loads or creates the record and runs the graph.
+7. `live.py`: the same graph streamed step by step for the `/studio` page.
+8. `synthesize.py`: the command line. Then `store.py`, `agents.py`, `config.py` and `fill.py`.
 
 ## Export for the classifier notebook
 
