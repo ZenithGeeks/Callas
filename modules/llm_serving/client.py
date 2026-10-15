@@ -26,6 +26,7 @@ LABELS: tuple[str, ...] = (
 )
 _LABEL_RES = {label: re.compile(rf"(?<![a-z_]){label}(?![a-z_])") for label in LABELS}
 
+# Per job. Classify and summary are deterministic; the reply gets a little variety.
 TEMPERATURE = {"classify": 0.0, "summary": 0.0, "reply": 0.3}
 
 
@@ -44,6 +45,8 @@ def parse_label(raw: str) -> str:
 
 
 class LLMClient:
+    """Chat client for the vLLM server. `model` is looked up from the server when not set."""
+
     def __init__(
         self,
         base_url: str | None = None,
@@ -63,6 +66,7 @@ class LLMClient:
         )
 
     def list_models(self) -> list[str]:
+        """Return the ids of the models the server serves."""
         try:
             return [m.id for m in self._client.models.list().data]
         except (openai.APIConnectionError, openai.APITimeoutError) as error:
@@ -70,6 +74,7 @@ class LLMClient:
 
     @property
     def model(self) -> str:
+        """The configured model name, or the first model the server lists."""
         if not self._model:
             models = self.list_models()
             if not models:
@@ -78,6 +83,7 @@ class LLMClient:
         return self._model
 
     def complete(self, job: str, context: str) -> str:
+        """Run one job ("summary", "classify" or "reply") on the call context."""
         if job not in JOBS:
             raise ValueError(f"unknown job {job!r}; expected one of {sorted(JOBS)}")
         template, version = load_prompt(job)
@@ -96,6 +102,7 @@ class LLMClient:
             raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {error}") from error
         latency = time.perf_counter() - started
         output = (response.choices[0].message.content or "").strip()
+        # lengths and timings only, never call text or reply text
         log.info(
             "llm call model=%s job=%s prompt=%s context_chars=%d output_chars=%d latency_s=%.3f",
             model,

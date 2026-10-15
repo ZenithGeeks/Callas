@@ -1,15 +1,7 @@
-"""DSPy programs for the voice reply: a reply writer and an optional leak judge.
+"""DSPy programs for the voice reply: DSPyReplyWriter and DSPyLeakJudge.
 
-Both run on the local vLLM server (an OpenAI-compatible endpoint) and both only ever see the
-REDACTED call context. Needs the optional extra: pip install -e ".[dspy]".
-
-Safety notes:
-  * The writer is a ChainOfThought program. The `reasoning` field it produces is dropped
-    here: `write()` returns `prediction.reply` and nothing else, and nothing is logged.
-  * The judge can only add blocks (see tts_voice_agent.reply); `blocks()` answers True for
-    anything that is not a clear "no leak".
-  * `dspy.context(lm=...)` is used per call, never `dspy.configure`, so threads do not
-    interfere with each other.
+Both run on the vLLM server and only see the REDACTED call context. Needs the optional
+extra: pip install -e ".[dspy]". Read the two signatures, then the two classes.
 """
 
 from __future__ import annotations
@@ -52,8 +44,11 @@ DSPY_MAX_TOKENS = 512
 def build_lm(
     max_tokens: int | None = None, temperature: float | None = None, model: str | None = None
 ) -> dspy.LM:
-    """dspy.LM on the vLLM server. Without `model`, same model resolution as LLMClient (empty
-    VLLM_MODEL means the first served model, which needs the server to be up)."""
+    """Build a dspy.LM on the vLLM server.
+
+    Without `model` it resolves the model like LLMClient: an empty VLLM_MODEL means the first
+    served model, so the server must be up.
+    """
     s = get_settings()
     model = model or LLMClient().model
     return dspy.LM(
@@ -106,6 +101,7 @@ def _run_program(
     """
     started = time.perf_counter()
     try:
+        # dspy.context per call, never dspy.configure: threads must not share one global LM
         with dspy.context(lm=lm):
             return program(call_context=context, **inputs)
     except _UNAVAILABLE as error:
@@ -138,7 +134,10 @@ def _load_reply_program(compiled_path: Path | None) -> dspy.Module:
 
 
 class DSPyReplyWriter:
-    """write(context, result) -> reply text. `context` must already be redacted."""
+    """write(context, result) -> reply text. `context` must already be redacted.
+
+    The ChainOfThought `reasoning` field is dropped: `write()` returns the reply text only.
+    """
 
     def __init__(
         self,
@@ -151,12 +150,14 @@ class DSPyReplyWriter:
 
     @property
     def lm(self):
+        """The language model, built on first use."""
         if self._lm is None:
             # Temperature 0: sampling at 0.3 produced garbled Thai spelling on qwen3.8.
             self._lm = build_lm(temperature=0.0)
         return self._lm
 
     def write(self, context: str, result: Any = None) -> str:
+        """Return the spoken reply for the redacted call context."""
         # `result` is accepted for the writer interface; the verdict is fixed because the
         # reply is only ever written for calls the decision step judged benign.
         prediction = _run_program("reply", self.program, self.lm, context, verdict="benign")
@@ -175,11 +176,13 @@ class DSPyLeakJudge:
 
     @property
     def lm(self):
+        """The language model, built on first use."""
         if self._lm is None:
             self._lm = build_lm(temperature=0.0)
         return self._lm
 
     def blocks(self, reply: str, context: str) -> bool:
+        """Return True when the reply must not be spoken (see the class docstring)."""
         try:
             prediction = _run_program("judge", self.program, self.lm, context, reply=reply)
         except LLMUnavailable:

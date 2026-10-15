@@ -37,4 +37,5 @@ class FakeLLM:
         return response
 
     def calls_for(self, job: str) -> list[str]:
+        """Return the contexts the given job was called with, in order."""
         return [context for call_job, context in self.calls if call_job == job]
