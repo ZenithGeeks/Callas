@@ -3,11 +3,13 @@ the human review and the scam pattern notes.
 
 `save()` writes a whole call record (a dict in the spec's schema plus `generation` and `review`
 blocks) in one transaction after every turn, and `load()` rebuilds it from the tables, so a
-stopped run resumes from the turns table. The simulator uses `save_call()` and `load_call()`,
-which take and give the same record as a records.CallRecord. The web pages read the dicts.
+stopped run resumes from the turns table. The methods come in pairs: `load_call`, `save_call`
+and `calls` give and take a records.CallRecord, which the simulator uses; `load`, `save` and
+`call_dicts` give and take the same record as a dict, which the web pages and exports read.
 
 WAL mode lets the generator write while the /dataset page reads. Each thread gets its own
-connection (sqlite3 connections must not be shared across threads).
+connection (sqlite3 connections must not be shared across threads). `Store(path, read_only=True)`
+reads a file without changing it, even one too old to have every column (see export.py).
 
 Not supported: two generator runs writing the same database at once. Each call is saved turn by
 turn and nothing locks a call, so two runs that reach the same call would write over each
@@ -172,18 +174,38 @@ def _add_missing_columns(db: sqlite3.Connection) -> None:
                 raise
 
 
+def _missing_columns(db: sqlite3.Connection) -> dict[str, dict[str, str]]:
+    """table -> {column: its default as SQL} for the added columns an older file does not have."""
+    missing: dict[str, dict[str, str]] = {}
+    for table, column, definition in _ADDED_COLUMNS:
+        have = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            default = definition.partition(" DEFAULT ")[2] or "NULL"
+            missing.setdefault(table, {})[column] = default
+    return missing
+
+
 def now() -> str:
     """The current UTC time as an ISO string, to the second."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 class Store:
-    """All access to one calls.db. Safe to share across threads."""
+    """All access to one calls.db. Safe to share across threads.
 
-    def __init__(self, path: Path | str = DEFAULT_DB) -> None:
+    A read-only store opens an existing file and never writes to it: it does not create the
+    tables or add the columns an older file lacks. Loading gives those columns their default.
+    """
+
+    def __init__(self, path: Path | str = DEFAULT_DB, read_only: bool = False) -> None:
         self.path = Path(path)
         self.folder = self.path.parent  # audio paths in records are relative to this
+        self.read_only = read_only
         self._local = threading.local()
+        if read_only:
+            self._missing = _missing_columns(self._conn())
+            return
+        self._missing = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._tx() as db:
             db.executescript(SCHEMA)
@@ -199,9 +221,13 @@ class Store:
         """This thread's connection, opened on first use."""
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=30)
+            if self.read_only:
+                uri = f"file:{self.path.resolve().as_posix()}?mode=ro"
+                conn = sqlite3.connect(uri, uri=True, timeout=30)
+            else:
+                conn = sqlite3.connect(self.path, timeout=30)
+                conn.execute("PRAGMA journal_mode=WAL")
             conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute("PRAGMA busy_timeout=30000")
             self._local.conn = conn
@@ -249,13 +275,27 @@ class Store:
     def load(self, call_id: str) -> dict | None:
         """The call record in the same shape simulate.new_record makes, or None."""
         db = self._conn()
-        row = db.execute("SELECT * FROM calls WHERE id = ?", (call_id,)).fetchone()
+        row = db.execute(
+            f"SELECT {self._columns('calls')} FROM calls WHERE id = ?", (call_id,)
+        ).fetchone()
         if row is None:
             return None
         turns = db.execute(
-            "SELECT * FROM turns WHERE call_id = ? ORDER BY idx", (call_id,)
+            f"SELECT {self._columns('turns')} FROM turns WHERE call_id = ? ORDER BY idx",
+            (call_id,),
         ).fetchall()
         return _record_from_rows(row, turns)
+
+    def has_column(self, table: str, column: str) -> bool:
+        """Whether the file has this column. Only a read-only store can lack one."""
+        return column not in self._missing.get(table, {})
+
+    def _columns(self, table: str) -> str:
+        """The SELECT list for a table: every column, with a stand-in for each missing one."""
+        stand_ins = [
+            f"{value} AS {column}" for column, value in self._missing.get(table, {}).items()
+        ]
+        return ", ".join(["*", *stand_ins])
 
     def load_call(self, call_id: str) -> CallRecord | None:
         """The call as a CallRecord, or None."""
@@ -268,7 +308,7 @@ class Store:
 
     def calls(self, call_type: str = "") -> Iterator[CallRecord]:
         """Every call as a CallRecord, oldest id first, optionally of one call type."""
-        for record in self.records(call_type):
+        for record in self.call_dicts(call_type):
             yield CallRecord.from_dict(record)
 
     def exists(self, call_id: str) -> bool:
@@ -278,8 +318,8 @@ class Store:
             is not None
         )
 
-    def records(self, call_type: str = "") -> Iterator[dict]:
-        """Every call record, oldest id first, optionally of one call type."""
+    def call_dicts(self, call_type: str = "") -> Iterator[dict]:
+        """Every call as the dict load() gives, oldest id first, optionally of one call type."""
         db = self._conn()
         sql, args = "SELECT id FROM calls", ()
         if call_type:

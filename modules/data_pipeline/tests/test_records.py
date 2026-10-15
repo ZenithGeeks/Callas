@@ -28,7 +28,7 @@ def stored(tmp_path_factory):
     voices = live.SilentVoices()
     agents = live.fake_agents(CONFIG, "romance")
     simulate.run_call("romance", 3, store, agents, CONFIG, voices=voices)
-    return list(store.records())
+    return list(store.call_dicts())
 
 
 def test_every_stored_record_round_trips_unchanged(stored):

@@ -5,6 +5,12 @@ turns, the scam caller's plan, the judge's answer) and a `Review` block (a perso
 Dicts appear only at the edge, through `from_dict` and `to_dict`: Store.load_call and
 Store.save_call, the JSON export and the studio's events. `to_dict` writes the keys in the order
 the store has always used, so the stored JSON and the exports stay the same byte for byte.
+
+Two names mean two things, and both are stored, so they stay:
+- "rejected" in `Generation.status` means the simulator's checks failed the call; in
+  `Review.status` it means a person rejected it on the /dataset page.
+- `Generation.call` is the sampled scenarios.CallConfig as a dict; elsewhere `call` is that
+  CallConfig, and the record itself is `record`.
 """
 
 from __future__ import annotations
@@ -13,7 +19,8 @@ import copy
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Literal
 
-Status = Literal["in_progress", "accepted", "rejected"]
+GenerationStatus = Literal["in_progress", "accepted", "rejected"]  # the simulator's decision
+ReviewStatus = Literal["pending", "approved", "rejected"]  # a person's decision
 
 
 @dataclass(kw_only=True)
@@ -117,7 +124,7 @@ class Generation:
     """How the call was made. The dataset build drops this block."""
 
     schema: int  # store.RECORD_SCHEMA
-    status: Status = "in_progress"
+    status: GenerationStatus = "in_progress"
     reasons: list[str] = field(default_factory=list)  # reasons to reject; empty when accepted
     config_name: str
     config_hash: str
@@ -159,7 +166,7 @@ class Generation:
 class Review:
     """A person's decision on the /dataset page."""
 
-    status: str = "pending"  # pending | approved | rejected
+    status: ReviewStatus = "pending"
     note: str = ""
     reviewed_at: str | None = None
 

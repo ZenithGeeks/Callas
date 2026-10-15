@@ -100,7 +100,7 @@ def test_the_voice_is_given_the_spoken_text_and_the_record_keeps_both(tmp_path):
     voices = FakeVoices()
     rec = simulate.run_call(
         "phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG, voices=voices
-    )
+    ).to_dict()
     turns = rec["generation"]["turns"]
     assert rec["generation"]["speech_style"] in (DASH, PAUSE)
     filler = SlotFiller(sample_config("phishing_otp", 1, CONFIG), CONFIG.details)

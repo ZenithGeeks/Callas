@@ -38,13 +38,13 @@ def write_turn(
     config: Config,
     turns: list[Turn],
     filler: SlotFiller,
-    plan: list[str],
+    plan_steps: list[str],
     speaker: str,
 ) -> Turn:
     """Ask the speaker's agent for its next line, fill the line's slots and note its problems."""
     started = time.perf_counter()
     if speaker == CALLER:
-        agent, pred, tokens = caller_says(agents, call, config, turns, plan)
+        agent, pred, tokens = caller_says(agents, call, config, turns, plan_steps)
     else:
         agent = "receiver"
         pred, tokens = receiver_says(agents, call, config, turns, filler)
@@ -73,7 +73,7 @@ def write_turn(
 
 
 def caller_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], plan: list[str]
+    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], plan_steps: list[str]
 ) -> tuple[str, dspy.Prediction, int]:
     """Ask the scam or legit caller for its next line. Returns (agent, answer, prompt tokens)."""
     scenario = call.scenario
@@ -87,7 +87,9 @@ def caller_says(
     if call.label_scam:
         agent = "scam_caller"
         own_turn = len(turns) // 2
-        inputs |= dict(tactics=scenario.tactics, pacing=pacing(call, config, own_turn), plan=plan)
+        inputs |= dict(
+            tactics=scenario.tactics, pacing=pacing(call, config, own_turn), plan=plan_steps
+        )
     else:
         agent = "legit_caller"
         inputs["manner"] = scenario.tactics

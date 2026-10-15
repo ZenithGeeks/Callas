@@ -68,7 +68,10 @@ def finish_call(
             for speaker_turn, (start, end) in zip(speaker_turns, times, strict=True)
         ]
     judge = ask_judge(agents, config, turns, record.label_type)
-    start, start_from = scam_start(record, judge) if record.label_scam else (None, None)
+    start, start_from = None, None
+    if record.label_scam:
+        reveal_turn = record.generation.call["reveal_turn"]
+        start, start_from = scam_start(turns, reveal_turn, judge, record.id)
     receiver_leaked, first_leak_turn = leak_summary(turns)
     return Ending(
         text=text,
@@ -183,19 +186,22 @@ def _backed_by_spell_check(sentence: str, turns: list[Turn]) -> bool:
     )
 
 
-def scam_start(record: CallRecord, judge: Judge) -> tuple[int | None, str | None]:
+def scam_start(
+    turns: list[Turn], reveal_turn: int, judge: Judge, call_id: str = ""
+) -> tuple[int | None, str | None]:
     """First turn where the scam shows: the caller's own flag, else the judge's answer.
 
     Callers often under-report their own ask (a link "to check the parcel" is an ask), while
     the judge reads the whole call. The source is kept so the two can be compared later.
+    `reveal_turn` counts caller turns; `call_id` only names the call in the log.
     """
-    turns = record.generation.turns
-    reveal = record.generation.call["reveal_turn"]
     for i, turn in enumerate(turns):
         if turn.speaker != CALLER or not turn.asks_now:
             continue
-        if i // 2 < reveal:  # the plan forbids asking before the reveal turn: not a scam move
-            log.warning("%s turn %d: asks_now before reveal turn %d, ignored", record.id, i, reveal)
+        if i // 2 < reveal_turn:  # the plan forbids asking before the reveal turn
+            log.warning(
+                "%s turn %d: asks_now before reveal turn %d, ignored", call_id, i, reveal_turn
+            )
             continue
         return i, "caller"
     at = judge.scam_start_turn
