@@ -80,6 +80,58 @@ Review the calls at `/dataset` in the web demo: the call reads as a chat, each m
 its own, the agents' reasoning and the caller's plan are one click away, and approve or reject is
 saved in the store. Set `CALLAS_DATASET_DB` to review another database.
 
+## Export for the classifier notebook
+
+```
+python -m data_pipeline.synthesize --export-notebook dataset/scam_dataset_generated.csv
+python -m data_pipeline.synthesize --export-notebook out.csv --store other/calls.db --text asr
+```
+
+This writes the csv that `notebooks/scam_classifier_phayathaibert.ipynb` reads next to the
+hand-written `dataset/scam_dataset.csv` (the notebook looks for `dataset/scam_dataset_generated.csv`).
+It reads the store without changing it, needs no config and no LLM, and prints how many rows it
+wrote and how many calls it skipped for each reason. The `--export` option above is a different
+file: JSON lines in the spec schema.
+
+Each row is one call, with the columns the notebook needs: `dialogue` (turns written as
+`ผู้โทร: ... ผู้รับ: ...` on one line), `scam_class` (`Scam` or `Not a Scam`) and `scam_type` (one of
+the five spec names, empty for a normal call). It adds `source` (`simulated`), `group_hint` (call
+type and scenario key, for example `romance/engineer_abroad`), `scam_start_turn` (the 0-based turn
+where the scam starts, empty for a normal call) and `call_id`. If the store has the leak columns
+`receiver_leaked` and `first_leak_turn`, they are written too; if not, they are left out. The file
+is utf-8 with a byte order mark, like every csv in the notebook.
+
+Only calls the simulator accepted and a person approved on the `/dataset` page are written. A
+call is skipped, and counted under a reason, when the notebook's cleaning would change what was
+reviewed: a turn that contains a speaker tag, text in square brackets, a stage note such as
+`(เสียงร้องไห้)`, the English words Scam, Phishing or Impersonation, the word ผู้โทร in a caller turn
+(the notebook cuts the rest of the turn as narration), an empty turn, two turns in a row from one
+speaker, fewer than two turns, a scam type outside the five, or (with `--text asr`) a turn with
+no transcript. The rules are copied from the
+notebook, and a test fails if the notebook's version changes.
+
+`--text asr` writes the ASR transcript of each turn's audio instead of the written line, so the
+model trains on text like the one it reads in production. The export keeps its transcripts in
+`eval/results/asr_cache/typhoon_asr.export.json` (or the folder in `CALLAS_ASR_CACHE`). It is not
+the cache of `scripts/eval_autocorrect.py`: each entry here also holds a hash of the turn's
+written text and audio file name, and an entry whose hash differs is ignored. So a call that you
+regenerate under the same id is transcribed again. A turn that is not cached is transcribed with
+pythaiasr when it is installed and the audio file is there, and the result is added to the
+cache. If that is not possible, the call is skipped as `asr_incomplete`: a call with some turns
+written and some spoken would not match what the classifier reads in production. The
+transcripts go through the same checks as the written text.
+
+In the notebook, rows with the same `group_hint` always land in one split. With
+`KEEP_ORIGINAL_TEST = True` every hand-written row keeps the split it has in
+`data/processed/{train,valid,test}.csv`. A generated row follows the hand-written rows of its
+group, is dropped if that split is test, and only groups that are new go to train and valid.
+Without a generated file the notebook gives back `data/processed` unchanged.
+
+One limit to know: all calls of a scenario stay in one split. Each type has 4 to 6
+scenarios, so the type model sees few distinct scenarios, and a type can have too few samples
+in valid or test to be scored. Add scenarios in `config/scenarios.yaml` before you generate
+more calls of the same type.
+
 ## Choose who answers
 
 By default each call samples a receiver (see `receivers` in `config/scenarios.yaml`), and
