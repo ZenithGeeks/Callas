@@ -2,7 +2,7 @@ import pytest
 
 import callas_settings
 from llm_serving.fake import FakeLLM
-from nlp_core import registry
+from nlp_core import parts, registry
 from nlp_core.registry import LLMClassifier, LLMSummarizer, RulesNER
 
 
@@ -21,6 +21,12 @@ def clean_registry(monkeypatch):
     registry._FACTORIES.update(saved_f)
     registry._INSTANCES.clear()
     registry._INSTANCES.update(saved_i)
+
+
+def test_parts_are_importable_from_the_registry_and_from_parts():
+    assert registry.RulesNER is parts.RulesNER
+    assert registry.LLMClassifier is parts.LLMClassifier
+    assert registry.LLMSummarizer is parts.LLMSummarizer
 
 
 def test_default_selection():
