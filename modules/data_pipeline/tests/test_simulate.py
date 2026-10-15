@@ -493,8 +493,24 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = turn_module.receiver_view(turns, call, CONFIG)
+    view = turn_module.receiver_view(turns, simulate.SlotFiller(call, CONFIG.details), CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
+
+
+def test_the_receiver_hears_a_name_chosen_in_the_studio_as_its_own_slot(tmp_path):
+    import threading
+
+    from data_pipeline import live
+
+    greet = dict(line="สวัสดีครับ คุณ{RECEIVER_NAME}", asks_now=False, end_call=False)
+    agents = make_agents([greet, *SCAM[1:]], REPLIES, judge(start=2))
+    spec = live.CallSpec("phishing_otp", 1, None, None, "สมหญิง")
+    store = Store(tmp_path / "calls.db")
+    for _ in live.stream_call(spec, store, agents, CONFIG, None, live.Capture(), threading.Event()):
+        pass
+    assert "คุณสมหญิง" in store.load(spec.record_id)["generation"]["turns"][0]["text"]
+    heard = agents.receiver.calls[0]["conversation"]
+    assert "คุณ{RECEIVER_NAME}" in heard and "สมหญิง" not in heard
 
 
 # ---- a caller does not know the receiver's own details -------------------------------------

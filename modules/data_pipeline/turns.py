@@ -77,7 +77,7 @@ def write_turn(
         agent, pred, tokens = caller_says(agents, call, config, turns, plan)
     else:
         agent = "receiver"
-        pred, tokens = receiver_says(agents, call, config, turns)
+        pred, tokens = receiver_says(agents, call, config, turns, filler)
     raw = (pred.line or "").strip()
     text, entities, problems = filler.fill(raw)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
@@ -130,7 +130,7 @@ def caller_says(
 
 
 def receiver_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[Turn]
+    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
     inputs = dict(
@@ -139,7 +139,7 @@ def receiver_says(
         voice=config.agents.speakers.voice[call.receiver.gender],
         stage=stage(config, len(turns) // 2),
     )
-    lines = receiver_lines(turns, call, config)
+    lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)
     return ask(agents, "receiver", **inputs, conversation=text), tokens
 
@@ -235,12 +235,15 @@ def conversation_lines(turns: list[Turn], config: Config, *, raw: bool) -> list[
     return [f"{tag[turn['speaker']]}: {turn[key]}" for turn in turns]
 
 
-def receiver_lines(turns: list[Turn], call: CallConfig, config: Config) -> list[str]:
+def receiver_lines(turns: list[Turn], filler: SlotFiller, config: Config) -> list[str]:
     """The call as the receiver hears it, one line per turn: real values, except its own name
     and details, which stay the slots that its instructions call "your name", "your bank
     account" and so on. Without this the receiver did not recognise its own name and answered
-    "you have the wrong number"."""
-    values = SlotFiller(call, config.details).values
+    "you have the wrong number".
+
+    `filler` must be this call's: the studio can give the receiver another name than the seed.
+    """
+    values = filler.values
     own = sorted(RECEIVER_OWN_SLOTS, key=lambda slot: -len(values[slot]))
     lines = []
     for line in conversation_lines(turns, config, raw=False):
@@ -250,9 +253,9 @@ def receiver_lines(turns: list[Turn], call: CallConfig, config: Config) -> list[
     return lines
 
 
-def receiver_view(turns: list[Turn], call: CallConfig, config: Config) -> str:
+def receiver_view(turns: list[Turn], filler: SlotFiller, config: Config) -> str:
     """The receiver's lines as one text, before any cut to fit its prompt."""
-    lines = receiver_lines(turns, call, config)
+    lines = receiver_lines(turns, filler, config)
     return "\n".join(lines) if lines else config.agents.speakers.empty_call
 
 

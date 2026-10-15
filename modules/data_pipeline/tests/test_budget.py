@@ -19,6 +19,7 @@ from data_pipeline.budget import (
     trim_turns,
 )
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
+from data_pipeline.fill import SlotFiller
 from data_pipeline.patterns import MAX_ARTICLE_CHARS, extract
 from data_pipeline.scenarios import sample_config
 from data_pipeline.store import Store
@@ -155,10 +156,12 @@ def test_the_receiver_is_trimmed_too(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     turns = long_call(40)
     roomy = make_agents([], [dict(line="ค่ะ", end_call=False)], judge())
-    _, whole_tokens = turn_module.receiver_says(roomy, call, CONFIG, turns)
+    _, whole_tokens = turn_module.receiver_says(
+        roomy, call, CONFIG, turns, SlotFiller(call, CONFIG.details)
+    )
     tight = config_with_budget(tmp_path, "receiver", whole_tokens - 600)
     agents = make_agents([], [dict(line="ค่ะ", end_call=False)], judge(), config=tight)
-    turn_module.receiver_says(agents, call, tight, turns)
+    turn_module.receiver_says(agents, call, tight, turns, SlotFiller(call, tight.details))
     sent = agents.receiver.calls[0]["conversation"]
     assert "earlier turns not shown" in sent and sent.endswith(turns[-1]["text"])
 
