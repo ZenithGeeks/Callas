@@ -74,6 +74,7 @@ def store() -> Store | None:
 
 
 def reason_text(code: str) -> str:
+    """A rejection code from the generator in words."""
     if code.startswith("unknown_slot:"):
         return f"Unknown slot {{{code.split(':', 1)[1]}}}"
     if code.startswith("llm_error:"):
@@ -120,9 +121,6 @@ def save_review(db: Store, record_id: str, status: str, note: str | None) -> dic
     return db.load(record_id)
 
 
-# ---- the list -------------------------------------------------------------------------------
-
-
 @dataclass
 class Row:
     id: str
@@ -138,6 +136,7 @@ class Row:
 
 
 def _row(record: dict) -> Row:
+    """A list row from a full call record."""
     generation = record.get("generation", {})
     call_type = record.get("label_type") or "benign"
     turns = record.get("speaker_turns") or generation.get("turns") or []
@@ -194,15 +193,19 @@ class Listing:
     total: int = 0  # of the chosen type
 
 
+def _known_view(view: str) -> str:
+    """The view if it is one of VIEWS, else the default."""
+    return view if view in VIEWS else DEFAULT_VIEW
+
+
 def empty_listing(view: str = DEFAULT_VIEW) -> Listing:
     """What the page shows when there is no database yet."""
-    view = view if view in VIEWS else DEFAULT_VIEW
-    return Listing(rows=[], view=view, counts=dict.fromkeys(VIEWS, 0))
+    return Listing(rows=[], view=_known_view(view), counts=dict.fromkeys(VIEWS, 0))
 
 
 def listing(db: Store, call_type: str = "", view: str = DEFAULT_VIEW) -> Listing:
     """Every call's summary row, kept to one call type (or all), with counts per view."""
-    view = view if view in VIEWS else DEFAULT_VIEW
+    view = _known_view(view)
     rows = [_summary_row(r) for r in db.summaries()]
     if call_type:
         rows = [r for r in rows if r.call_type == call_type]
@@ -215,9 +218,6 @@ def listing(db: Store, call_type: str = "", view: str = DEFAULT_VIEW) -> Listing
         rejected=sum(r.review == "rejected" for r in rows),
         total=len(rows),
     )
-
-
-# ---- one call -------------------------------------------------------------------------------
 
 
 @dataclass
@@ -253,7 +253,7 @@ class Detail:
     plan: list[str]  # the scam caller's plan, if it had one
 
 
-def _turn_flags(raw_turn: dict) -> list[str]:
+def turn_flags(raw_turn: dict) -> list[str]:
     """Short warnings shown under a turn: failed checks and suspect spellings."""
     flags = [reason_text(p) for p in raw_turn.get("problems", [])]
     # Single characters are tokenizer splits, not typos; showing them is only noise.
@@ -272,14 +272,12 @@ def _leak_tag(raw_turn: dict) -> str:
 
 
 def _build_turns(db: Store, record: dict) -> list[Turn]:
+    """The turns of a call for the page, with timings from the audio and flags from the checks."""
     generation = record.get("generation", {})
-    rid = record["id"]
     scam_start = record.get("scam_start_turn")  # 0-based index, or None
     timings = record.get("speaker_turns") or []  # same order as the generated turns
     turns = []
     for i, raw in enumerate(generation.get("turns", [])):
-        audio_name = Path(raw["audio"]).name if raw.get("audio") else None
-        has_audio = audio_name and audio_file(db, rid, audio_name)
         timing = timings[i] if i < len(timings) else {}
         turns.append(
             Turn(
@@ -290,18 +288,30 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 entities=raw.get("entities", []),
                 start=timing.get("start"),
                 end=timing.get("end"),
-                audio=f"/dataset/audio/{rid}/{audio_name}" if has_audio else None,
+                audio=_turn_audio_url(db, record["id"], raw),
                 reasoning=raw.get("reasoning", ""),
-                flags=_turn_flags(raw),
+                flags=turn_flags(raw),
                 leak_tag=_leak_tag(raw),
-                spoken=(raw.get("spoken_text") or "")
-                if raw.get("spoken_text") != raw.get("text")
-                else "",
+                spoken=_spoken_text(raw),
                 prompt_tokens=raw.get("prompt_tokens"),
                 is_scam_start=scam_start == i,
             )
         )
     return turns
+
+
+def _turn_audio_url(db: Store, record_id: str, raw_turn: dict) -> str | None:
+    """The URL of the turn's WAV, or None if the turn has none or the file is missing."""
+    if not raw_turn.get("audio"):
+        return None
+    name = Path(raw_turn["audio"]).name
+    return f"/dataset/audio/{record_id}/{name}" if audio_file(db, record_id, name) else None
+
+
+def _spoken_text(raw_turn: dict) -> str:
+    """What the voice was given, only when it differs from the text, else ''."""
+    spoken = raw_turn.get("spoken_text")
+    return (spoken or "") if spoken != raw_turn.get("text") else ""
 
 
 def _setup_table(generation: dict) -> dict[str, str]:
@@ -325,12 +335,10 @@ def _setup_table(generation: dict) -> dict[str, str]:
 
 
 def detail(db: Store, record: dict) -> Detail:
+    """Everything the detail panel of one call shows."""
     generation = record.get("generation", {})
     rid = record["id"]
     scam_start = record.get("scam_start_turn")
-    receiver = dict(generation.get("call", {}).get("receiver", {}))
-    if "job" in receiver:  # calls made before receivers had full profiles
-        receiver["occupation"] = receiver.pop("job")
     return Detail(
         record=record,
         row=_row(record),
@@ -341,6 +349,14 @@ def detail(db: Store, record: dict) -> Detail:
         judge=generation.get("judge"),
         call_audio=f"/dataset/audio/{rid}" if audio_file(db, rid) else None,
         setup=_setup_table(generation),
-        receiver=receiver,
+        receiver=_receiver_profile(generation),
         plan=(generation.get("briefing") or {}).get("plan", []),
     )
+
+
+def _receiver_profile(generation: dict) -> dict[str, Any]:
+    """The receiver's profile, with the old "job" key shown as "occupation"."""
+    receiver = dict(generation.get("call", {}).get("receiver", {}))
+    if "job" in receiver:  # calls made before receivers had full profiles
+        receiver["occupation"] = receiver.pop("job")
+    return receiver
