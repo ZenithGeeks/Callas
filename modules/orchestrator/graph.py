@@ -166,6 +166,53 @@ ANALYZE_RETRY = RetryPolicy(
 )
 
 
+def remember(state: TurnState, ctx: TurnContext) -> dict:
+    turn = clean_turn(state["turn"])  # one clean text for every tool and for the screen
+    ctx.states[state["call_id"]].add(turn)
+    return {"turn": turn}
+
+
+def analyze_turn(state: TurnState, ctx: TurnContext) -> dict:
+    cs = ctx.states[state["call_id"]]
+    context = cs.context()
+    nlp = ctx.analyze(context)
+    cs.add_entities(nlp.entities)
+    return {"context": context, "nlp": nlp}
+
+
+def decide_node(state: TurnState, ctx: TurnContext) -> dict:
+    decision = decide(state["nlp"], ctx.states[state["call_id"]])
+    log.info("decision auto_reply=%s reason=%s", decision.auto_reply, decision.reason)
+    return {"decision": decision}
+
+
+def reply(state: TurnState, ctx: TurnContext) -> dict:
+    text, template_used = safe_reply(
+        state["nlp"],
+        ctx.states[state["call_id"]],
+        ctx.llm,
+        writer=ctx.writer,
+        judge=ctx.judge,
+    )
+    decision = state["decision"]
+    decision.reply_text, decision.template_used = text, template_used
+    t = state["turn"]  # remember what we said, so the next reply can follow on from it
+    ctx.states[state["call_id"]].add(Turn("agent", t.end, t.end, text))
+    return {"reply_text": text, "template_used": template_used}
+
+
+def speak(state: TurnState, ctx: TurnContext) -> dict:
+    try:
+        return {"audio": ctx.speaker.synthesize_bytes(state["reply_text"])}
+    except Exception as exc:  # TTS trouble must not lose the text reply
+        log.warning("speech failed (%s)", type(exc).__name__)
+        return {"audio": None, "speak_error": type(exc).__name__}
+
+
+def escalate(state: TurnState, ctx: TurnContext) -> dict:
+    return {"escalation_reason": state["decision"].reason}
+
+
 def build_turn_graph(rt: Runtime):
     """Compile the turn graph once. Invoke it with `context=rt.context()`.
 
@@ -174,51 +221,9 @@ def build_turn_graph(rt: Runtime):
     on node input would keep call text after the call ends, which breaks the rule that call memory
     is deleted when the call ends.
     """
-
-    def remember(state: TurnState, ctx: TurnContext) -> dict:
-        turn = clean_turn(state["turn"])  # one clean text for every tool and for the screen
-        ctx.states[state["call_id"]].add(turn)
-        return {"turn": turn}
-
-    def analyze(state: TurnState, ctx: TurnContext) -> dict:
-        cs = ctx.states[state["call_id"]]
-        context = cs.context()
-        nlp = ctx.analyze(context)
-        cs.add_entities(nlp.entities)
-        return {"context": context, "nlp": nlp}
-
-    def decide_node(state: TurnState, ctx: TurnContext) -> dict:
-        decision = decide(state["nlp"], ctx.states[state["call_id"]])
-        log.info("decision auto_reply=%s reason=%s", decision.auto_reply, decision.reason)
-        return {"decision": decision}
-
-    def reply(state: TurnState, ctx: TurnContext) -> dict:
-        text, template_used = safe_reply(
-            state["nlp"],
-            ctx.states[state["call_id"]],
-            ctx.llm,
-            writer=ctx.writer,
-            judge=ctx.judge,
-        )
-        decision = state["decision"]
-        decision.reply_text, decision.template_used = text, template_used
-        t = state["turn"]  # remember what we said, so the next reply can follow on from it
-        ctx.states[state["call_id"]].add(Turn("agent", t.end, t.end, text))
-        return {"reply_text": text, "template_used": template_used}
-
-    def speak(state: TurnState, ctx: TurnContext) -> dict:
-        try:
-            return {"audio": ctx.speaker.synthesize_bytes(state["reply_text"])}
-        except Exception as exc:  # TTS trouble must not lose the text reply
-            log.warning("speech failed (%s)", type(exc).__name__)
-            return {"audio": None, "speak_error": type(exc).__name__}
-
-    def escalate(state: TurnState, ctx: TurnContext) -> dict:
-        return {"escalation_reason": state["decision"].reason}
-
     g = StateGraph(TurnState, context_schema=TurnContext)
     g.add_node("remember", _timed("remember", remember))
-    g.add_node("analyze", _timed("analyze", analyze), retry_policy=ANALYZE_RETRY)
+    g.add_node("analyze", _timed("analyze", analyze_turn), retry_policy=ANALYZE_RETRY)
     g.add_node("decide", _timed("decide", decide_node))
     g.add_node("reply", _timed("reply", reply))
     g.add_node("escalate", _timed("escalate", escalate))
@@ -254,17 +259,18 @@ def verdict_from(nlp: NLPResult) -> dict:
     }
 
 
+def analyze_text(state: MessageState, ctx: TurnContext) -> dict:
+    return {"nlp": ctx.analyze(state["text"])}
+
+
+def verdict(state: MessageState, ctx: TurnContext) -> dict:
+    return {"verdict": verdict_from(state["nlp"])}
+
+
 def build_message_graph(rt: Runtime):
     """Text message: analyze -> verdict. No reply, no memory. Invoke with `context=`."""
-
-    def analyze(state: MessageState, ctx: TurnContext) -> dict:
-        return {"nlp": ctx.analyze(state["text"])}
-
-    def verdict(state: MessageState, ctx: TurnContext) -> dict:
-        return {"verdict": verdict_from(state["nlp"])}
-
     g = StateGraph(MessageState, context_schema=TurnContext)
-    g.add_node("analyze", _timed("analyze", analyze), retry_policy=ANALYZE_RETRY)
+    g.add_node("analyze", _timed("analyze", analyze_text), retry_policy=ANALYZE_RETRY)
     g.add_node("verdict", _timed("verdict", verdict))
     g.add_edge(START, "analyze")
     g.add_edge("analyze", "verdict")
