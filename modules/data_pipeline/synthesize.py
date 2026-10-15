@@ -26,6 +26,8 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from callas_tracing import setup_tracing
+
 from llm_serving.client import LLMUnavailable
 
 from .agents import SIGNATURES, Agents, configured
@@ -82,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     if any(call_type not in CALL_TYPES for call_type in call_types):
         parser.error(f"--type must be one of {CALL_TYPES} or all")
 
+    setup_tracing("callas-simulator", call_text=True)  # simulated calls are made up
     jobs = [
         (call_type, seed)
         for call_type in call_types
