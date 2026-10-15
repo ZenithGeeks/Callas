@@ -1,0 +1,10 @@
+{# The last event of a run: what happened and where to find the call. #}
+<p>
+  {% if outcome == 'finished' %}Done. The call is saved in the dataset.
+  {% elif outcome == 'stopped' %}Stopped. What was written is saved as an unfinished call.
+  {% else %}The run ended with an error.{% endif %}
+</p>
+<p class="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+  {% if outcome != 'failed' %}<a class="btn-link" href="/dataset?id={{ run.record_id }}">Open {{ run.record_id }} in the dataset</a>{% endif %}
+  <a class="btn-link" href="/studio">New call</a>
+</p>

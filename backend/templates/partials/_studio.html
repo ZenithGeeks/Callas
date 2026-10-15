@@ -1,0 +1,37 @@
+{# Pieces shared by the live call messages (/studio). #}
+
+{# The small label under a message: agent, DSPy module, model, time. `t` is a dict or None. #}
+{% macro tag(t) %}
+{% if t %}
+<p class="agent-tag" lang="en">
+  <span class="agent-tag-name">{{ t.agent }}</span>
+  {% if t.module %}<span>{{ t.module }}</span>{% endif %}
+  {% if t.model %}<span>{{ t.model }}</span>{% endif %}
+  {% if t.seconds is not none %}<span class="tabular-nums">{{ '%.1f' % t.seconds }} s</span>{% endif %}
+</p>
+{% endif %}
+{%- endmacro %}
+
+{# "Prompt and answer": what was sent to the model and what came back, as captured by the DSPy
+   callbacks. Absent when nothing was captured (a call resumed from the store). #}
+{% macro trace(t) %}
+{% if t and t.calls %}
+<details class="why trace" lang="en">
+  <summary>Prompt and answer</summary>
+  {% for c in t.calls %}
+  <div class="trace-call">
+    {% if t.calls | length > 1 %}<div class="trace-h">Request {{ loop.index }}{% if c.error %} (failed: {{ c.error }}){% endif %}</div>{% endif %}
+    {% for m in c.messages %}
+    <div class="trace-h">Sent to the model ({{ m.role }})</div>
+    <pre class="trace-pre">{{ m.content }}</pre>
+    {% endfor %}
+    <div class="trace-h">Answer</div>
+    <pre class="trace-pre" lang="th">{{ c.answer or '(no answer)' }}</pre>
+  </div>
+  {% endfor %}
+</details>
+{% endif %}
+{%- endmacro %}
+
+{# Three dots that pulse while an agent is working. #}
+{% macro dots() %}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{% endmacro %}

@@ -24,6 +24,11 @@ Demo-only settings: `CALLAS_FAKE_DELAY` (seconds between streamed turns, default
 - `/call`: simulate a call from a recording. `POST /call/simulate` returns the result shell. `GET /call/{run_id}/events` is a server-sent event stream.
 - `/live`: live microphone call over `WS /ws/live`.
 - `/dataset`: review simulated calls. It reads the store written by `python -m data_pipeline.synthesize`: `data/synthetic/calls.db`, or the file in `CALLAS_DATASET_DB`. Audio is in an `audio/` folder next to the file. If the file does not exist, the page says so. Review status is `pending`, `approved` or `rejected`, with an optional note. Review posts must come from the page itself (htmx request from the same host).
+- `/studio`: make a simulated call and watch it written live (see below).
+
+### Studio
+
+`POST /studio/start` runs the simulator graph in a background thread. `GET /studio/{run}/events` streams its steps as server-sent events. The call is saved to the dataset store (`CALLAS_DATASET_DB`), like a command line run. One run at a time per server. Closing the tab does not stop the run. Stop works between steps, so a stuck model call holds the run until the model server times out. A stopped call stays unfinished. It continues from where it stopped when you press Start with the same seed (same scenario and name, or both empty). Demo mode (`CALLAS_FAKE=1`) uses scripted agents on a scripted LM.
 
 ### How the simulated call updates
 

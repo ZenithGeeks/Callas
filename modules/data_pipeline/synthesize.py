@@ -41,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    if args.export_notebook:  # reads the store only: no config, no LLM (see export.py)
+        from .export import run_export
+
+        return run_export(args.export_notebook, args.store or args.db, args.text)
 
     try:
         config = _load_checked_config(args.config)
@@ -121,6 +125,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--approved-only", action="store_true", help="with --export: only calls a human approved"
+    )
+    parser.add_argument(
+        "--export-notebook",
+        type=Path,
+        metavar="CSV",
+        help="write the approved calls as the csv the classifier notebook reads, and exit",
+    )
+    parser.add_argument(
+        "--store", type=Path, help="with --export-notebook: the calls.db to read (default --db)"
+    )
+    parser.add_argument(
+        "--text",
+        choices=("script", "asr"),
+        default="script",
+        help="with --export-notebook: the written text, or the ASR transcript of each turn's audio",
     )
     parser.add_argument(
         "--import-json", type=Path, help="load per-call JSON files from an older run and exit"

@@ -61,8 +61,11 @@ The first real run downloads the speech models. They go to `~/pythaiasr-data` (o
 | `/call` | Simulate a call from a recording (.wav, .mp3, .m4a, .ogg, up to 20 MB) |
 | `/live` | Live call with your microphone. Text appears while the caller speaks |
 | `/dataset` | Review simulated calls from the data_pipeline store. Approve or reject each call |
+| `/studio` | Make one simulated call and watch the agents write it. See [`backend/README.md`](backend/README.md#studio) |
 
 `/dataset` reads `data/synthetic/calls.db`. Set `CALLAS_DATASET_DB` to read another file. Make the store with `python -m data_pipeline.synthesize` (see [`modules/data_pipeline/README.md`](modules/data_pipeline/README.md)).
+
+To train the classifier on approved simulated calls, export them with `python -m data_pipeline.synthesize --export-notebook dataset/scam_dataset_generated.csv`. The notebook reads that file. See [`notebooks/README.md`](notebooks/README.md#generated-data).
 
 ## How it works
 
