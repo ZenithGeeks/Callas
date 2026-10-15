@@ -1,4 +1,4 @@
-"""Diarize, then transcribe each speaker segment. Dependencies are injectable for tests."""
+"""Diarize a file, then transcribe each speaker segment. Dependencies can be passed in for tests."""
 
 from __future__ import annotations
 
@@ -14,22 +14,21 @@ from pathlib import Path
 
 import numpy as np
 
+from asr_diarization import backends
 from asr_diarization.backends import SAMPLE_RATE, ASRBackend
+from asr_diarization.diarize import Segment, diarize
 from asr_diarization.types import Transcript, Turn
 
 log = logging.getLogger(__name__)
 
-Diarizer = Callable[[str], list]  # audio_path -> list of objects with speaker/start/end
+Diarizer = Callable[[str], list[Segment]]  # audio_path -> speaker segments
 AudioLoader = Callable[[str], np.ndarray]  # audio_path -> mono float32 at SAMPLE_RATE
 
 
 @lru_cache(maxsize=1)
 def get_default_pipeline() -> tuple[ASRBackend, Diarizer]:
     """Build the real backend and diarizer once per process."""
-    from asr_diarization.backends import PyThaiASR
-    from asr_diarization.diarize import diarize
-
-    return PyThaiASR(), diarize
+    return backends.PyThaiASR(), diarize
 
 
 def run(
@@ -38,31 +37,29 @@ def run(
     diarizer: Diarizer | None = None,
     audio_loader: AudioLoader | None = None,
 ) -> Transcript:
+    """Transcribe one audio file into speaker turns.
+
+    Args:
+        audio_path: The file to transcribe.
+        backend: ASR engine. Default: the pythaiasr model from the ASR_MODEL setting.
+        diarizer: Splits the file by speaker. Default: the model from the DIARIZER setting.
+        audio_loader: Reads the file into a 16 kHz mono array. Default: pythaiasr's loader.
+    """
     if backend is None or diarizer is None:
         default_backend, default_diarizer = get_default_pipeline()
         backend = backend or default_backend
         diarizer = diarizer or default_diarizer
-    if audio_loader is None:
-        from asr_diarization.backends import load_audio
+    # Look the loader up on the module at call time, so a patched backends.load_audio is used.
+    audio_loader = audio_loader or backends.load_audio
 
-        audio_loader = load_audio
-
-    t0 = time.perf_counter()
+    started = time.perf_counter()
     audio = audio_loader(audio_path)
     segments = diarizer(audio_path)
-
-    turns: list[Turn] = []
-    if not segments:
-        log.warning("diarization found no segments in %s; using one turn for speaker A", audio_path)
-        text = backend.transcribe_array(audio, SAMPLE_RATE).strip()
-        if text:
-            turns.append(Turn("A", 0.0, len(audio) / SAMPLE_RATE, text))
+    if segments:
+        turns = _turns_from_segments(audio, segments, backend)
     else:
-        for seg in segments:
-            chunk = audio[int(seg.start * SAMPLE_RATE) : int(seg.end * SAMPLE_RATE)]
-            text = backend.transcribe_array(chunk, SAMPLE_RATE).strip() if len(chunk) else ""
-            if text:
-                turns.append(Turn(seg.speaker, round(seg.start, 3), round(seg.end, 3), text))
+        log.warning("diarization found no segments in %s; using one turn for speaker A", audio_path)
+        turns = _single_turn(audio, backend)
 
     transcript = Transcript(turns=turns, model=backend.name, model_version=backend.version)
     log.info(
@@ -71,12 +68,38 @@ def run(
         transcript.model,
         transcript.model_version,
         len(turns),
-        time.perf_counter() - t0,
+        time.perf_counter() - started,
     )
     return transcript
 
 
+def _turns_from_segments(
+    audio: np.ndarray, segments: list[Segment], backend: ASRBackend
+) -> list[Turn]:
+    """Run ASR on each segment's audio. Segments with no audio or no words give no turn."""
+    turns: list[Turn] = []
+    for segment in segments:
+        chunk = audio[int(segment.start * SAMPLE_RATE) : int(segment.end * SAMPLE_RATE)]
+        if len(chunk) == 0:
+            continue
+        text = backend.transcribe_array(chunk, SAMPLE_RATE).strip()
+        if text:
+            turns.append(
+                Turn(segment.speaker, round(segment.start, 3), round(segment.end, 3), text)
+            )
+    return turns
+
+
+def _single_turn(audio: np.ndarray, backend: ASRBackend) -> list[Turn]:
+    """Fallback when diarization finds nobody: the whole file is one turn by speaker A."""
+    text = backend.transcribe_array(audio, SAMPLE_RATE).strip()
+    if not text:
+        return []
+    return [Turn("A", 0.0, len(audio) / SAMPLE_RATE, text)]
+
+
 def to_json_dict(transcript: Transcript) -> dict:
+    """The transcript in the speaker_turns schema of the data pipeline."""
     return {
         "model": transcript.model,
         "model_version": transcript.model_version,
@@ -87,6 +110,7 @@ def to_json_dict(transcript: Transcript) -> dict:
 
 
 def write_json(transcript: Transcript, out_path: str) -> None:
+    """Save the transcript as UTF-8 JSON, keeping Thai text readable."""
     Path(out_path).write_text(
         json.dumps(to_json_dict(transcript), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
