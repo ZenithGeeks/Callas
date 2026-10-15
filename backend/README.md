@@ -1,6 +1,6 @@
 # Callas web demo
 
-FastAPI, Jinja templates, htmx and Tailwind CSS (standalone CLI). No Node and no CDN at runtime. Endpoints are thin wrappers over the orchestrator; model code lives in `modules/`. For settings, see the root [README](../README.md#settings).
+FastAPI, Jinja templates, htmx and Tailwind CSS (standalone CLI). No Node and no CDN at runtime. Endpoints are thin wrappers over the orchestrator; model code lives in `modules/`. For settings, see the root [README](../README.md#settings). `main.py` builds the app. Each page has its own router module: `basics.py`, `message.py`, `call.py`, `live.py`, `review.py` (the `/dataset` page) and `studio.py`.
 
 ## Run
 
