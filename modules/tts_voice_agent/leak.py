@@ -8,6 +8,7 @@ import re
 import unicodedata
 from collections.abc import Iterable
 
+from nlp_core.numbers import ENGLISH_DIGIT_WORDS, THAI_NUMBER_WORDS
 from nlp_core.types import Entity
 
 from .constants import MIN_DIGIT_WORD_RUN
@@ -15,9 +16,6 @@ from .constants import MIN_DIGIT_WORD_RUN
 _THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 _ZERO_WIDTH = dict.fromkeys([*range(0x200B, 0x200E), 0xFEFF, 0x2060])
 
-# โท is how "2" is read aloud in Thai phone numbers.
-THAI_NUMBER_WORDS = ("ศูนย์ หนึ่ง สอง โท สาม สี่ ห้า หก เจ็ด แปด เก้า สิบ ร้อย พัน หมื่น แสน ล้าน เอ็ด ยี่").split()
-ENGLISH_DIGIT_WORDS = "zero one two three four five six seven eight nine oh".split()
 
 # Anything that is not a Thai or Latin letter may separate spoken digits ("แปด, หนึ่ง / สอง").
 _SEP = r"[^ก-๛a-z]*"
