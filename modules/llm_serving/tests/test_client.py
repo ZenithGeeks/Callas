@@ -5,7 +5,7 @@ import openai
 import pytest
 
 from llm_serving import client as client_mod
-from llm_serving.base import JOBS
+from llm_serving.base import JOB_SETTINGS, JOBS, JobSettings
 from llm_serving.client import LLMClient, LLMUnavailable, parse_label
 
 
@@ -51,6 +51,16 @@ def make(model="m1"):
 
 def conn_error():
     return openai.APIConnectionError(request=httpx.Request("POST", "http://x/v1"))
+
+
+def test_job_settings_keep_their_values():
+    assert JOB_SETTINGS == {
+        "summary": JobSettings(max_tokens=200, temperature=0.0),
+        "classify": JobSettings(max_tokens=20, temperature=0.0),
+        "reply": JobSettings(max_tokens=80, temperature=0.3),
+    }
+    assert JOBS == {"summary": 200, "classify": 20, "reply": 80}
+    assert client_mod.TEMPERATURE == {"classify": 0.0, "summary": 0.0, "reply": 0.3}
 
 
 @pytest.mark.parametrize("job", sorted(JOBS))

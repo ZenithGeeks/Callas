@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from callas_settings import get_settings
 
-from .base import JOBS
+from .base import JOB_SETTINGS
 from .prompts import load_prompt, render
 
 log = logging.getLogger("llm_serving")
@@ -26,8 +26,8 @@ LABELS: tuple[str, ...] = (
 )
 _LABEL_RES = {label: re.compile(rf"(?<![a-z_]){label}(?![a-z_])") for label in LABELS}
 
-# Per job. Classify and summary are deterministic; the reply gets a little variety.
-TEMPERATURE = {"classify": 0.0, "summary": 0.0, "reply": 0.3}
+# Job name -> sampling temperature, kept for the code that imports TEMPERATURE.
+TEMPERATURE: dict[str, float] = {job: s.temperature for job, s in JOB_SETTINGS.items()}
 
 
 class LLMUnavailable(RuntimeError):
@@ -84,8 +84,9 @@ class LLMClient:
 
     def complete(self, job: str, context: str) -> str:
         """Run one job ("summary", "classify" or "reply") on the call context."""
-        if job not in JOBS:
-            raise ValueError(f"unknown job {job!r}; expected one of {sorted(JOBS)}")
+        if job not in JOB_SETTINGS:
+            raise ValueError(f"unknown job {job!r}; expected one of {sorted(JOB_SETTINGS)}")
+        job_settings = JOB_SETTINGS[job]
         template, version = load_prompt(job)
         prompt = render(template, context)
         model = self.model
@@ -94,8 +95,8 @@ class LLMClient:
             response = self._client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=TEMPERATURE[job],
-                max_tokens=JOBS[job],
+                temperature=job_settings.temperature,
+                max_tokens=job_settings.max_tokens,
                 extra_body=get_settings().llm_extra_body() or None,
             )
         except (openai.APIConnectionError, openai.APITimeoutError) as error:
