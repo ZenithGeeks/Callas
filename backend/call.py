@@ -15,7 +15,7 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import BinaryIO
 
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -155,12 +155,12 @@ async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]
     stop = threading.Event()
     try:
         yield ": open\n\n"
-        async for kind, value in call_run.iter_updates(app_runtime, run.path, stop):
-            _apply_update(view, kind, value)
+        async for update in call_run.iter_updates(app_runtime, run.path, stop):
+            _apply_update(view, update)
             for event in _changed_regions(view, sent, fresh=view.take_fresh()):
                 yield event
-            if kind == "item" and app_runtime.is_demo and app.state.pace:
-                await _pause_demo(app.state.pace, view, value)
+            if isinstance(update, call_run.GraphUpdate) and app_runtime.is_demo and app.state.pace:
+                await _pause_demo(app.state.pace, view, update.item)
         view.finish()
         run.snapshot = _render_regions(view, False)
         run.finished = True
@@ -173,19 +173,20 @@ async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]
             run.path = None
 
 
-def _apply_update(view: call_run.RunView, kind: str, value: Any) -> None:
-    """Record one update from call_run.iter_updates in the view."""
-    if kind == "transcript" and value:
-        view.set_transcript(*value)
-    elif kind == "item":
-        view.feed(value)
-    elif kind == "error":
-        log.error("call run failed: %s", type(value).__name__)
-        if isinstance(value, LLMUnavailable):
-            view.error = str(value)
+def _apply_update(view: call_run.RunView, update: call_run.CallEvent) -> None:
+    """Record one event from call_run.iter_updates in the view."""
+    if isinstance(update, call_run.TranscriptReady):
+        if update.transcript is not None:
+            view.set_transcript(update.transcript, update.seconds)
+    elif isinstance(update, call_run.GraphUpdate):
+        view.feed(update.item)
+    elif isinstance(update, call_run.CallFailed):
+        log.error("call run failed: %s", type(update.error).__name__)
+        if isinstance(update.error, LLMUnavailable):
+            view.error = str(update.error)
         else:
             view.error = "Something went wrong while reading the call."
-    elif kind == "end":
+    elif isinstance(update, call_run.CallEnded):
         view.finish()
 
 
