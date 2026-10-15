@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from nlp_core.types import Entity, NLPResult
 
@@ -50,10 +50,11 @@ def main(argv: list[str] | None = None) -> int:
             except ImportError as exc:
                 print(f"error: --llm needs llm_serving.client.LLMClient ({exc})", file=sys.stderr)
                 return 2
-            decision.reply_text, decision.template_used = safe_reply(result, state, LLMClient())
+            text, template_used = safe_reply(result, state, LLMClient())
         else:
-            decision.reply_text, decision.template_used = pick_template(result), True
-        Speaker().synthesize(decision.reply_text, args.out)
+            text, template_used = pick_template(result), True
+        decision = replace(decision, reply_text=text, template_used=template_used)
+        Speaker().synthesize(text, args.out)
 
     print(json.dumps(asdict(decision)))
     return 0

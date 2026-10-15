@@ -30,6 +30,9 @@ _UNIT_AFTER = re.compile(rf"\s*(?:{'|'.join(_UNITS)})")
 _COUNTER_AFTER = re.compile(r"\s*(?:คน|ปี|วัน|เดือน|ครั้ง|ชั้น|ตัว|ชิ้น|ข้อ|ที่)")
 _MONEY_BEFORE = re.compile(r"(?:เงิน|โอน|ยอด|ค่า|ราคา|จำนวน)\s*$")
 _CODE_BEFORE = re.compile(r"(?:otp|โอทีพี|รหัส|โค้ด|code)[^\d]{0,15}$", re.I)
+# How far past the blanks the checks look: a keyword plus up to 15 characters before, a unit after.
+_LOOK_BEFORE = 21
+_LOOK_AFTER = 8
 _EN_ALT = "|".join(ENGLISH_DIGIT_WORDS)
 _EN_RUN = re.compile(rf"\b(?:{_EN_ALT})\b(?:[\s-]+\b(?:{_EN_ALT})\b){{{MIN_DIGITS - 1},}}", re.I)
 
@@ -197,6 +200,20 @@ def _thai_edits(text: str) -> list[tuple[int, int, str]]:
     return [edit for edit in edits if edit is not None]
 
 
+def _around(text: str, start: int, end: int) -> tuple[str, str]:
+    """The text just before and after a run, cut short so that a long text costs nothing extra.
+
+    The checks in _read_run only look a few characters away, past any blanks next to the run.
+    """
+    first = start
+    while first > 0 and text[first - 1].isspace():
+        first -= 1
+    last = end
+    while last < len(text) and text[last].isspace():
+        last += 1
+    return text[max(0, first - _LOOK_BEFORE) : start], text[end : last + _LOOK_AFTER]
+
+
 def _edit_for_run(
     text: str, run: list[re.Match[str]], word_edges: set[int]
 ) -> tuple[int, int, str] | None:
@@ -208,7 +225,7 @@ def _edit_for_run(
         return None
     words = [m.group() for m in run]
     start, end = run[0].start(), run[-1].end()
-    before, after = text[:start], text[end:]
+    before, after = _around(text, start, end)
     digits = _read_run(words, before, after)
     if digits is None:
         return None
@@ -229,7 +246,9 @@ def spoken_numbers_to_digits(text: str) -> str:
         lambda m: "".join(_EN_VALUE[w.lower()] for w in re.findall(r"[a-z]+", m.group(), re.I)),
         text,
     )
-    # last edit first, so the offsets of the earlier edits stay valid
-    for start, end, out in reversed(_thai_edits(text)):
-        text = text[:start] + out + text[end:]
-    return text
+    pieces, position = [], 0
+    for start, end, out in _thai_edits(text):  # in order, and they do not overlap
+        pieces += [text[position:start], out]
+        position = end
+    pieces.append(text[position:])
+    return "".join(pieces)

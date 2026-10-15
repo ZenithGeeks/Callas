@@ -8,8 +8,8 @@ Turn graph:
 
 `speak` is left out when no speaker is injected. The safety rules sit in `route_after_decide`
 and `reply`, further down; the README explains them ("Where the safety rules live").
-Per-call dependencies come through the runtime context (`TurnContext`), passed as `context=`
-on every invoke or stream. The graphs hold no call data.
+Per-call dependencies come through the runtime context (`Runtime`), passed as `context=` on
+every invoke or stream. The graphs hold no call data.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ class TurnState(TypedDict, total=False):
 
     call_id: str
     turn: Turn
-    context: str
+    transcript: str
     nlp: NLPResult
     decision: Decision
     reply_text: str
@@ -65,28 +65,10 @@ class MessageState(TypedDict, total=False):
 
 
 @dataclass
-class TurnContext:
-    """Run-scoped dependencies, read by nodes as `runtime.context`. Built by Runtime.context()."""
-
-    llm: LLM
-    speaker: Any | None
-    ner: str | None
-    classifier: str | None
-    summarizer: str | None
-    states: dict[str, CallState]
-    writer: Any | None
-    judge: Any | None
-
-    def analyze(self, text: str) -> NLPResult:
-        """Run NER, classifier and summarizer on `text` with the names chosen for this run."""
-        return analyze_with_tools(
-            text, ner=self.ner, classifier=self.classifier, summarizer=self.summarizer
-        )
-
-
-@dataclass
 class Runtime:
-    """Everything the graphs need from outside. Tests pass fakes here.
+    """Everything the graphs need from outside, read by nodes as `runtime.context`.
+
+    Pass it as `context=` on every invoke or stream. Tests pass fakes here.
 
     llm: used only for reply text (via safe_reply).
     speaker: object with synthesize_bytes(text) -> bytes, or None to skip speech.
@@ -118,17 +100,14 @@ class Runtime:
 
             self.judge = DSPyLeakJudge()
 
-    def context(self) -> TurnContext:
-        """The context object to pass as `context=` when invoking a graph."""
-        return TurnContext(
-            llm=self.llm,
-            speaker=self.speaker,
-            ner=self.ner,
-            classifier=self.classifier,
-            summarizer=self.summarizer,
-            states=self.states,
-            writer=self.writer,
-            judge=self.judge,
+    def context(self) -> Runtime:
+        """The object to pass as `context=`: this Runtime. Kept so callers need not change."""
+        return self
+
+    def analyze(self, text: str) -> NLPResult:
+        """Run NER, classifier and summarizer on `text` with the names chosen for this run."""
+        return analyze_with_tools(
+            text, ner=self.ner, classifier=self.classifier, summarizer=self.summarizer
         )
 
 
@@ -140,7 +119,7 @@ def _timed(name: str, fn: Callable[[Any, Any], dict]) -> Callable[..., dict]:
     """
 
     # LangGraph injects `runtime` by parameter name, so the wrapper must declare it.
-    def wrapper(state, runtime: GraphRuntime[TurnContext]):
+    def wrapper(state, runtime: GraphRuntime[Runtime]):
         t0 = time.perf_counter()
         update = dict(fn(state, runtime.context))
         update["timings"] = {**state.get("timings", {}), name: time.perf_counter() - t0}
@@ -166,45 +145,42 @@ ANALYZE_RETRY = RetryPolicy(
 )
 
 
-def remember(state: TurnState, ctx: TurnContext) -> dict:
+def remember(state: TurnState, ctx: Runtime) -> dict:
     """Clean the turn text once and add it to call memory."""
     turn = clean_turn(state["turn"])  # one clean text for every tool and for the screen
     ctx.states[state["call_id"]].add(turn)
     return {"turn": turn}
 
 
-def analyze_turn(state: TurnState, ctx: TurnContext) -> dict:
+def analyze_turn(state: TurnState, ctx: Runtime) -> dict:
     """Run the NLP tools on the whole call so far and remember the entities found."""
     call = ctx.states[state["call_id"]]
-    context = call.context()
-    nlp = ctx.analyze(context)
+    transcript = call.context()
+    nlp = ctx.analyze(transcript)
     call.add_entities(nlp.entities)
-    return {"context": context, "nlp": nlp}
+    return {"transcript": transcript, "nlp": nlp}
 
 
-def decide(state: TurnState, ctx: TurnContext) -> dict:
+def decide(state: TurnState, ctx: Runtime) -> dict:
     """Choose between a reply and escalation. The rules are in tts_voice_agent.decision."""
     decision = decision_rules.decide(state["nlp"], ctx.states[state["call_id"]])
     log.info("decision auto_reply=%s reason=%s", decision.auto_reply, decision.reason)
     return {"decision": decision}
 
 
-def reply(state: TurnState, ctx: TurnContext) -> dict:
+def reply(state: TurnState, ctx: Runtime) -> dict:
     """Write the reply with safe_reply. This is the only node that makes speech text."""
     call = ctx.states[state["call_id"]]
     text, template_used = safe_reply(
         state["nlp"], call, ctx.llm, writer=ctx.writer, judge=ctx.judge
     )
-    # The final state's Decision carries the reply, so it is filled in place (not in the update).
-    decision = state["decision"]
-    decision.reply_text, decision.template_used = text, template_used
     caller_turn = state["turn"]
     # Remember what we said, so the next reply can follow on from it.
     call.add(Turn("agent", caller_turn.end, caller_turn.end, text))
     return {"reply_text": text, "template_used": template_used}
 
 
-def speak(state: TurnState, ctx: TurnContext) -> dict:
+def speak(state: TurnState, ctx: Runtime) -> dict:
     """Voice reply_text. It never makes text of its own."""
     try:
         return {"audio": ctx.speaker.synthesize_bytes(state["reply_text"])}
@@ -213,20 +189,20 @@ def speak(state: TurnState, ctx: TurnContext) -> dict:
         return {"audio": None, "speak_error": type(exc).__name__}
 
 
-def escalate(state: TurnState, ctx: TurnContext) -> dict:
+def escalate(state: TurnState, ctx: Runtime) -> dict:
     """Record why the call went to a person. Nothing is said to the caller."""
     return {"escalation_reason": state["decision"].reason}
 
 
 def build_turn_graph(rt: Runtime):
-    """Compile the turn graph once. Invoke it with `context=rt.context()`.
+    """Compile the turn graph once. Invoke it with `context=rt`.
 
     `rt` only decides whether the speak node exists; nodes read dependencies from the runtime
     context. No node cache (CachePolicy / compile(cache=...)) on purpose: an in-memory cache keyed
     on node input would keep call text after the call ends, which breaks the rule that call memory
     is deleted when the call ends.
     """
-    g = StateGraph(TurnState, context_schema=TurnContext)
+    g = StateGraph(TurnState, context_schema=Runtime)
     g.add_node("remember", _timed("remember", remember))
     g.add_node("analyze", _timed("analyze", analyze_turn), retry_policy=ANALYZE_RETRY)
     g.add_node("decide", _timed("decide", decide))
@@ -265,19 +241,19 @@ def verdict_from(nlp: NLPResult) -> dict:
     }
 
 
-def analyze_text(state: MessageState, ctx: TurnContext) -> dict:
+def analyze_text(state: MessageState, ctx: Runtime) -> dict:
     """Run the NLP tools on one text message."""
     return {"nlp": ctx.analyze(state["text"])}
 
 
-def verdict(state: MessageState, ctx: TurnContext) -> dict:
+def verdict(state: MessageState, ctx: Runtime) -> dict:
     """Make the verdict from the NLP result."""
     return {"verdict": verdict_from(state["nlp"])}
 
 
-def build_message_graph(rt: Runtime):
+def build_message_graph():
     """Text message: analyze -> verdict. No reply, no memory. Invoke with `context=`."""
-    g = StateGraph(MessageState, context_schema=TurnContext)
+    g = StateGraph(MessageState, context_schema=Runtime)
     g.add_node("analyze", _timed("analyze", analyze_text), retry_policy=ANALYZE_RETRY)
     g.add_node("verdict", _timed("verdict", verdict))
     g.add_edge(START, "analyze")

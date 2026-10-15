@@ -32,7 +32,7 @@ class CallSessions:
     def __init__(self, runtime: Runtime) -> None:
         self.runtime = runtime
         self._turn_graph = build_turn_graph(runtime)
-        self._message_graph = build_message_graph(runtime)
+        self._message_graph = build_message_graph()
 
     @property
     def _states(self) -> dict[str, CallState]:

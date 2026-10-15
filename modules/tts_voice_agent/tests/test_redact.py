@@ -1,16 +1,32 @@
 import pytest
 
 from nlp_core.types import Entity
-from tts_voice_agent.leak import leak_reasons
-from tts_voice_agent.redact import redact_context
+from tts_voice_agent.leak import Reason, leak_reasons
+from tts_voice_agent.redact import REDACTED_REASONS, redact_context
 
 from .test_leak_and_reply import BAD, ENTITIES
 
-BLOCKING = ("digit", "digit_word_run", "url_or_email", "entity:")
+
+def code(reason):
+    return reason.partition(":")[0]
 
 
 def blocking_reasons(text, entities):
-    return [r for r in leak_reasons(text, entities) if r.startswith(BLOCKING)]
+    return [r for r in leak_reasons(text, entities) if code(r) in REDACTED_REASONS]
+
+
+def test_every_reason_code_is_a_reason_constant():
+    constants = {v for k, v in vars(Reason).items() if k.isupper()}
+    seen = {code(r) for text in BAD for r in leak_reasons(text, ENTITIES)}
+    assert seen == constants  # BAD covers every code, and every code is a constant
+
+
+def test_redacted_reasons_are_the_reasons_redaction_clears():
+    cleared = set()
+    for text in BAD:
+        after = {code(r) for r in leak_reasons(redact_context(text, ENTITIES), ENTITIES)}
+        cleared |= {code(r) for r in leak_reasons(text, ENTITIES)} - after
+    assert cleared == REDACTED_REASONS
 
 
 @pytest.mark.parametrize(

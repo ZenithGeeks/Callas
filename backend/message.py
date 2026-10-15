@@ -33,7 +33,7 @@ async def message_page(request: Request) -> HTMLResponse:
 @router.post("/message/check", response_class=HTMLResponse)
 async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
     """The verdict panel for one message, or a form error."""
-    rt = request.app.state.rt
+    app_runtime = request.app.state.app_runtime
     text = text.strip()
     if not text:
         return form_error("Paste a message first.")
@@ -43,14 +43,14 @@ async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
             "Shorten it and try again."
         )
     try:
-        result = await run_in_threadpool(rt.sessions.analyze_message, text)
+        result = await run_in_threadpool(app_runtime.sessions.analyze_message, text)
     except LLMUnavailable as exc:
         return form_error(f"Cannot check the message. {exc}", 503)
     except Exception:
         log.exception("message check failed")
         return form_error("Something went wrong while checking the message.", 500)
 
-    why, why_error = await _explain(rt, text)
+    why, why_error = await _explain(app_runtime, text)
 
     nlp = result["nlp"]
     html = render(
@@ -66,13 +66,13 @@ async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
     return HTMLResponse(html)
 
 
-async def _explain(rt, text: str) -> tuple[str | None, str | None]:
+async def _explain(app_runtime, text: str) -> tuple[str | None, str | None]:
     """The advisory text for the message, as (text, None), or (None, why it is unavailable).
 
     The verdict is already known when this runs, so a failure here only hides the explanation.
     """
     try:
-        return await run_in_threadpool(rt.explain, text), None
+        return await run_in_threadpool(app_runtime.explain, text), None
     except ToolCallingUnavailable:
         return None, "Explanation unavailable: the LLM server does not allow tool calls."
     except LLMUnavailable as exc:

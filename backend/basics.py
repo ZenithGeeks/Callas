@@ -23,13 +23,13 @@ async def index() -> RedirectResponse:
 @router.get("/healthz")
 async def healthz(request: Request) -> JSONResponse:
     """Mode, whether the LLM answers, and which live-call backend is in use."""
-    rt = request.app.state.rt
-    reachable = await run_in_threadpool(rt.llm_reachable)
+    app_runtime = request.app.state.app_runtime
+    reachable = await run_in_threadpool(app_runtime.llm_reachable)
     return JSONResponse(
         {
             "status": "ok",
-            "mode": rt.mode,
+            "mode": app_runtime.mode,
             "llm_reachable": reachable,
-            "live_call": live_ws.live_backend_name(rt),
+            "live_call": live_ws.live_backend_name(app_runtime),
         }
     )

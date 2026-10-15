@@ -8,6 +8,7 @@ Text work shared by the web system, the classifier notebook and the data pipelin
 | `numbers.py` | `spoken_numbers_to_digits`: Thai number words back to digits (issue #53) |
 | `entities.py` | `extract_entities`: rule-based phone, bank account, OTP, URL and money |
 | `registry.py` | Swappable NER, classifier and summarizer, chosen by `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` |
+| `parts.py` | The built-in parts: `RulesNER`, `LLMClassifier`, `LLMSummarizer` (also importable from `registry.py`) |
 | `interfaces.py` | The three protocols a fine-tuned model has to implement |
 | `analyzer.py` | `Analyzer`: rule NER plus one LLM for the summary and the scam label |
 | `types.py` | `Entity`, `NLPResult`, `SCAM_TYPES`, `ENTITY_LABELS` |

@@ -26,9 +26,9 @@ log = logging.getLogger(__name__)
 POLL_SECONDS = 0.1
 
 
-def live_backend_name(app_rt) -> str:
+def live_backend_name(app_runtime) -> str:
     """Return "real" when orchestrator.live can be imported and we are not in demo mode."""
-    if app_rt.is_demo:
+    if app_runtime.is_demo:
         return "demo"
     try:
         from orchestrator import live  # noqa: F401
@@ -37,12 +37,12 @@ def live_backend_name(app_rt) -> str:
     return "real"
 
 
-def make_live_call(app_rt) -> Any:
+def make_live_call(app_runtime) -> Any:
     """The live call for one WebSocket: the real LiveCall, or the scripted demo."""
-    if live_backend_name(app_rt) == "real":
+    if live_backend_name(app_runtime) == "real":
         from orchestrator.live import LiveCall
 
-        return LiveCall(app_rt.sessions)
+        return LiveCall(app_runtime.sessions)
     return DemoLiveCall(speed=float(os.environ.get("CALLAS_LIVE_SPEED", "1")))
 
 

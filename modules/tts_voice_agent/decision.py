@@ -12,7 +12,11 @@ from .memory import CallState
 
 @dataclass
 class Decision:
-    """Whether to auto-reply on this turn, and why. The reply fields are filled in later."""
+    """Whether to auto-reply on this turn, and why.
+
+    decide() leaves the reply fields empty. Whoever writes the reply returns a copy with them
+    set (dataclasses.replace), so the Decision decide() made is never changed.
+    """
 
     auto_reply: bool
     reason: str

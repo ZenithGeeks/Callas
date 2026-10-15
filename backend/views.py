@@ -18,6 +18,9 @@ DIARIZER_LABELS = {
 SENSITIVE_LABELS = frozenset(
     {"PHONE", "BANK_ACCOUNT", "OTP", "MONEY", "URL", "ID_CARD", "BIRTH_DATE", "ADDRESS"}
 )
+# In a recording, speaker A is the person being called. Generated calls in the dataset use
+# the opposite letters: see dataset.GENERATED_CALLER.
+CALLED_PERSON = "A"
 HIGH_CONFIDENCE = 0.7  # same number as tts_voice_agent.constants.ESCALATE_THRESHOLD
 
 TYPE_NAMES: dict[str | None, str] = {
@@ -72,8 +75,8 @@ def diarizer_label() -> str:
 
 
 def who(speaker: str) -> str:
-    """Speaker A is the person being called; every other speaker is the caller."""
-    return "You" if speaker == "A" else "Caller"
+    """Name a speaker of a recording: "You" for the person called, "Caller" for the other."""
+    return "You" if speaker == CALLED_PERSON else "Caller"
 
 
 @dataclass

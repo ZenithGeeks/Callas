@@ -19,9 +19,9 @@ START -> remember -> analyze -> decide --auto_reply--> reply -> speak -> END
 ```
 
 - remember: cleans the turn text (`clean_turn`) and adds it to `CallState`.
-- analyze: runs NER, summarizer and classifier from the registry on `CallState.context()`. The entities go into `entities_seen`.
+- analyze: runs NER, summarizer and classifier from the registry on `CallState.context()` and returns that text as `transcript`. The entities go into `entities_seen`.
 - decide: `tts_voice_agent.decision.decide`.
-- reply: `safe_reply` (leak check, template fallback) with the injected LLM. The reply is added to call memory as an `agent` turn, so the next reply can follow on.
+- reply: `safe_reply` (leak check, template fallback) with the injected LLM. It returns `reply_text` and `template_used`; the `Decision` from decide is not changed. The reply is added to call memory as an `agent` turn, so the next reply can follow on.
 - speak: `Speaker.synthesize_bytes`. The node exists only when a speaker is injected.
 - escalate: records the reason. Nothing else.
 
@@ -33,7 +33,7 @@ Every node records its run time in `state["timings"]`.
 
 ### Graph design choices
 
-- `graph.TurnContext` holds the per-run dependencies (llm, speaker, writer, judge, registry names, call states). Nodes read it as `runtime.context`. Every invoke or stream passes `context=runtime.context()`.
+- `graph.Runtime` holds the per-run dependencies (llm, speaker, writer, judge, registry names, call states) and is the graphs' `context_schema`. Nodes read it as `runtime.context`. Every invoke or stream passes `context=runtime.context()`, which is the `Runtime` itself.
 - The analyze node has `RetryPolicy(max_attempts=2, initial_interval=0.3, backoff_factor=2.0, retry_on=LLMUnavailable)`. It retries once, and only when the LLM server is unreachable. Reply is not retried because `safe_reply` already falls back to a template.
 - There is no node cache and no checkpointer. A cache would keep call text after the call ends. That breaks the rule that call memory is deleted at the end.
 - `route_after_decide` is a plain function on `add_conditional_edges`. Tests prove it reads only `Decision.auto_reply`.

@@ -149,6 +149,29 @@ def test_optimize_with_dummy_lm(tmp_path):
     assert out.exists()
 
 
+def test_writer_and_judge_build_their_lm_once_at_their_own_temperature(monkeypatch):
+    built = []
+
+    def fake_build_lm(temperature=None, **kwargs):
+        built.append(temperature)
+        return object()
+
+    monkeypatch.setattr(dspy_programs, "build_lm", fake_build_lm)
+    reply_writer = DSPyReplyWriter(compiled_path=NOFILE)
+    judge = DSPyLeakJudge()
+    assert built == []  # nothing is built before the first use
+    assert reply_writer.lm is reply_writer.lm
+    assert judge.lm is judge.lm
+    assert built == [dspy_programs.DSPY_REPLY_TEMPERATURE, 0.0]
+
+
+def test_an_lm_passed_in_is_not_replaced(monkeypatch):
+    monkeypatch.setattr(dspy_programs, "build_lm", lambda **kwargs: pytest.fail("built an LM"))
+    lm = object()
+    assert DSPyReplyWriter(lm=lm, compiled_path=NOFILE).lm is lm
+    assert DSPyLeakJudge(lm=lm).lm is lm
+
+
 def test_optimizer_tunes_at_the_writers_temperature(monkeypatch, tmp_path):
     seen = {}
 

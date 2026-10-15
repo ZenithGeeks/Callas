@@ -349,7 +349,7 @@ def test_a_leaking_receiver_turn_is_tagged(client, db_path):
     html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
     assert html.count("Leaked: OTP, ID CARD") == 1
     assert 'data-tone="alarm" data-leak lang="en">Leaked: OTP, ID CARD<' in html
-    assert dataset._leak_tag({"leaked": []}) == "" and dataset._leak_tag({}) == ""
+    assert dataset.leaked_text({"leaked": []}) == "" and dataset.leaked_text({}) == ""
 
 
 def test_the_detail_shows_spoken_text_prompt_size_and_speech_style(client, db_path):

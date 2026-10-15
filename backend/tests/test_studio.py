@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from backend import studio
+from backend import dataset, studio
 from data_pipeline import live
 from data_pipeline.store import Store
 
@@ -132,7 +132,7 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
             side="left",
             who="Caller",
             flags=[],
-            leaked=studio._leaked({**base, **turn}),
+            leaked=dataset.leaked_text({**base, **turn}),
             audio=None,
             tag=None,
         )
@@ -422,3 +422,8 @@ def test_a_call_that_ends_early_shows_an_ending_and_does_not_hang(client, monkey
     assert "Failed the checks" in verdict and "did not read it" in verdict
     record = saved(tmp_path, "phishing_otp_00000")["generation"]
     assert record["status"] == "rejected" and record["reasons"] == ["too_long_for_context"]
+
+
+def test_the_page_does_not_print_the_machines_folder_layout(client, tmp_path):
+    html = client.get("/studio").text
+    assert str(tmp_path) not in html and "calls.db" in html
