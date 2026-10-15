@@ -7,7 +7,6 @@ from conftest import FakeSpeaker
 from llm_serving.client import LLMUnavailable
 from llm_serving.fake import FakeLLM
 from orchestrator import CallSessions, Runtime, build_message_graph, build_turn_graph
-from orchestrator.graph import TurnContext
 from tts_voice_agent.memory import CallState
 
 
@@ -82,10 +81,10 @@ def test_graphs_read_dependencies_from_context(fakes):
         assert out["reply_text"] == want
 
 
-def test_context_is_a_turn_context(fakes):
+def test_context_is_the_runtime(fakes):
     rt = Runtime(llm=FakeLLM(), ner="a", classifier="b", summarizer="c")
     ctx = rt.context()
-    assert isinstance(ctx, TurnContext)
+    assert ctx is rt
     assert (ctx.ner, ctx.classifier, ctx.summarizer) == ("a", "b", "c")
     assert ctx.states is rt.states and ctx.llm is rt.llm
 
@@ -96,7 +95,7 @@ def test_graph_drawing_includes_speak_only_with_speaker(fakes):
     assert "speak" in with_spk.get_graph().nodes
     assert "speak" not in without.get_graph().nodes
     assert "escalate" in with_spk.get_graph().draw_mermaid()
-    assert "verdict" in build_message_graph(Runtime(llm=FakeLLM())).get_graph().nodes
+    assert "verdict" in build_message_graph().get_graph().nodes
 
 
 def test_graph_has_no_cache_and_no_checkpointer(fakes):

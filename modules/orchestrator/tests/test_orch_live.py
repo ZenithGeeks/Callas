@@ -182,5 +182,5 @@ def test_turns_close_together_are_merged_into_one_reply(fakes):
     assert types_of(events).count("turn") == 2  # the screen still shows both
     assert [e["turn"] for e in events if e["type"] == "reply"] == [2]
     analyze = next(e for e in events if e["type"] == "node" and e["node"] == "analyze")
-    assert analyze["data"]["context"] == "Caller: hello again"
+    assert analyze["data"]["transcript"] == "Caller: hello again"
     assert [e["turn"] for e in events if e["type"] == "verdict"] == [1, 2]  # no row left pending
