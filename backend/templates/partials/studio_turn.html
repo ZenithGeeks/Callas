@@ -12,7 +12,7 @@
         <p class="msg-text" lang="th">{{ ui.marked(segments(turn.text, turn.entities)) }}</p>
       </div>
     </div>
-    {% if audio %}<audio class="turn-audio" controls preload="none" src="{{ audio }}" aria-label="Audio of turn {{ n }}"></audio>{% endif %}
+    {% if audio %}<audio class="turn-audio" controls preload="metadata" src="{{ audio }}" aria-label="Audio of turn {{ n }}"></audio>{% endif %}
     {% if flags or leaked %}
     <ul class="msg-flags">
       {% if leaked %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">Leaked: {{ leaked }}</li>{% endif %}
