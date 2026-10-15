@@ -17,8 +17,11 @@ import os  # noqa: E402
 from collections.abc import AsyncIterator  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 
+from callas_tracing import setup_tracing  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+from callas_settings import get_settings  # noqa: E402
 
 from . import basics, call, call_run, live, message, review, studio  # noqa: E402
 from . import runtime as rt_mod  # noqa: E402
@@ -31,6 +34,7 @@ DEMO_PACE_SECONDS = 0.45  # demo mode only: pause after each turn so the page vi
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start the runtime and run registry; on shutdown close the runtime and delete uploads."""
+    setup_tracing("callas-web", call_text=get_settings().trace_call_text)
     call.clear_uploads()
     app.state.rt = rt_mod.build()
     app.state.runs = call_run.RunRegistry()

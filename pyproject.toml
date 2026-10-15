@@ -44,6 +44,13 @@ data = [
     "pythainlp>=5.0",
     "scipy>=1.11",
 ]
+# Local tracing client. The Phoenix server runs outside this venv; see README "Tracing".
+trace = [
+    "arize-phoenix-otel>=0.17",
+    "openinference-instrumentation-langchain>=0.1.79",
+    "openinference-instrumentation-dspy>=0.1.48",
+    "openinference-instrumentation-litellm>=0.1.50",
+]
 ml = [
     # Install torch first from the CUDA index; the PyPI wheel on Windows is CPU only:
     #   pip install torch --index-url https://download.pytorch.org/whl/cu128
@@ -68,7 +75,7 @@ dev = [
 
 [tool.setuptools]
 package-dir = { "" = "modules" }
-py-modules = ["callas_settings"]
+py-modules = ["callas_settings", "callas_tracing"]
 
 [tool.setuptools.packages.find]
 where = ["modules"]

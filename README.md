@@ -119,10 +119,38 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |
 | `LEAK_JUDGE` | `off` | `on` adds a DSPy leak judge after the leak rules. It can only block more replies |
 | `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. A real environment variable wins over `.env` |
+| `TRACING` | `off` | `phoenix` sends traces to a local Phoenix server; see [Tracing](#tracing) |
+| `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006` | Where traces go. Must be localhost, 127.0.0.1 or ::1, or startup fails |
+| `TRACE_CALL_TEXT` | `off` | `on` keeps prompts and answers in web traces; see [Tracing](#tracing) |
 | `CALLAS_FAKE` | not set | `1` runs the web demo with fake models |
 | `CALLAS_DATASET_DB` | `data/synthetic/calls.db` | The store the `/dataset` page reads |
 
 The explaining agent on the message page needs vLLM started with `--enable-auto-tool-choice --tool-call-parser <parser for your model>`. Without it the page still works and says the explanation is not available.
+
+## Tracing
+
+Traces show which graph node was slow and what each DSPy call was sent. They go only to a Phoenix server on your own machine. Nothing is sent to a cloud tracer.
+
+Start the Phoenix server outside the app venv. The full server upgrades `openai`, which DSPy and LiteLLM use, so run it with `uvx`. `PHOENIX_HOST=127.0.0.1` keeps the UI, which has no login, off the network:
+
+```
+PHOENIX_HOST=127.0.0.1 uvx --from arize-phoenix phoenix serve
+```
+
+Then install the client parts, turn tracing on and start the app:
+
+```
+pip install -e .[trace]
+TRACING=phoenix uvicorn backend.main:app
+```
+
+Open http://localhost:6006 and pick the project `callas-web` (web app) or `callas-simulator` (`python -m data_pipeline.synthesize`). Setup refuses a `PHOENIX_COLLECTOR_ENDPOINT` whose host is not localhost, 127.0.0.1 or ::1. Spans go over HTTP to port 6006. The gRPC port 4317 is not used.
+
+What a trace keeps:
+
+- Simulator runs: full prompts and answers, because the calls are made up.
+- Web app (message page, recordings, live calls): inputs and outputs are hidden and show as `__REDACTED__`. You still see the node tree, timings, token counts and model names. This keeps the rule that call text is deleted when the call ends.
+- `TRACE_CALL_TEXT=on` keeps the text in web traces too. Use it only for local debugging with made-up input. Phoenix then stores that text on disk until you delete it.
 
 ## How to contribute
 

@@ -14,6 +14,7 @@ _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 _REPLY_ENGINES = ("prompt", "dspy")
 _LEAK_JUDGES = ("off", "on")
 _AUTOCORRECTS = ("off", "pythainlp")
+_TRACINGS = ("off", "phoenix")
 DIARIZERS = ("nemotron", "pyannote_segmentation")
 
 
@@ -50,10 +51,18 @@ class Settings(BaseSettings):
     nlp_classifier: str = ""
     nlp_summarizer: str = ""
 
+    # Local traces: "off" or "phoenix" (see callas_tracing). The endpoint must be on this machine.
+    tracing: str = "off"
+    phoenix_collector_endpoint: str = "http://localhost:6006"
+    # Keep prompts and answers in web traces. Off hides them, so real calls leave no text.
+    trace_call_text: bool = False
+
     tts_pretrained: str = "fastthaig2p"
     tts_speaker: str = "thai_som"
 
-    @field_validator("reply_engine", "leak_judge", "diarizer", "autocorrect", mode="before")
+    @field_validator(
+        "reply_engine", "leak_judge", "diarizer", "autocorrect", "tracing", mode="before"
+    )
     @classmethod
     def _lower(cls, v):
         return v.strip().lower() if isinstance(v, str) else v
@@ -77,6 +86,13 @@ class Settings(BaseSettings):
     def _check_autocorrect(cls, v: str) -> str:
         if v not in _AUTOCORRECTS:
             raise ValueError(f"AUTOCORRECT must be one of {_AUTOCORRECTS}, got {v!r}")
+        return v
+
+    @field_validator("tracing")
+    @classmethod
+    def _check_tracing(cls, v: str) -> str:
+        if v not in _TRACINGS:
+            raise ValueError(f"TRACING must be one of {_TRACINGS}, got {v!r}")
         return v
 
     @field_validator("leak_judge")
