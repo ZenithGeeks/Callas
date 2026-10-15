@@ -189,7 +189,7 @@ def _profile_label(profile: ReceiverProfile) -> str:
 async def studio_start(request: Request) -> Response:
     """Check the form and start a run, or answer with the problem."""
     form = await request.form()  # the store and the templates are used in a worker thread
-    demo = request.app.state.rt.is_demo
+    demo = request.app.state.app_runtime.is_demo
     return await run_in_threadpool(_begin, form, demo, request.app.state.pace)
 
 

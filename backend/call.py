@@ -65,20 +65,20 @@ async def call_page(request: Request) -> HTMLResponse:
 @router.post("/call/simulate", response_class=HTMLResponse)
 async def call_simulate(request: Request, audio: UploadFile | None = None) -> HTMLResponse:
     """Save the recording, register a run, and return the empty result shell."""
-    app_rt = request.app.state.rt
+    app_runtime = request.app.state.app_runtime
     if audio is not None and audio.filename:
         try:
             path = await _save_upload(audio)
         except BadUpload as problem:
             return form_error(str(problem))
         filename = Path(audio.filename).name
-    elif app_rt.is_demo:
+    elif app_runtime.is_demo:
         path = _placeholder_recording()
         filename = demo.DEMO_FILENAME
     else:
         return form_error("Choose a recording first.")
     run = request.app.state.runs.create(path, filename)
-    view = call_run.RunView(filename, app_rt.is_demo)
+    view = call_run.RunView(filename, app_runtime.is_demo)
     regions = {name: Markup(html) for name, html in _render_regions(view, False).items()}
     return HTMLResponse(render("partials/call_shell.html", run=run, view=view, regions=regions))
 
@@ -149,17 +149,17 @@ def _placeholder_recording() -> str:
 async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]:
     """Run the analysis and yield an event whenever a region of the page changes."""
     app = request.app
-    app_rt = app.state.rt
-    view = call_run.RunView(run.filename, app_rt.is_demo)
+    app_runtime = app.state.app_runtime
+    view = call_run.RunView(run.filename, app_runtime.is_demo)
     sent: dict[str, str] = {}
     stop = threading.Event()
     try:
         yield ": open\n\n"
-        async for kind, value in call_run.iter_updates(app_rt, run.path, stop):
+        async for kind, value in call_run.iter_updates(app_runtime, run.path, stop):
             _apply_update(view, kind, value)
             for event in _changed_regions(view, sent, fresh=view.take_fresh()):
                 yield event
-            if kind == "item" and app_rt.is_demo and app.state.pace:
+            if kind == "item" and app_runtime.is_demo and app.state.pace:
                 await _pause_demo(app.state.pace, view, value)
         view.finish()
         run.snapshot = _render_regions(view, False)

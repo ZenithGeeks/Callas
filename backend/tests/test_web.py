@@ -226,7 +226,7 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
 
 
 def test_ws_live_reports_a_call_that_cannot_start(client, monkeypatch):
-    def broken(rt):
+    def broken(app_runtime):
         raise RuntimeError("model would not load")
 
     monkeypatch.setattr(live_ws, "make_live_call", broken)
@@ -241,13 +241,13 @@ def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
     seen = []
     real = live_ws.make_live_call
 
-    def recording(rt):
+    def recording(app_runtime):
         try:  # inside the event loop's thread a loop is running; in a worker thread none is
             asyncio.get_running_loop()
             seen.append(True)
         except RuntimeError:
             seen.append(False)
-        return real(rt)
+        return real(app_runtime)
 
     monkeypatch.setattr(live_ws, "make_live_call", recording)
     with client.websocket_connect("/ws/live") as ws:

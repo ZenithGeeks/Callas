@@ -359,7 +359,9 @@ class RunRegistry:
             Path(run.path).unlink(missing_ok=True)
 
 
-async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterator[tuple[str, Any]]:
+async def iter_updates(
+    app_runtime, path: str, stop: threading.Event
+) -> AsyncIterator[tuple[str, Any]]:
     """Run CallSessions.simulate_call in one worker thread and yield what it produces.
 
     Yields ("transcript", (Transcript, seconds)) once, then ("item", update) per node, then
@@ -376,7 +378,7 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
         loop.call_soon_threadsafe(queue.put_nowait, (kind, value))
 
     worker = threading.Thread(
-        target=_simulate, args=(app_rt, path, stop, put), name="simulate-call", daemon=True
+        target=_simulate, args=(app_runtime, path, stop, put), name="simulate-call", daemon=True
     )
     worker.start()
     try:
@@ -389,12 +391,14 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
         stop.set()
 
 
-def _simulate(app_rt, path: str, stop: threading.Event, put: Callable[[str, Any], None]) -> None:
+def _simulate(
+    app_runtime, path: str, stop: threading.Event, put: Callable[[str, Any], None]
+) -> None:
     """Worker thread of iter_updates: run the call and hand every update to `put`."""
     transcript_sent = False
     updates = None
     try:
-        updates = app_rt.sessions.simulate_call(path)
+        updates = app_runtime.sessions.simulate_call(path)
         for item in updates:
             if not transcript_sent:  # ASR has run by the time the first update arrives
                 put("transcript", runtime.last_transcription())
