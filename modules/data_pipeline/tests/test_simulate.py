@@ -544,7 +544,7 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
 def test_the_receiver_hears_the_callers_numbers_as_slots(tmp_path):
     echo = [dict(line="โอนไป {BANK_ACCOUNT} ใช่ไหมคะ โทรกลับ {PHONE} ได้ไหมคะ", end_call=False)] * 2
     agents = make_agents(SCAM, echo, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     call = simulate.sample_config("phishing_otp", 1, CONFIG)
     values = simulate.SlotFiller(call, CONFIG.details).values
     last_view = agents.receiver.calls[-1]["conversation"]
