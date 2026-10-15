@@ -39,6 +39,7 @@ from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
 from . import dataset, views
+from .web import form_error, page, render
 
 log = logging.getLogger("callas.studio")
 SHUTDOWN = threading.Event()  # set when the app stops, so open event streams end
@@ -144,19 +145,6 @@ def _elapsed(seconds: float) -> str:
     return f"{minutes} min {secs} s" if minutes else f"{secs} s"
 
 
-# ---- helpers shared with main.py (imported late: main imports this module) --------------------
-
-
-def _main():
-    from . import main
-
-    return main
-
-
-def _render(name: str, **ctx: Any) -> str:
-    return _main().render(name, **ctx)
-
-
 @cache
 def _config() -> Config:
     return load_default_config()
@@ -189,7 +177,7 @@ def studio_page(request: Request) -> HTMLResponse:
         )
     ]
     run = BOARD.running()
-    return _main().page(
+    return page(
         request,
         "studio.html",
         "studio",
@@ -284,14 +272,14 @@ def _begin(form: Any, demo: bool, pace: float) -> Response:
         spec = parse_form(form, _config(), _taken_ids())
         run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
     except FormProblem as problem:
-        return _main().form_error(str(problem), problem.status)
+        return form_error(str(problem), problem.status)
     threading.Thread(
         target=_work,
         args=(run, demo, pace, bool(form.get("speak")), dataset.db_path()),
         name=f"studio-{run.id}",
         daemon=True,
     ).start()
-    return HTMLResponse(_render("partials/studio_run.html", run=_run_view(run), demo=demo))
+    return HTMLResponse(render("partials/studio_run.html", run=_run_view(run), demo=demo))
 
 
 def _title(spec: live.CallSpec) -> str:
@@ -394,10 +382,10 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
                     outcome = "finished"
     except Exception as exc:
         outcome = "failed"
-        run.push("failed", _render("partials/studio_failed.html", message=_explain(run, exc)))
+        run.push("failed", render("partials/studio_failed.html", message=_explain(run, exc)))
     finally:
         try:
-            html = _render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
+            html = render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
         except Exception:
             log.exception("studio run %s: could not render the last message", run.id)
             html = "<p>The run has ended.</p>"
@@ -483,14 +471,14 @@ def _audio_url(record_id: str, turn: dict) -> str | None:
 def _render_event(run: StudioRun, event: live.Event) -> str:
     record, generation = event.record, event.record["generation"]
     if event.kind == "thinking":
-        return _render(
+        return render(
             "partials/studio_thinking.html",
             agent=event.agent,
             n=len(generation["turns"]) + 1,
         )
     if event.kind == "plan":
         briefing = generation["briefing"]
-        return _render(
+        return render(
             "partials/studio_plan.html",
             plan=briefing["plan"],
             notes=briefing["notes_used"],
@@ -499,7 +487,7 @@ def _render_event(run: StudioRun, event: live.Event) -> str:
         )
     if event.kind == "turn":
         turn = generation["turns"][event.index]
-        return _render(
+        return render(
             "partials/studio_turn.html",
             n=event.index + 1,
             turn=turn,
@@ -511,13 +499,13 @@ def _render_event(run: StudioRun, event: live.Event) -> str:
             tag=_tag(event.modules, turn["agent"], turn.get("latency_s")),
         )
     if event.kind == "ended":  # replaces the "thinking" bubble of a turn that was never written
-        return _render(
+        return render(
             "partials/studio_ended.html",
             n=event.index + 1,
             reasons=[dataset.reason_text(r) for r in generation["reasons"]],
         )
     judge = generation["judge"]  # None when the call ended early and was not judged
-    return _render(
+    return render(
         "partials/studio_verdict.html",
         judge=judge,
         accepted=generation["status"] == "accepted",

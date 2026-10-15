@@ -125,7 +125,7 @@ def test_a_normal_call_has_no_plan(client, tmp_path):
 def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     def render(**turn):
         base = {"speaker": "A", "text": "สวัสดี", "entities": [], "reasoning": "", "agent": "x"}
-        return studio._render(
+        return studio.render(
             "partials/studio_turn.html",
             n=1,
             turn={**base, **turn},
@@ -323,14 +323,14 @@ def test_the_busy_message_says_what_runs_and_for_how_long(client):
 
 
 def test_the_run_is_freed_even_if_the_last_message_cannot_be_rendered(client, monkeypatch):
-    real = studio._render
+    real = studio.render
 
     def render(name, **ctx):
         if name.endswith("studio_done.html"):
             raise RuntimeError("template broke")
         return real(name, **ctx)
 
-    monkeypatch.setattr(studio, "_render", render)
+    monkeypatch.setattr(studio, "render", render)
     run_id = run_id_of(start(client))
     wait_idle(studio.BOARD)  # fails by timeout if `finished` is never set
     events = read_events(client, run_id)
