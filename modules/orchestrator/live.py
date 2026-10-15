@@ -122,7 +122,7 @@ class LiveCall:
             n, turn = following_n, Turn(turn.speaker, turn.start, following_turn.end, text)
 
     def _run(self) -> None:
-        """Worker thread: process turns in order until end(). A failed turn is reported, not fatal."""
+        """Worker thread: run turns in order until end(). A failed turn is reported, not fatal."""
         while (item := self._next_turn()) is not None:
             n, turn, merged = item
             try:
