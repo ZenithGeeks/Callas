@@ -7,9 +7,9 @@ This file builds the app; each page's routes are in its own router module.
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from .web import ROOT
+
 sys.path.insert(0, str(ROOT.parent / "modules"))  # run without PYTHONPATH
 
 import logging  # noqa: E402
@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
-from . import basics, call, call_run, dataset_routes, live, message, web  # noqa: E402
+from . import basics, call, call_run, live, message, review, studio  # noqa: E402
 from . import runtime as rt_mod  # noqa: E402
 
 log = logging.getLogger("callas.web")
@@ -31,7 +31,7 @@ DEMO_PACE_SECONDS = 0.45  # demo mode only: pause after each turn so the page vi
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start the runtime and run registry; on shutdown close the runtime and delete uploads."""
-    web.clear_uploads()
+    call.clear_uploads()
     app.state.rt = rt_mod.build()
     app.state.runs = call_run.RunRegistry()
     app.state.pace = float(os.environ.get("CALLAS_FAKE_DELAY", DEMO_PACE_SECONDS))
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         app.state.rt.close()
-        web.clear_uploads()
+        call.clear_uploads()
 
 
 app = FastAPI(title="Callas", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -49,5 +49,6 @@ app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 app.include_router(basics.router)
 app.include_router(message.router)
 app.include_router(call.router)
-app.include_router(dataset_routes.router)
+app.include_router(review.router)
+app.include_router(studio.router)
 app.include_router(live.router)

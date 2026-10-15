@@ -1,0 +1,216 @@
+/* /studio only. Hand written, not built by Tailwind; it uses the tokens from app.css. */
+
+/* ---- the form ---- */
+.studio-row {
+  margin-top: 16px;
+}
+.studio-row > label,
+.studio-custom legend {
+  display: block;
+  margin-bottom: 6px;
+  font-family: "Kanit", sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink);
+}
+.studio-row .opt {
+  font-family: "Sarabun", sans-serif;
+  font-weight: 400;
+  color: var(--muted);
+}
+.studio-row .select {
+  font-size: 15px;
+}
+.studio-input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 16px;
+  color: var(--ink);
+}
+.studio-input:hover {
+  border-color: var(--muted);
+}
+.studio-input:focus-visible,
+.select:focus-visible {
+  border-color: var(--ink);
+  outline: 3px solid var(--rule-strong);
+  outline-offset: 0;
+}
+.studio-help {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.studio-custom {
+  margin: 16px 0 0;
+  padding: 4px 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.studio-custom[hidden] {
+  display: none;
+}
+.studio-custom legend {
+  padding: 0 6px;
+  margin: 0;
+}
+.studio-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 12px;
+}
+.studio-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.studio-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--ink);
+}
+.studio-check input:focus-visible {
+  outline: 3px solid var(--rule-strong);
+  outline-offset: 2px;
+}
+
+/* ---- the live thread ---- */
+.studio-card {
+  max-width: min(100%, 640px);
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-slip);
+}
+.studio-card[data-tone="safe"] {
+  box-shadow: inset 0 0 0 1.5px var(--safe-line), var(--shadow-slip);
+}
+.studio-card[data-tone="unsure"] {
+  box-shadow: inset 0 0 0 1.5px var(--unsure-line), var(--shadow-slip);
+}
+.studio-card .facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 639px) {
+  .studio-card .facts {
+    grid-template-columns: 1fr;
+  }
+}
+.thinking {
+  color: var(--muted);
+}
+.msg[data-side="right"] .thinking {
+  color: rgba(255, 255, 255, 0.8);
+}
+.dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: studio-pulse 1.2s ease-in-out infinite;
+}
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes studio-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dots i {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.turn-audio {
+  width: min(100%, 320px);
+  height: 40px;
+}
+
+/* the label under a message: agent, module, model, time */
+.agent-tag {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.agent-tag span {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.agent-tag .agent-tag-name {
+  font-family: "Kanit", sans-serif;
+  font-weight: 500;
+  color: var(--ink);
+}
+.msg[data-side="right"] .agent-tag {
+  justify-content: flex-end;
+}
+
+/* "Prompt and answer" */
+.trace {
+  max-width: 100%;
+}
+.trace-call {
+  margin-top: 8px;
+  max-width: min(100%, 70ch);
+}
+.trace-h {
+  margin-top: 10px;
+  font-family: "Kanit", sans-serif;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink);
+}
+.trace-pre {
+  margin-top: 4px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg[data-side="right"] .trace {
+  text-align: right;
+}

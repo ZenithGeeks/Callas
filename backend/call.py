@@ -19,7 +19,7 @@ from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from markupsafe import Markup
 
-from . import call_run, demo, web
+from . import call_run, demo
 from .web import form_error, page, render, templates
 
 log = logging.getLogger("callas.web")
@@ -28,6 +28,20 @@ router = APIRouter()
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 AUDIO_EXTENSIONS = (".wav", ".mp3", ".m4a", ".ogg")
+
+# Uploaded recordings live only in this folder. It is emptied at startup and shutdown, so a
+# crash or restart never leaves call audio behind. Always read it as this module's global:
+# tests point it at a temp folder, and a copy imported elsewhere would not follow.
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "callas-uploads"
+
+
+def clear_uploads() -> None:
+    """Empty the upload folder (and create it if it is missing)."""
+    if UPLOAD_DIR.is_dir():
+        for f in UPLOAD_DIR.iterdir():
+            if f.is_file():
+                f.unlink(missing_ok=True)
+    UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @router.get("/call", response_class=HTMLResponse)
@@ -53,7 +67,7 @@ async def _save_upload(upload: UploadFile) -> tuple[str | None, str | None]:
     ext = Path(name).suffix.lower()
     if ext not in AUDIO_EXTENSIONS:
         return None, "That file is not audio. Use a .wav, .mp3, .m4a or .ogg recording."
-    fd, path = tempfile.mkstemp(suffix=ext, prefix="callas-", dir=web.UPLOAD_DIR)
+    fd, path = tempfile.mkstemp(suffix=ext, prefix="callas-", dir=UPLOAD_DIR)
     size, head = 0, b""
     try:
         with os.fdopen(fd, "wb") as out:
@@ -103,7 +117,7 @@ async def call_simulate(request: Request, audio: UploadFile | None = None) -> HT
             return form_error(error)
         filename = Path(audio.filename).name
     else:  # demo mode: the fake pipeline ignores the file but still wants a path
-        fd, path = tempfile.mkstemp(suffix=".wav", prefix="callas-", dir=web.UPLOAD_DIR)
+        fd, path = tempfile.mkstemp(suffix=".wav", prefix="callas-", dir=UPLOAD_DIR)
         os.close(fd)
     run = request.app.state.runs.create(path, filename)
     view = call_run.RunView(filename, app_rt.is_demo)

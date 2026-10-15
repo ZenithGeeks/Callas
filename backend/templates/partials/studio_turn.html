@@ -1,0 +1,28 @@
+{# One finished message, replacing its "thinking" bubble (same id). Same look as /dataset.
+   Expects n, turn, side, who, flags, leaked, audio, tag. #}
+{% import "partials/_ui.html" as ui %}
+{% import "partials/_studio.html" as st %}
+<li class="msg" id="msg-{{ n }}" data-side="{{ side }}" data-role="{{ 'caller' if turn.speaker == 'A' else 'receiver' }}" data-turn="{{ n }}">
+  <span class="msg-avatar" aria-hidden="true">{{ turn.speaker }}</span>
+  <div class="msg-body">
+    <p class="msg-meta"><span class="msg-who">{{ who }}</span><span aria-hidden="true">·</span><span>Turn {{ n }}</span></p>
+    <div class="msg-line">
+      <div class="msg-bubble">
+        <p class="sr-only">{{ who }}, turn {{ n }}:</p>
+        <p class="msg-text" lang="th">{{ ui.marked(segments(turn.text, turn.entities)) }}</p>
+      </div>
+    </div>
+    {% if audio %}<audio class="turn-audio" controls preload="none" src="{{ audio }}" aria-label="Audio of turn {{ n }}"></audio>{% endif %}
+    {% if flags or leaked %}
+    <ul class="msg-flags">
+      {% if leaked %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">Leaked: {{ leaked }}</li>{% endif %}
+      {% for f in flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {{ st.tag(tag) }}
+    {% if turn.reasoning %}
+    <details class="why msg-why"><summary>Agent reasoning</summary><p>{{ turn.reasoning }}</p></details>
+    {% endif %}
+    {{ st.trace(tag) }}
+  </div>
+</li>

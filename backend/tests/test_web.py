@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from backend import demo, live_ws, main, web
+from backend import call, demo, live_ws, main
 
 ROOT = Path(__file__).resolve().parents[1]
 PHISHING = (
@@ -207,7 +207,7 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
     """An upload whose stream never opens must not outlive the server process."""
     from fastapi.testclient import TestClient
 
-    monkeypatch.setattr(web, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(call, "UPLOAD_DIR", tmp_path / "uploads")
     stale = tmp_path / "uploads"
     stale.mkdir()
     (stale / "callas-old.wav").write_bytes(b"x")  # left by a crashed run

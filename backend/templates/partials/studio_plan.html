@@ -1,0 +1,12 @@
+{# The scam caller's plan, replacing the planner's placeholder. #}
+{% import "partials/_studio.html" as st %}
+<li id="msg-plan" class="studio-card">
+  <h3 class="sec-h">Caller's plan</h3>
+  <ol class="plan mt-3" lang="en">
+    {% for step in plan %}<li>{{ step }}</li>{% endfor %}
+  </ol>
+  {% if notes %}<p class="mt-3 text-[14px] text-muted">Written with {{ notes | length }} pattern note{{ '' if notes | length == 1 else 's' }}.</p>{% endif %}
+  {{ st.tag(tag) }}
+  {% if reasoning %}<details class="why msg-why mt-2"><summary>Agent reasoning</summary><p>{{ reasoning }}</p></details>{% endif %}
+  {{ st.trace(tag) }}
+</li>
