@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # Speaker-split model: "nemotron" (Nemotron-3 diarization) or "pyannote_segmentation".
     diarizer: str = "nemotron"
 
+    # nlp-core models by registry name; empty means the built-in default (see nlp_core.registry).
+    nlp_ner: str = ""
+    nlp_classifier: str = ""
+    nlp_summarizer: str = ""
+
     tts_pretrained: str = "fastthaig2p"
     tts_speaker: str = "thai_som"
 

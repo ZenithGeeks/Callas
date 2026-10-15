@@ -1,8 +1,17 @@
+import re
+from datetime import date
+
 import pytest
 
 from data_pipeline.config import CALL_TYPES, load_config
-from data_pipeline.fill import SlotFiller
+from data_pipeline.fill import (
+    AGE_REFERENCE_DATE,
+    THAI_MONTHS,
+    SlotFiller,
+    receiver_leaks,
+)
 from data_pipeline.scenarios import sample_config
+from nlp_core.types import ENTITY_LABELS
 
 CONFIG = load_config()
 
@@ -123,3 +132,78 @@ def test_a_line_must_be_one_line_without_a_speaker_tag(line):
 @pytest.mark.parametrize("line", ["สวัสดีครับ", "ผม A: ไม่ใช่", "Always ok", "ABC: x"])
 def test_ordinary_lines_are_not_line_breaks(line):
     assert "line_break" not in filler().fill(line)[2]
+
+
+# ---- the receiver's own details ----------------------------------------------------------
+
+RECEIVER_SLOTS = {
+    "RECEIVER_PHONE": "PHONE",
+    "RECEIVER_ACCOUNT": "BANK_ACCOUNT",
+    "ID_CARD": "ID_CARD",
+    "BIRTH_DATE": "BIRTH_DATE",
+    "ADDRESS": "ADDRESS",
+    "OTP": "OTP",
+    "RECEIVER_NAME": "PERSON",
+}
+
+
+@pytest.mark.parametrize("slot,label", RECEIVER_SLOTS.items())
+def test_receiver_slot_spans_are_exact(slot, label):
+    f = filler()
+    text, spans, problems = f.fill("ก่อน {" + slot + "} หลัง")
+    value = f.values[slot]
+    assert problems == [] and value
+    assert text == f"ก่อน {value} หลัง"
+    assert spans == [
+        {"text": value, "label": label, "start": 5, "end": 5 + len(value)},
+    ]
+
+
+def test_new_entity_labels_exist():
+    assert {"ID_CARD", "BIRTH_DATE", "ADDRESS"} <= set(ENTITY_LABELS)
+
+
+def test_id_card_has_the_usual_layout():
+    for seed in range(30):
+        assert re.fullmatch(r"[1-8]-\d{4}-\d{5}-\d{2}-\d", filler(seed=seed).values["ID_CARD"])
+
+
+def test_birth_date_matches_the_age():
+    for seed in range(60):
+        call = sample_config("phishing_otp", seed, CONFIG)
+        day, month, year = SlotFiller(call, CONFIG.details).values["BIRTH_DATE"].split()
+        born = date(int(year) - 543, THAI_MONTHS.index(month) + 1, int(day))
+        ref = AGE_REFERENCE_DATE
+        age = ref.year - born.year - ((ref.month, ref.day) < (born.month, born.day))
+        assert age == call.receiver.age
+
+
+def test_receiver_details_do_not_change_the_old_values():
+    """The receiver's values are drawn last, so a seed keeps the values it always had."""
+    values = filler("romance", 5).values
+    assert [
+        values[k] for k in ("CALLER_NAME", "RECEIVER_NAME", "PHONE", "BANK_ACCOUNT", "OTP")
+    ] == (["จันทร์เพ็ญ", "วิชัย", "081-774-2578", "825-0-44920-4", "510255"])
+
+
+def test_receiver_leaks_are_read_from_the_slots_in_order():
+    assert receiver_leaks("รหัส {OTP} บัตร {ID_CARD} รหัส {OTP}") == ["OTP", "ID_CARD"]
+    assert receiver_leaks("ผม{RECEIVER_NAME} โทรหา {PHONE} {BANK_ACCOUNT}") == []
+    assert receiver_leaks("{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {BIRTH_DATE} {ADDRESS}") == [
+        "PHONE",
+        "BANK_ACCOUNT",
+        "BIRTH_DATE",
+        "ADDRESS",
+    ]
+
+
+def test_no_made_up_id_card_passes_the_real_checksum():
+    """A real Thai ID card ends in a mod-11 check digit; a made-up one must never validate."""
+    for seed in range(1000):
+        digits = filler("phishing_otp", seed).values["ID_CARD"].replace("-", "")
+        check = (11 - sum(int(d) * (13 - i) for i, d in enumerate(digits[:12])) % 11) % 10
+        assert int(digits[12]) != check, seed
+
+
+def test_id_card_is_the_same_for_the_same_seed():
+    assert filler(seed=9).values["ID_CARD"] == filler(seed=9).values["ID_CARD"]

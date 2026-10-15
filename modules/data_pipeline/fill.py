@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import random
 import re
+from datetime import date
 
-from .config import DetailsFile
+from .config import AddressParts, DetailsFile
 from .scenarios import CallConfig
 
 SLOT_LABEL = {
@@ -23,7 +24,52 @@ SLOT_LABEL = {
     "OTP": "OTP",
     "URL": "URL",
     "MONEY": "MONEY",
+    "RECEIVER_PHONE": "PHONE",
+    "RECEIVER_ACCOUNT": "BANK_ACCOUNT",
+    "ID_CARD": "ID_CARD",
+    "BIRTH_DATE": "BIRTH_DATE",
+    "ADDRESS": "ADDRESS",
 }
+# The receiver's own details. A receiver turn that writes one of these slots has given that
+# detail away; the label is what the leak is recorded as. {RECEIVER_NAME} is not here: saying
+# your own name when you answer the phone is not a leak.
+RECEIVER_LEAK_SLOTS = {
+    "OTP": "OTP",
+    "RECEIVER_PHONE": "PHONE",
+    "RECEIVER_ACCOUNT": "BANK_ACCOUNT",
+    "ID_CARD": "ID_CARD",
+    "BIRTH_DATE": "BIRTH_DATE",
+    "ADDRESS": "ADDRESS",
+}
+# Slots whose value belongs to the receiver. The receiver reads them back as slots (see
+# simulate._receiver_view) so it recognises its own details.
+RECEIVER_OWN_SLOTS = (
+    "RECEIVER_NAME",
+    "RECEIVER_PHONE",
+    "RECEIVER_ACCOUNT",
+    "ID_CARD",
+    "BIRTH_DATE",
+    "ADDRESS",
+)
+# Slots a caller cannot know: the person who answered owns these. A caller turn that uses one
+# is flagged (simulate._next_turn). {RECEIVER_NAME} is not here: a caller may know the name.
+RECEIVER_ONLY_SLOTS = ("RECEIVER_PHONE", "RECEIVER_ACCOUNT", "ID_CARD", "BIRTH_DATE", "ADDRESS")
+# The date ages are counted at. Fixed, so a seed always gives the same birth date.
+AGE_REFERENCE_DATE = date(2025, 7, 1)
+THAI_MONTHS = (
+    "มกราคม",
+    "กุมภาพันธ์",
+    "มีนาคม",
+    "เมษายน",
+    "พฤษภาคม",
+    "มิถุนายน",
+    "กรกฎาคม",
+    "สิงหาคม",
+    "กันยายน",
+    "ตุลาคม",
+    "พฤศจิกายน",
+    "ธันวาคม",
+)
 SLOT_RE = re.compile(r"\{([A-Z_]+)\}")
 # A number the model wrote itself instead of using a slot. The rule: 4 or more digits in a row
 # ("1234", "0812345678"), or digit groups joined by one , . - or space where each later group
@@ -59,6 +105,12 @@ class SlotFiller:
             "OTP": f"{rng.randint(0, 999999):06d}",
             "URL": _url(rng, details.urls.words, details.urls.tlds),
             "MONEY": f"{amount:,} บาท",
+            # the receiver's own details are drawn last so the values above stay what they were
+            "RECEIVER_PHONE": _phone(rng),
+            "RECEIVER_ACCOUNT": _bank_account(rng),
+            "ID_CARD": _id_card(rng),
+            "BIRTH_DATE": _birth_date(rng, call.receiver.age),
+            "ADDRESS": _address(rng, details.addresses),
         }
 
     def fill(self, raw: str) -> tuple[str, list[dict], list[str]]:
@@ -105,6 +157,17 @@ class SlotFiller:
         return text, spans, problems
 
 
+def receiver_leaks(raw: str) -> list[str]:
+    """Labels of the receiver's own details that a receiver line gives away, in the order they
+    first appear. Read from the slots the line uses, so the model never reports them."""
+    labels: list[str] = []
+    for name in SLOT_RE.findall(raw):
+        label = RECEIVER_LEAK_SLOTS.get(name)
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
 # ---- made-up values --------------------------------------------------------------------------
 
 
@@ -123,3 +186,32 @@ def _bank_account(rng: random.Random) -> str:
 def _url(rng: random.Random, words: list[str], tlds: list[str]) -> str:
     first, second = rng.choice(words), rng.choice(words)
     return f"https://{first}-{second}{rng.randint(10, 99)}.{rng.choice(tlds)}"
+
+
+def _id_card(rng: random.Random) -> str:
+    """A Thai ID card number in the usual 1-2345-67890-12-3 layout. The digits are random and
+    the last digit is never the real check digit (mod 11), so this is not a valid ID number.
+    About one draw in ten would pass the check by chance; those get a different last digit."""
+    first = rng.randint(1, 8)
+    middle = f"{rng.randint(0, 9999):04d}{rng.randint(0, 99999):05d}{rng.randint(0, 99):02d}"
+    last = rng.randint(0, 9)
+    digits = f"{first}{middle}"
+    check = (11 - sum(int(d) * (13 - i) for i, d in enumerate(digits)) % 11) % 10
+    if last == check:  # an extra draw only in this case, so other seeds keep their values
+        last = (check + 1 + rng.randrange(9)) % 10
+    return f"{first}-{middle[:4]}-{middle[4:9]}-{middle[9:]}-{last}"
+
+
+def _birth_date(rng: random.Random, age: int) -> str:
+    """Day, month and Buddhist-era year, e.g. "12 มีนาคม 2511", such that the person is exactly
+    `age` years old on AGE_REFERENCE_DATE."""
+    month, day = rng.randint(1, 12), rng.randint(1, 28)
+    ref = AGE_REFERENCE_DATE
+    had_birthday = (month, day) <= (ref.month, ref.day)
+    year = ref.year - age - (0 if had_birthday else 1)
+    return f"{day} {THAI_MONTHS[month - 1]} {year + 543}"
+
+
+def _address(rng: random.Random, parts: AddressParts) -> str:
+    house, soi = rng.choice(parts.house_numbers), rng.choice(parts.sois)
+    return f"{house} ซอย{soi} {rng.choice(parts.districts)} {rng.choice(parts.provinces)}"

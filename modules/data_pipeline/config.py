@@ -38,6 +38,11 @@ SLOT_NAMES = (
     "OTP",
     "URL",
     "MONEY",
+    "RECEIVER_PHONE",
+    "RECEIVER_ACCOUNT",
+    "ID_CARD",
+    "BIRTH_DATE",
+    "ADDRESS",
 )
 _SLOT_IN_TEXT = re.compile(r"\{([A-Z_]+)\}")
 
@@ -154,6 +159,24 @@ class TTS(_Strict):
         return v
 
 
+class Speech(_Strict):
+    """How numbers are said in the audio (see spoken.py)."""
+
+    # share of calls whose speakers say "ขีด" between the groups of an account, phone or ID
+    # card number; the other calls only pause. One style per call, chosen from its seed.
+    say_dash_share: float = Field(0.5, ge=0.0, le=1.0)
+
+
+class Context(_Strict):
+    """The model's context window, shared by every agent (see budget.py)."""
+
+    window_tokens: int = Field(100_000, gt=0)
+    safety_margin_tokens: int = Field(2_000, gt=0)  # left free on top of the answer
+
+
+AGENT_NAMES = ("scam_caller", "legit_caller", "receiver", "planner", "pattern_extractor", "judge")
+
+
 class AgentsFile(_Strict):
     slot_rule: str = ""  # shared text, reused through a YAML anchor; not read by the code
     speakers: Speakers
@@ -164,6 +187,21 @@ class AgentsFile(_Strict):
     pattern_extractor: Agent
     judge: Judge
     tts: TTS
+    speech: Speech = Speech()
+    context: Context = Context()
+
+    @model_validator(mode="after")
+    def _answers_fit_the_window(self) -> AgentsFile:
+        for name in AGENT_NAMES:
+            max_tokens = getattr(self, name).lm.max_tokens
+            if max_tokens + self.context.safety_margin_tokens >= self.context.window_tokens:
+                raise ValueError(
+                    f"{name}.lm.max_tokens ({max_tokens}) plus context.safety_margin_tokens "
+                    f"({self.context.safety_margin_tokens}) must be less than "
+                    f"context.window_tokens ({self.context.window_tokens}), or the prompt "
+                    "has no room"
+                )
+        return self
 
 
 # ---- scenarios.yaml ------------------------------------------------------------------------
@@ -303,12 +341,37 @@ class Urls(_Strict):
     tlds: list[str] = Field(min_length=1)
 
 
+class AddressParts(_Strict):
+    """Pieces of the receiver's made-up {ADDRESS}: <house> ซอย<soi> <district> <province>."""
+
+    house_numbers: list[str] = Field(min_length=1)
+    sois: list[str] = Field(min_length=1)
+    districts: list[str] = Field(min_length=1)
+    provinces: list[str] = Field(min_length=1)
+
+
+DEFAULT_ADDRESS_PARTS = AddressParts(
+    house_numbers=["12/3", "45", "88/21", "107", "9/14", "233", "56/7"],
+    sois=["สุขสันต์ 4", "ร่มเย็น 12", "ประชาสุข 7", "เจริญใจ 2", "บ้านสวน 15", "ทรัพย์มั่งมี 9"],
+    districts=["อำเภอบ้านใหม่", "อำเภอท่าช้าง", "อำเภอหนองแสง", "อำเภอเมืองเก่า", "อำเภอวังทอง"],
+    provinces=[
+        "จังหวัดขอนแก่น",
+        "จังหวัดเชียงใหม่",
+        "จังหวัดนครราชสีมา",
+        "จังหวัดสงขลา",
+        "จังหวัดชลบุรี",
+        "จังหวัดพิษณุโลก",
+    ],
+)
+
+
 class DetailsFile(_Strict):
     names: dict[str, list[str]]  # gender -> first names
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
     urls: Urls
     money: Money
+    addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
 
 
 # ---- the whole config ----------------------------------------------------------------------

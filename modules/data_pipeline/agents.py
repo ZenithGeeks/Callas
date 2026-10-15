@@ -141,9 +141,13 @@ class Agents:
     """Every program and its model. Plain attributes so tests can swap any of them."""
 
     def __init__(self, config: Config, lms: dict[str, Any] | None = None) -> None:
+        # the signature each program really sends (with ChainOfThought's reasoning field), kept
+        # apart so the prompt can be measured even when a test swaps a program for a stand-in
+        self.signatures: dict[str, type[dspy.Signature]] = {}
         for name in SIGNATURES:
             program = dspy.ChainOfThought(configured(name, getattr(config.agents, name)))
             setattr(self, name, program)
+            self.signatures[name] = program.predict.signature
         self.lms = lms if lms is not None else build_lms(config)
 
     def models(self) -> dict[str, str]:

@@ -36,10 +36,13 @@ import dspy
 
 from nlp_core.types import SCAM_TYPES
 
+from .budget import cut_article, prompt_tokens
 from .store import DEFAULT_DB, Store
 from .wiki import DEFAULT_WIKI, add_note_to_page, read_wiki, set_active, sync
 
-MAX_ARTICLE_CHARS = 12_000  # about 4k tokens of Thai; longer articles are cut, not skipped
+# Upper bound on the article, about 4k tokens of Thai. The context window (budget.py) can cut
+# it shorter, never longer. Longer articles are cut, not skipped.
+MAX_ARTICLE_CHARS = 12_000
 
 
 def render_notes(notes: list[dict]) -> str:
@@ -55,8 +58,21 @@ def render_notes(notes: list[dict]) -> str:
     return "\n".join(blocks)
 
 
-def extract(article: str, scam_type: str, program: dspy.Module, lm) -> dict | None:
-    """Run the extractor on one article. Returns the note fields, or None if not relevant."""
+def extract(
+    article: str, scam_type: str, program: dspy.Module, lm, budget: int | None = None
+) -> dict | None:
+    """Run the extractor on one article. Returns the note fields, or None if not relevant.
+
+    `budget` is the prompt budget in tokens (budget.prompt_budget); the article is cut to the
+    longest start that fits, and to MAX_ARTICLE_CHARS at most."""
+    signature = getattr(getattr(program, "predict", None), "signature", None)
+    if budget is not None and signature is not None:
+
+        def fits(part: str) -> bool:
+            inputs = {"scam_type": scam_type, "article": part}
+            return prompt_tokens(signature, inputs) <= budget
+
+        article = cut_article(article, fits, MAX_ARTICLE_CHARS)
     with dspy.context(lm=lm):
         pred = program(scam_type=scam_type, article=article[:MAX_ARTICLE_CHARS])
     if not pred.relevant:
@@ -75,6 +91,7 @@ def _add(args, store: Store) -> int:
     from llm_serving.dspy_programs import build_lm
 
     from .agents import configured
+    from .budget import prompt_budget
     from .config import load_config
 
     settings = load_config(args.config).agents.pattern_extractor
@@ -85,7 +102,8 @@ def _add(args, store: Store) -> int:
         temperature=settings.lm.temperature,
     )
     text = Path(args.file).read_text(encoding="utf-8") if args.file else sys.stdin.read()
-    note = extract(text, args.type, program, lm)
+    config = load_config(args.config)
+    note = extract(text, args.type, program, lm, prompt_budget(config, "pattern_extractor"))
     if note is None:
         print("not relevant to this scam type; nothing stored")
         return 1
