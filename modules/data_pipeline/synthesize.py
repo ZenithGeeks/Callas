@@ -12,7 +12,8 @@ audio/ folder next to it (each turn is spoken right after it is written; --no-tt
 What each agent is told, its model and temperature, the scenarios and the voices all come from
 the config folder (default: data_pipeline/config/; see its YAML files). Models run on the vLLM
 server in .env (VLLM_BASE_URL). Seeds give the same calls every run with the same config;
-finished calls are skipped, unfinished ones are resumed.
+finished calls are skipped, unfinished ones are resumed. Do not run two commands that write the
+same --db at the same time: calls are not locked, so both would work on the same call.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from llm_serving.client import LLMUnavailable
 
 from .agents import SIGNATURES, Agents, configured
 from .config import CALL_TYPES, Config, ConfigError, ReceiverProfile, load_config
-from .simulate import record_id, run_call
+from .simulate import call_id, is_model_error, run_call
 from .store import DEFAULT_DB, Store, import_json_folder
 from .tts import Voices
 from .wiki import DEFAULT_WIKI, WikiError
@@ -87,9 +88,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     print(f"config {config.name} (hash {config.hash})")
+    errors = 0
     for call_type in call_types:
         accepted, rejected = counts[(call_type, "accepted")], counts[(call_type, "rejected")]
-        print(f"{call_type}: {accepted} accepted, {rejected} rejected")
+        failed = counts[(call_type, "error")]
+        errors += failed
+        print(f"{call_type}: {accepted} accepted, {rejected} rejected, {failed} error")
+    if errors:
+        print(f"{errors} calls hit an error and were left unfinished; rerun to resume them")
+        return 1
     return 0
 
 
@@ -157,6 +164,11 @@ def _chosen_receiver(args: argparse.Namespace, config: Config) -> ReceiverProfil
             raise ConfigError(
                 f"{args.receiver_file}: add a key (lowercase and _), e.g. key: aunt_noi"
             )
+        if profile.key in {p.key for p in config.scenarios.receivers.profiles}:
+            raise ConfigError(
+                f"{args.receiver_file}: key {profile.key!r} is already a profile in "
+                "scenarios.yaml; pick another key, or use --receiver to choose that profile"
+            )
         if profile.gender not in config.scenarios.receivers.genders:
             raise ConfigError(
                 f"{args.receiver_file}: gender must be one of {config.scenarios.receivers.genders}"
@@ -196,31 +208,66 @@ def _run_jobs(
     receiver: ReceiverProfile | None = None,
 ):
     """Run every (call type, seed) job. Returns counts of (call type, status), or None if the
-    LLM server or the config stopped the run."""
+    LLM server, the config or Ctrl-C stopped the run."""
+    counts: Counter = Counter()
+    todo = _skip_finished(jobs, config, store, receiver, counts)
     agents = Agents(config)
     voices = None if args.no_tts else Voices()
-    counts: Counter = Counter()
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {
-            pool.submit(_run_one, call_type, seed, store, agents, config, voices, receiver): (
-                call_type,
-                seed,
-            )
-            for call_type, seed in jobs
-        }
-        try:
-            for done, future in enumerate(as_completed(futures), 1):
-                call_type, seed = futures[future]
-                status = future.result()
-                counts[(call_type, status)] += 1
-                call_id = record_id(call_type, seed, receiver.key if receiver else "")
-                print(f"[{done}/{len(jobs)}] {call_id} {status}", flush=True)
-        except (LLMUnavailable, ConfigError) as exc:
-            for future in futures:
-                future.cancel()
-            print(f"stopped: {exc}", file=sys.stderr)
-            return None
+    pool = ThreadPoolExecutor(max_workers=args.workers)
+    futures = {
+        pool.submit(_run_one, call_type, seed, store, agents, config, voices, receiver): (
+            call_type,
+            seed,
+        )
+        for call_type, seed in todo
+    }
+    try:
+        for done, future in enumerate(as_completed(futures), 1):
+            call_type, seed = futures[future]
+            call_id_used, status = future.result()
+            counts[(call_type, status)] += 1
+            print(f"[{done}/{len(todo)}] {call_id_used} {status}", flush=True)
+    except KeyboardInterrupt:
+        # Leaving a `with` block would wait for every queued call; cancel the queue instead.
+        # Calls already running finish their current turn; every turn is saved, so a rerun resumes.
+        pool.shutdown(wait=False, cancel_futures=True)
+        print("stopped by user; rerun to resume", file=sys.stderr)
+        return None
+    except (LLMUnavailable, ConfigError) as exc:
+        pool.shutdown(wait=False, cancel_futures=True)
+        print(f"stopped: {exc}", file=sys.stderr)
+        return None
+    pool.shutdown()
     return counts
+
+
+def _skip_finished(
+    jobs: list[tuple[str, int]],
+    config: Config,
+    store: Store,
+    receiver: ReceiverProfile | None,
+    counts: Counter,
+) -> list[tuple[str, int]]:
+    """The jobs that still have work to do. Finished calls are counted by their status and
+    reported, with a warning for any made with another config than this one."""
+    todo, skipped, other_config = [], 0, 0
+    for call_type, seed in jobs:
+        record = store.load(call_id(call_type, seed, receiver))
+        if record is None or record["generation"]["status"] == "in_progress":
+            todo.append((call_type, seed))
+            continue
+        skipped += 1
+        counts[(call_type, record["generation"]["status"])] += 1
+        other_config += record["generation"].get("config_hash") != config.hash
+    if skipped:
+        print(f"skipped {skipped} calls that were already finished")
+    if other_config:
+        print(
+            f"warning: {other_config} of the skipped calls were made with a different config "
+            f"than the current one ({config.hash}); delete them to remake them",
+            file=sys.stderr,
+        )
+    return todo
 
 
 def _run_one(
@@ -231,20 +278,28 @@ def _run_one(
     config: Config,
     voices: Voices | None,
     receiver: ReceiverProfile | None = None,
-) -> str:
-    """Run one call and return its status. A call that keeps failing is marked and skipped."""
+) -> tuple[str, str]:
+    """Run one call. Returns (call id, status).
+
+    Only a model error that survived the retries marks the call `rejected` (llm_error:...).
+    Any other error leaves the call in progress, so a rerun resumes it, and counts as "error".
+    """
+    wanted_id = call_id(call_type, seed, receiver)
     try:
         record = run_call(call_type, seed, store, agents, config, voices=voices, receiver=receiver)
     except (LLMUnavailable, ConfigError):
         raise
     except Exception as exc:
-        record = store.load(record_id(call_type, seed, receiver.key if receiver else ""))
+        if not is_model_error(exc):
+            print(f"{wanted_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            return wanted_id, "error"
+        record = store.load(wanted_id)
         if record is None:
-            return "error"
+            return wanted_id, "error"
         record["generation"]["status"] = "rejected"
         record["generation"]["reasons"] = [f"llm_error:{type(exc).__name__}"]
         store.save(record)
-    return record["generation"]["status"]
+    return record["id"], record["generation"]["status"]
 
 
 if __name__ == "__main__":

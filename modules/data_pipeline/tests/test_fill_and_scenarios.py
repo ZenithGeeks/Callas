@@ -65,3 +65,61 @@ def test_names_match_gender():
         f = SlotFiller(c, CONFIG.details)
         assert f.values["CALLER_NAME"] in CONFIG.details.names[c.caller_gender]
         assert f.values["RECEIVER_NAME"] in CONFIG.details.names[c.receiver.gender]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "โอน 50,000 บาท",
+        "ค่าธรรมเนียม 5,000 บาท",
+        "เลข 1234",
+        "โทร 081.234.5678",
+        "โทร 081-234-5678",
+        "โทร 0812345678",
+        "ยอด 5 000 บาท",
+        "บัญชี 123-4-56789-0",
+        "ปี 2568",
+        "{PHONE} หรือ 1234 ก็ได้",
+    ],
+)
+def test_bare_numbers_are_flagged(line):
+    assert "number_without_slot" in filler().fill(line)[2]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "รอ 3 นาทีนะคะ",
+        "ภายใน 15 วัน",
+        "นัดเวลา 10.30 น.",
+        "ตอน 9.05 ค่ะ",
+        "มี 120 คน",
+        "รหัสคือ {OTP} ค่ะ",
+        "โทรมาที่ {PHONE}{OTP}",
+    ],
+)
+def test_small_numbers_times_and_slots_are_not_flagged(line):
+    assert "number_without_slot" not in filler().fill(line)[2]
+
+
+@pytest.mark.parametrize("line", ["รหัส {otp} ค่ะ", "รหัส {OTP2} ค่ะ", "รหัส {{OTP}} ค่ะ", "}", "{ORG"])
+def test_unfilled_braces_are_flagged(line):
+    text, _, problems = filler().fill(line)
+    assert "stray_brace" in problems
+
+
+def test_filled_slots_leave_no_brace():
+    assert filler().fill("รหัส {OTP} จาก {ORG}")[2] == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["สวัสดีครับ\nมีอะไรให้ช่วยครับ", "A: สวัสดีครับ", "B: ค่ะ", "  A : ค่ะ", "ค่ะ\r\nครับ"],
+)
+def test_a_line_must_be_one_line_without_a_speaker_tag(line):
+    assert "line_break" in filler().fill(line)[2]
+
+
+@pytest.mark.parametrize("line", ["สวัสดีครับ", "ผม A: ไม่ใช่", "Always ok", "ABC: x"])
+def test_ordinary_lines_are_not_line_breaks(line):
+    assert "line_break" not in filler().fill(line)[2]

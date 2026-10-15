@@ -25,8 +25,13 @@ SLOT_LABEL = {
     "MONEY": "MONEY",
 }
 SLOT_RE = re.compile(r"\{([A-Z_]+)\}")
-# A run of 5+ digits the model wrote itself instead of using a slot.
-_LOOSE_DIGITS = re.compile(r"\d[\d\- ]{3,}\d")
+# A number the model wrote itself instead of using a slot. The rule: 4 or more digits in a row
+# ("1234", "0812345678"), or digit groups joined by one , . - or space where each later group
+# has 3-4 digits, the way thousands, phone and account numbers are grouped ("50,000",
+# "5 000", "081.234.5678"). Small numbers ("3", "15") and times ("10.30": the second group has
+# 2 digits) are fine. A year such as 2568 counts as a bare number too.
+_LOOSE_DIGITS = re.compile(r"\d{4}|\d+(?:[,. -]\d{3,4})+")
+_LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its line
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
 
@@ -90,9 +95,14 @@ class SlotFiller:
             )
             text_len += len(value)
         pieces.append(raw[raw_pos:])
-        if _LOOSE_DIGITS.search(SLOT_RE.sub("", raw)):
+        if _LOOSE_DIGITS.search(SLOT_RE.sub("|", raw)):  # "|" keeps digits next to a slot apart
             problems.append("number_without_slot")
-        return "".join(pieces), spans, problems
+        text = "".join(pieces)
+        if "{" in text or "}" in text:  # {otp}, {OTP2}, {{OTP}}: a slot that did not fill
+            problems.append("stray_brace")
+        if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
+            problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
+        return text, spans, problems
 
 
 # ---- made-up values --------------------------------------------------------------------------

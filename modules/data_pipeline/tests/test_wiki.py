@@ -203,3 +203,51 @@ def test_seeded_pages_parse():
         for n in notes:
             assert n["tactics"] and n["active"] and n["published"] is None
             assert n["source"] == "general public warnings (seed example)"
+
+
+def test_sync_refuses_a_folder_with_no_pages(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    store.add_note("lottery", "Kept", ["t"], [])
+    elsewhere = tmp_path / "not_the_wiki"
+    elsewhere.mkdir()
+    (elsewhere / "notes.txt").write_text("hello", encoding="utf-8")
+    with pytest.raises(WikiError, match="not_the_wiki"):
+        sync(store, elsewhere)
+    assert [n["summary"] for n in store.notes("lottery")] == ["Kept"]
+
+
+def test_sync_keeps_the_notes_of_a_type_whose_page_is_missing(tmp_path, capsys):
+    store = Store(tmp_path / "calls.db")
+    wiki = tmp_path / "wiki"
+    add_note_to_page(wiki, "romance", note("From the page"))
+    store.add_note("lottery", "Only in the store", ["t"], [])
+
+    counts = sync(store, wiki)
+    assert [n["summary"] for n in store.notes("lottery")] == ["Only in the store"]
+    assert counts["lottery"] == {"notes": 1, "active": 1}
+    assert [n["summary"] for n in store.notes("romance")] == ["From the page"]
+    err = capsys.readouterr().err
+    assert "warning" in err and "lottery.md" in err and "kept the 1" in err
+
+
+def test_page_with_a_byte_order_mark_keeps_its_first_note(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    wiki = tmp_path / "wiki"
+    wiki.mkdir()
+    page = render_page("Romance", [note("First note"), note("Second note")])
+    body = page.split("\n\n", 1)[1]  # no title line: the BOM sits right before "## First note"
+    (wiki / "romance.md").write_bytes(b"\xef\xbb\xbf" + body.encode())
+
+    assert sync(store, wiki)["romance"]["notes"] == 2
+    assert {n["summary"] for n in store.notes("romance")} == {"First note", "Second note"}
+
+
+@pytest.mark.parametrize("value", ["2026-02-30", "2026-13-01", "0000-00-00", "2026-00-10"])
+def test_a_date_that_does_not_exist_is_rejected(value):
+    with pytest.raises(WikiError, match=r"p\.md:2: published must be"):
+        parse_page(f"## S\n- published: {value}\nTactics:\n- x\n", "p.md")
+
+
+def test_a_real_date_is_accepted():
+    (n,) = parse_page("## S\n- published: 2024-02-29\nTactics:\n- x\n")
+    assert n["published"] == "2024-02-29"

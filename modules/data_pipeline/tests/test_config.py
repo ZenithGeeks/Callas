@@ -85,3 +85,71 @@ def test_check_config_cli(cfg_dir, capsys):
     edit(cfg_dir, "agents.yaml", lambda d: d["judge"]["intended"].pop("benign"))
     assert main(["--check-config", "--config", str(cfg_dir)]) == 2
     assert "intended" in capsys.readouterr().err
+
+
+# ---- checks made when the config loads -------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["before", "start", "push", "last"])
+@pytest.mark.parametrize("text", ["turn {tern} of {turns}", "oops {", "empty {}", "stray }"])
+def test_pacing_text_must_format(cfg_dir, name, text):
+    edit(cfg_dir, "agents.yaml", lambda d: d["scam_caller"]["pacing"].update({name: text}))
+    with pytest.raises(ConfigError, match=f"pacing.{name}"):
+        load_config(cfg_dir)
+
+
+@pytest.mark.parametrize("name", ["stay", "free"])
+@pytest.mark.parametrize("text", ["turn {nope}", "of {turns}", "oops {"])
+def test_stage_text_must_format(cfg_dir, name, text):
+    edit(cfg_dir, "agents.yaml", lambda d: d["receiver"]["stage"].update({name: text}))
+    with pytest.raises(ConfigError, match=f"stage.{name}"):
+        load_config(cfg_dir)
+
+
+def test_a_pacing_text_with_both_fields_and_an_escaped_brace_loads(cfg_dir):
+    text = "turn {turn} of {turns} {{literal}}"
+    edit(cfg_dir, "agents.yaml", lambda d: d["scam_caller"]["pacing"].update(before=text))
+    assert load_config(cfg_dir).agents.scam_caller.pacing.before == text
+
+
+@pytest.mark.parametrize("age", [[5, 30], [40, 30], [20, 120], [9, 100]])
+def test_receiver_age_range_is_checked(cfg_dir, age):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["receivers"].update(age=age))
+    with pytest.raises(ConfigError, match="receivers.age"):
+        load_config(cfg_dir)
+
+
+def test_receiver_age_range_edges_load(cfg_dir):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["receivers"].update(age=[10, 100]))
+    assert load_config(cfg_dir).scenarios.receivers.age == (10, 100)
+
+
+def test_two_names_must_be_different(cfg_dir):
+    edit(cfg_dir, "details.yaml", lambda d: d["names"].update(male=["สมชาย", "สมชาย"]))
+    with pytest.raises(ConfigError, match="names.male needs at least 2 different"):
+        load_config(cfg_dir)
+
+
+def test_two_voices_must_be_different(cfg_dir):
+    edit(cfg_dir, "agents.yaml", lambda d: d["tts"]["voices"].update(male=["th_m_1", "th_m_1"]))
+    with pytest.raises(ConfigError, match="at least 2 voices"):
+        load_config(cfg_dir)
+
+
+def test_reveal_turn_must_leave_room_to_ask(cfg_dir):
+    # a 14-turn call gives the caller own turns 0-6; its last two are "make the ask now",
+    # so the latest reveal is turn 5. Reveal 6 can never be followed by an ask.
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 6]))
+    with pytest.raises(ConfigError, match=r"reveal_turn_fast has 6.*latest reveal turn there: 5"):
+        load_config(cfg_dir)
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 5]))
+    load_config(cfg_dir)
+
+
+def test_reveal_turn_is_checked_against_a_short_max_turns(cfg_dir):
+    def shorter(d):
+        d["calls"].update(max_turns=[6, 8], reveal_turn_slow=[3], reveal_turn_fast=[0, 1])
+
+    edit(cfg_dir, "scenarios.yaml", shorter)
+    with pytest.raises(ConfigError, match=r"reveal_turn_slow has 3"):
+        load_config(cfg_dir)

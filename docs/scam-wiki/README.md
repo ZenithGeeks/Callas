@@ -15,7 +15,7 @@ Any text here, before the first "##", is ignored.
 
 ## One-line summary of the pattern
 - source: URL or name of where you read it (may be empty)
-- published: 2026-01-31 (YYYY-MM-DD, may be empty)
+- published: 2026-01-31 (a real date, YYYY-MM-DD, may be empty; 2026-02-30 is refused)
 - active: yes
 
 Tactics:
@@ -36,6 +36,11 @@ Rules:
   `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY}` in phrases.
 - If a page cannot be read, `sync` stops and names the file and line. Nothing is changed in the
   store when any page fails.
+- Save pages as UTF-8. A byte order mark at the start of a file is accepted.
+- `sync` refuses a folder that has none of the five pages (`fake_authority.md`, `romance.md`,
+  `investment.md`, `phishing_otp.md`, `lottery.md`): it is probably the wrong folder, and
+  syncing it would delete every stored note. If one page is missing, `sync` keeps that type's
+  stored notes and prints a warning instead of deleting them.
 
 ## Workflow
 

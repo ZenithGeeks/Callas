@@ -8,6 +8,10 @@ turn, and `load()` rebuilds it from the tables, so a stopped run resumes from th
 
 WAL mode lets the generator write while the /dataset page reads. Each thread gets its own
 connection (sqlite3 connections must not be shared across threads).
+
+Not supported: two generator runs writing the same database at once. Each call is saved turn by
+turn and nothing locks a call, so two runs that reach the same call would write over each
+other's turns. Run one generator per database file (use --db to split work).
 """
 
 from __future__ import annotations
@@ -153,7 +157,11 @@ class Store:
     # ---- calls ----------------------------------------------------------------------------
 
     def save(self, record: dict) -> None:
-        """Write a whole call record (call row and all its turns) in one transaction."""
+        """Write a whole call record (call row and all its turns) in one transaction.
+
+        A new call gets the record's review block, but saving an existing call never changes
+        its review: a generator that saves a stale record must not undo a human's decision.
+        Use set_review to change it."""
         gen, review = record["generation"], record.get("review", {})
         timed = record.get("speaker_turns") or []
         stamp = now()
@@ -172,9 +180,7 @@ class Store:
                     judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
                     scam_start_from = excluded.scam_start_from,
                     reference_summary = excluded.reference_summary,
-                    audio_path = excluded.audio_path, review_status = excluded.review_status,
-                    review_note = excluded.review_note, reviewed_at = excluded.reviewed_at,
-                    updated_at = excluded.updated_at
+                    audio_path = excluded.audio_path, updated_at = excluded.updated_at
                 """,
                 (
                     record["id"],
@@ -353,6 +359,18 @@ class Store:
                         stamp,
                     ),
                 )
+
+    def note_counts(self, scam_type: str) -> tuple[int, int]:
+        """(all notes, active notes) stored for one scam type."""
+        row = (
+            self._conn()
+            .execute(
+                "SELECT COUNT(*), COALESCE(SUM(active), 0) FROM pattern_notes WHERE scam_type = ?",
+                (scam_type,),
+            )
+            .fetchone()
+        )
+        return int(row[0]), int(row[1])
 
     def set_note_active(self, note_id: int, active: bool) -> None:
         with self._tx() as db:

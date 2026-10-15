@@ -10,7 +10,7 @@ from dspy.utils import DummyLM
 from data_pipeline import simulate
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.simulate import record_id, run_call
+from data_pipeline.simulate import _scam_start, record_id, run_call
 from data_pipeline.store import Store
 
 CONFIG = load_config()
@@ -214,9 +214,11 @@ def test_receiver_gets_structured_persona(tmp_path):
     store = Store(tmp_path / "calls.db")
     run_call("phishing_otp", 1, store, agents, CONFIG)
     for kw in agents.receiver.calls:
-        assert isinstance(kw["persona"].occupation, str) and kw["persona"].occupation
-        assert isinstance(kw["persona"].region, str) and kw["persona"].region
-        assert isinstance(kw["persona"].age, int)
+        assert set(kw) == {"persona", "voice", "stage", "conversation"}
+        assert "key" not in kw["persona"]  # the profile key is not for the model
+        assert isinstance(kw["persona"]["occupation"], str) and kw["persona"]["occupation"]
+        assert isinstance(kw["persona"]["region"], str) and kw["persona"]["region"]
+        assert isinstance(kw["persona"]["age"], int)
         assert isinstance(kw["voice"], str) and kw["voice"]
 
 
@@ -243,3 +245,197 @@ def test_receiver_hears_its_own_name_as_the_slot(tmp_path):
     heard = agents.receiver.calls[0]["conversation"]
     assert "{RECEIVER_NAME}" in heard and name not in heard
     assert name in rec["text"]  # the stored call keeps the real name
+
+
+def test_receiver_persona_has_no_key_even_for_a_named_profile(tmp_path):
+    profile = CONFIG.scenarios.receivers.profiles[0]
+    assert profile.key
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG, receiver=profile)
+    persona = agents.receiver.calls[0]["persona"]
+    assert "key" not in persona and persona["occupation"] == profile.occupation
+
+
+# ---- resume, retries, ids ----------------------------------------------------------------
+
+
+class RateLimitError(Exception):
+    """Named like the errors DSPy raises for a rate limit, so the retry policy accepts it."""
+
+
+@pytest.fixture
+def fast_graph(monkeypatch):
+    """The call graph with retry waits of milliseconds instead of 5 s."""
+    graph = simulate.build_graph(simulate.retry_policy(initial_interval=0.001))
+    monkeypatch.setattr(simulate, "CALL_GRAPH", graph)
+
+
+@pytest.mark.parametrize("saved", [1, 3])
+def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, saved):
+    """After 1 or 3 saved turns the receiver is next; `plan` must route there."""
+    store = Store(tmp_path / "calls.db")
+    real_speak = simulate._speak
+    seen = {"n": 0}
+
+    def stop_after_saved(*a, **kw):
+        seen["n"] += 1
+        if seen["n"] == saved + 1:
+            raise KeyboardInterrupt
+        return real_speak(*a, **kw)
+
+    monkeypatch.setattr(simulate, "_speak", stop_after_saved)
+    first = make_agents(SCAM, REPLIES, judge(start=2))
+    with pytest.raises(KeyboardInterrupt):
+        run_call("phishing_otp", 1, store, first, CONFIG)
+    assert len(store.load(record_id("phishing_otp", 1))["generation"]["turns"]) == saved
+
+    monkeypatch.setattr(simulate, "_speak", real_speak)
+    callers_done, receivers_done = (saved + 1) // 2, saved // 2
+    second = make_agents(SCAM[callers_done:], REPLIES[receivers_done:], judge(start=2))
+    rec = run_call("phishing_otp", 1, store, second, CONFIG)
+    turns = rec["generation"]["turns"]
+    assert [t["speaker"] for t in turns] == ["A", "B", "A", "B", "A"]
+    assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
+    assert len(second.planner.calls) == 0  # the saved plan is kept
+
+
+def test_a_failed_save_inside_a_turn_does_not_add_the_turn_twice(tmp_path, fast_graph):
+    store = Store(tmp_path / "calls.db")
+    real_save = store.save
+    failures = []
+
+    def save_fails_once_on_the_receiver_turn(record):
+        if len(record["generation"]["turns"]) == 2 and not failures:
+            failures.append(1)
+            raise RateLimitError("try again")
+        real_save(record)
+
+    store.save = save_fails_once_on_the_receiver_turn
+    # the receiver is asked twice for its first answer: once before the failed save, once after
+    receiver = [REPLIES[0], REPLIES[0], REPLIES[1]]
+    agents = make_agents(SCAM, receiver, judge(start=2))
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+
+    assert failures == [1]
+    saved = store.load(record_id("phishing_otp", 1))
+    assert [t["speaker"] for t in saved["generation"]["turns"]] == ["A", "B", "A", "B", "A"]
+    assert saved["generation"]["turns"] == rec["generation"]["turns"]
+
+
+def test_a_key_error_in_a_node_is_not_retried(tmp_path, fast_graph):
+    class Boom:
+        calls = 0
+
+        def __call__(self, **kw):
+            Boom.calls += 1
+            raise KeyError("not a model problem")
+
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    agents.receiver = Boom()
+    with pytest.raises(KeyError):
+        run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert Boom.calls == 1
+
+
+def test_rate_limit_is_retried(tmp_path, fast_graph):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    real = agents.receiver
+
+    class Flaky:
+        calls = 0
+
+        def __call__(self, **kw):
+            Flaky.calls += 1
+            if Flaky.calls == 1:
+                raise RateLimitError("slow down")
+            return real(**kw)
+
+    agents.receiver = Flaky()
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert Flaky.calls == 3 and len(rec["generation"]["turns"]) == 5
+
+
+def test_which_errors_count_as_model_errors():
+    import httpx
+    import openai
+    from dspy.utils.exceptions import AdapterParseError
+
+    request = httpx.Request("POST", "http://llm.test")
+
+    def status(code):
+        response = httpx.Response(code, request=request)
+        return openai.APIStatusError("x", response=response, body=None)
+
+    parse = AdapterParseError(adapter_name="chat", signature=SIGNATURES["judge"], lm_response="?")
+    assert simulate.is_model_error(parse)
+    assert simulate.is_model_error(RateLimitError())
+    assert simulate.is_model_error(status(429)) and simulate.is_model_error(status(503))
+    assert not simulate.is_model_error(status(400))
+    for other in (KeyError("k"), ValueError("v"), RuntimeError("r"), ConfigError("c")):
+        assert not simulate.is_model_error(other)
+
+
+def sampled_with_a_named_profile(call_type="phishing_otp"):
+    for seed in range(200):
+        if simulate.sample_config(call_type, seed, CONFIG).receiver.key:
+            return seed
+    raise AssertionError("no seed drew a hand-written profile")
+
+
+def test_a_sampled_hand_written_profile_keeps_the_plain_id(tmp_path):
+    seed = sampled_with_a_named_profile()
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    store = Store(tmp_path / "calls.db")
+    rec = run_call("phishing_otp", seed, store, agents, CONFIG)
+    assert rec["id"] == f"phishing_otp_{seed:05d}"
+    assert store.exists(rec["id"])
+    assert rec["generation"]["call"]["receiver_override"] == ""
+
+
+def test_a_chosen_receiver_gets_its_own_id_and_a_resume_must_match(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    mine, other = CONFIG.scenarios.receivers.profiles[:2]
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    agents.scam_caller = Script([])  # no answers: the first caller turn fails, call stays open
+    with pytest.raises(IndexError):
+        run_call("phishing_otp", 1, store, agents, CONFIG, receiver=mine)
+    stored = store.load(f"phishing_otp_{mine.key}_00001")
+    assert stored["generation"]["status"] == "in_progress"
+    assert stored["generation"]["call"]["receiver_override"] == simulate.receiver_hash(mine)
+
+    again = make_agents(SCAM, REPLIES, judge(start=2))
+    changed = mine.model_copy(update={"age": 99})
+    with pytest.raises(ConfigError, match="different receiver"):
+        run_call("phishing_otp", 1, store, again, CONFIG, receiver=changed)
+    rec = run_call("phishing_otp", 1, store, again, CONFIG, receiver=mine)
+    assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
+
+
+# ---- where the scam starts ---------------------------------------------------------------
+
+
+def scam_record(asks, judge_at, reveal=2, holds=True):
+    """A record with turns A,B,A,B,A,B; `asks` are the turn indexes with asks_now set."""
+    turns = [{"speaker": "AB"[i % 2], "asks_now": i in asks} for i in range(6)]
+    return {
+        "id": "x",
+        "generation": {
+            "call": {"reveal_turn": reveal},
+            "turns": turns,
+            "judge": {"label_holds": holds, "scam_start_turn": judge_at},
+        },
+    }
+
+
+def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
+    # reveal turn 2 = speaker turn 4: an ask on turn 0 or 2 is too early, so the judge decides
+    assert _scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
+    assert _scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
+    assert _scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
+    assert _scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
+
+
+def test_the_judge_fallback_must_point_at_a_caller_turn():
+    assert _scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
+    assert _scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
+    assert _scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)

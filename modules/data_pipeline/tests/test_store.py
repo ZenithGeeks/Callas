@@ -204,3 +204,37 @@ def test_dated_notes_come_before_undated(tmp_path):
         "older report",
         "seed example",
     ]
+
+
+def test_saving_a_stale_record_does_not_undo_a_review(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    stale = make_record()  # the generator's copy, loaded before the review
+    store.save(stale)
+    store.set_review(stale["id"], "approved", "good call")
+    store.save(stale)  # the generator saves its old copy again
+    review = store.load(stale["id"])["review"]
+    assert review["status"] == "approved" and review["note"] == "good call"
+    assert review["reviewed_at"]
+
+
+def test_a_new_row_keeps_the_review_it_arrives_with(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record()
+    record["review"] = {
+        "status": "rejected",
+        "note": "robotic",
+        "reviewed_at": "2026-10-01T00:00:00",
+    }
+    store.save(record)
+    assert store.load(record["id"])["review"] == record["review"]
+
+
+def test_import_json_folder_keeps_reviews_of_new_rows(tmp_path):
+    folder = tmp_path / "old"
+    folder.mkdir()
+    record = make_record()
+    record["review"] = {"status": "approved", "note": "ok", "reviewed_at": "2026-10-01T00:00:00"}
+    (folder / f"{record['id']}.json").write_text(json.dumps(record), encoding="utf-8")
+    store = Store(tmp_path / "calls.db")
+    assert import_json_folder(store, folder) == (1, 0)
+    assert store.load(record["id"])["review"]["status"] == "approved"

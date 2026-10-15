@@ -71,6 +71,18 @@ class Agent(_Strict):
     lm: LMSettings = LMSettings()
 
 
+def _check_format(text: str, where: str, **values: int) -> None:
+    """The text must survive str.format with the values the simulator passes."""
+    try:
+        text.format(**values)
+    except (KeyError, IndexError, ValueError) as exc:
+        names = ", ".join("{" + name + "}" for name in values)
+        raise ValueError(
+            f"{where}: cannot be formatted ({type(exc).__name__}: {exc}); "
+            f"the only fields are {names}, and a literal brace is written {{{{ or }}}}"
+        ) from exc
+
+
 class Pacing(_Strict):
     """Scam caller pacing. {turn} and {turns} are filled in."""
 
@@ -78,6 +90,12 @@ class Pacing(_Strict):
     start: str  # on its reveal turn
     push: str  # after it
     last: str  # on its last two turns
+
+    @model_validator(mode="after")
+    def _formattable(self) -> Pacing:
+        for name in ("before", "start", "push", "last"):
+            _check_format(getattr(self, name), f"scam_caller.pacing.{name}", turn=1, turns=1)
+        return self
 
 
 class ScamCaller(Agent):
@@ -87,6 +105,13 @@ class ScamCaller(Agent):
 class ReceiverStage(_Strict):
     stay: str  # while it must stay on the line; {turn} is filled in
     free: str
+
+    @model_validator(mode="after")
+    def _formattable(self) -> ReceiverStage:
+        # simulate.stage passes only `turn`, so {turns} would fail there
+        for name in ("stay", "free"):
+            _check_format(getattr(self, name), f"receiver.stage.{name}", turn=1)
+        return self
 
 
 class Receiver(Agent):
@@ -124,7 +149,7 @@ class TTS(_Strict):
     @classmethod
     def _two_each(cls, v: dict[str, list[str]]) -> dict[str, list[str]]:
         for gender, ids in v.items():
-            if len(ids) < 2:  # caller and receiver of the same gender need different voices
+            if len(set(ids)) < 2:  # caller and receiver of the same gender need different voices
                 raise ValueError(f"tts.voices.{gender} needs at least 2 voices")
         return v
 
@@ -207,6 +232,16 @@ class Receivers(_Strict):
     speech: list[str] = Field(min_length=1)
 
     @model_validator(mode="after")
+    def _age_range(self) -> Receivers:
+        low, high = self.age
+        if not 10 <= low <= high <= 100:
+            raise ValueError(
+                f"receivers.age must be [low, high] with 10 <= low <= high <= 100, "
+                f"got {list(self.age)}"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _profiles_use_known_genders(self) -> Receivers:
         keys = [p.key for p in self.profiles]
         for i, profile in enumerate(self.profiles):
@@ -228,6 +263,13 @@ class Calls(_Strict):
     max_turns: tuple[int, int]  # both sides together
     caller_knows_name: float = Field(ge=0.0, le=1.0)
     min_turns: int = Field(4, ge=2)  # shorter calls are rejected
+
+
+def shortest_call(calls: Calls, reveal: int) -> int:
+    """Fewest speaker turns a call with this reveal turn can get (see scenarios.sample_config):
+    room for the reveal plus a few exchanges, within the configured length."""
+    low, high = calls.max_turns
+    return min(high, max(low, 2 * reveal + 4))
 
 
 class ScenariosFile(_Strict):
@@ -311,8 +353,8 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
         if missing := genders - set(keys):
             raise ConfigError(f"{where} has no entry for gender(s) {sorted(missing)}")
     for gender in genders:
-        if len(details.names[gender]) < 2:
-            raise ConfigError(f"details.yaml names.{gender} needs at least 2 names")
+        if len(set(details.names[gender])) < 2:  # the caller and receiver need different names
+            raise ConfigError(f"details.yaml names.{gender} needs at least 2 different names")
     unknown = set(scenarios.calls.slow_types) - set(SCAM_TYPES)
     unknown |= set(details.money.big_types) - set(CALL_TYPES)
     if unknown:
@@ -322,6 +364,20 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
         raise ConfigError(
             "scenarios.yaml calls.max_turns must be [low, high] with low >= min_turns"
         )
+    # The caller's last own turn is (turns - 1) // 2 (0-based) and pacing.last makes it ask on
+    # the turn before that, so the ask has to come at (turns - 1) // 2 - 1 at the latest, in the
+    # shortest call that reveal turn can get. Longer reveals make longer calls (shortest_call),
+    # so this only fails when max_turns[1] is too small for the reveal turn.
+    for name in ("reveal_turn_slow", "reveal_turn_fast"):
+        for reveal in getattr(scenarios.calls, name):
+            turns = shortest_call(scenarios.calls, reveal)
+            latest = (turns - 1) // 2 - 1
+            if reveal > latest:
+                raise ConfigError(
+                    f"scenarios.yaml calls.{name} has {reveal}, but the shortest call it can get "
+                    f"({turns} turns) leaves the caller no turn to ask after it "
+                    f"(latest reveal turn there: {latest}); raise max_turns or lower it"
+                )
 
 
 def load_config(folder: Path | str | None = None) -> Config:

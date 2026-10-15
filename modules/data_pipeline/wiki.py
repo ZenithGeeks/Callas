@@ -24,6 +24,8 @@ Page format (see docs/scam-wiki/README.md):
 from __future__ import annotations
 
 import re
+import sys
+from datetime import date
 from pathlib import Path
 
 from nlp_core.types import SCAM_TYPES
@@ -45,6 +47,7 @@ _KEY = re.compile(r"^(source|published|active)\s*:\s*(.*)$", re.IGNORECASE)
 _SECTION = re.compile(r"^(tactics|phrases)\s*:\s*$", re.IGNORECASE)
 _ACTIVE_LINE = re.compile(r"^(\s*[-*]\s*active\s*:).*$", re.IGNORECASE)
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ENCODING = "utf-8-sig"  # pages saved by Windows editors may start with a BOM
 _YES = {"yes", "true", "1", "y"}
 _NO = {"no", "false", "0", "n"}
 
@@ -113,7 +116,7 @@ def parse_page(text: str, name: str = "<page>") -> list[dict]:
         if field == "source":
             current["source"] = value
         elif field == "published":
-            if value and not _DATE.match(value):
+            if value and not _is_date(value):
                 raise _fail(name, number, f"published must be YYYY-MM-DD or empty, got: {value}")
             current["published"] = value or None
         else:
@@ -123,6 +126,17 @@ def parse_page(text: str, name: str = "<page>") -> list[dict]:
             current["active"] = word in _YES
     close()
     return notes
+
+
+def _is_date(value: str) -> bool:
+    """A real calendar date written YYYY-MM-DD (2026-02-30 is not)."""
+    if not _DATE.match(value):
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _one_line(value: str) -> str:
@@ -174,7 +188,7 @@ def read_wiki(folder: Path | str = DEFAULT_WIKI) -> dict[str, list[dict]]:
     wiki = {}
     for scam_type in SCAM_TYPES:
         path = page_path(folder, scam_type)
-        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        text = path.read_text(encoding=ENCODING) if path.exists() else ""
         wiki[scam_type] = parse_page(text, path.as_posix())
     return wiki
 
@@ -185,7 +199,7 @@ def add_note_to_page(folder: Path | str, scam_type: str, note: dict) -> Path:
     section = _render_note(note)
     parse_page(section, "<new note>")  # refuse a note the parser would reject later
     if path.exists():
-        text = path.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + section
+        text = path.read_text(encoding=ENCODING).rstrip("\n") + "\n\n" + section
     else:
         text = render_page(TITLES[scam_type], []) + "\n" + section
     _write(path, text.rstrip("\n") + "\n")
@@ -199,7 +213,7 @@ def set_active(folder: Path | str, scam_type: str, number: int, active: bool) ->
     """
     path = page_path(folder, scam_type)
     name = path.as_posix()
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding=ENCODING)
     notes = parse_page(text, name)
     if not 1 <= number <= len(notes):
         raise ValueError(f"{name} has {len(notes)} notes; there is no note {number}")
@@ -225,12 +239,27 @@ def sync(
     """Make the store's notes for each type match its page exactly.
 
     Every page is parsed before the store is touched, so a mistake in one page changes
-    nothing. Returns {scam_type: {"notes": total, "active": active}}.
+    nothing. A folder with none of the five pages is refused (it is probably the wrong
+    folder, and syncing would delete every note). A type whose page is missing keeps the
+    notes it has, with a warning, instead of losing them.
+    Returns {scam_type: {"notes": total, "active": active}}.
     """
+    folder = Path(folder)
     wiki = read_wiki(folder)
+    if not any(page_path(folder, t).exists() for t in SCAM_TYPES):
+        names = ", ".join(f"{t}.md" for t in SCAM_TYPES)
+        raise WikiError(f"{folder} has none of the wiki pages ({names}); is this the right folder?")
     counts = {}
     for scam_type in scam_types:
-        notes = wiki[scam_type]
-        store.replace_notes(scam_type, notes)
-        counts[scam_type] = {"notes": len(notes), "active": sum(n["active"] for n in notes)}
+        if not page_path(folder, scam_type).exists() and store.note_counts(scam_type)[0]:
+            kept = store.note_counts(scam_type)[0]
+            print(
+                f"warning: {page_path(folder, scam_type).as_posix()} is missing; "
+                f"kept the {kept} stored {scam_type} notes",
+                file=sys.stderr,
+            )
+        else:
+            store.replace_notes(scam_type, wiki[scam_type])
+        total, active = store.note_counts(scam_type)
+        counts[scam_type] = {"notes": total, "active": active}
     return counts

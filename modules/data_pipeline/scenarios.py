@@ -11,7 +11,15 @@ from __future__ import annotations
 import random
 from dataclasses import asdict, dataclass
 
-from .config import BENIGN, CALL_TYPES, Config, ReceiverProfile, Receivers, Scenario
+from .config import (
+    BENIGN,
+    CALL_TYPES,
+    Config,
+    ReceiverProfile,
+    Receivers,
+    Scenario,
+    shortest_call,
+)
 
 __all__ = ["BENIGN", "CALL_TYPES", "CallConfig", "ReceiverProfile", "sample_config"]
 
@@ -60,7 +68,7 @@ def sample_config(
     calls = scenarios.calls
     slow = call_type in calls.slow_types
     reveal = rng.choice(calls.reveal_turn_slow if slow else calls.reveal_turn_fast)
-    low, high = calls.max_turns
+    high = calls.max_turns[1]
     return CallConfig(
         call_type=call_type,
         seed=seed,
@@ -69,7 +77,7 @@ def sample_config(
         caller_gender=rng.choice(pool.genders),
         caller_knows_name=rng.random() < calls.caller_knows_name,
         # room for the reveal turn plus a few exchanges after it
-        max_turns=rng.randint(min(high, max(low, 2 * reveal + 4)), high),
+        max_turns=rng.randint(shortest_call(calls, reveal), high),
         reveal_turn=reveal,
     )
 

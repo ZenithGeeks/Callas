@@ -37,6 +37,7 @@ dspy = [
 ]
 # Simulated calls (data_pipeline). VachanaTTS2 voices: see modules/data_pipeline/README.md.
 data = [
+    "dspy>=3.4",
     "pyyaml>=6",
     "pythaitts>=0.6",
     "pythainlp>=5.0",

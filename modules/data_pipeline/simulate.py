@@ -25,6 +25,9 @@ Naming: `call` is the CallConfig of one call (scenarios.py); `config` is the loa
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -33,6 +36,8 @@ from pathlib import Path
 from typing import Any, Literal, TypedDict
 
 import dspy
+import openai
+from dspy.utils.exceptions import AdapterParseError
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import RetryPolicy
@@ -52,15 +57,34 @@ log = logging.getLogger("data_pipeline")
 
 CALLER, RECEIVER = "A", "B"  # speaker ids in the record; the caller always speaks first
 
-# A malformed answer or a rate limit is retried by LangGraph with waits of 5, 15 and 45 s.
-# A server that is down (LLMUnavailable) or a config problem is not retried: the run stops.
-MODEL_RETRY = RetryPolicy(
-    max_attempts=4,
-    initial_interval=5.0,
-    backoff_factor=3.0,
-    max_interval=120.0,
-    retry_on=lambda exc: not isinstance(exc, (LLMUnavailable, ConfigError)),
-)
+
+def is_model_error(exc: BaseException) -> bool:
+    """True for a failure that comes from the model's answer or from rate limiting: a reply
+    DSPy could not parse, or a 429 / 5xx answer. Anything else (a bug, a bad config, a store
+    error) is not the model's fault, so it is neither retried nor blamed on the model."""
+    if isinstance(exc, (AdapterParseError, openai.RateLimitError)):
+        return True
+    if isinstance(exc, openai.APIStatusError) and (
+        exc.status_code == 429 or exc.status_code >= 500
+    ):
+        return True
+    # DSPy wraps rate limits in its own classes (LMRateLimitError, lm15.RateLimitError)
+    return any("RateLimit" in cls.__name__ for cls in type(exc).__mro__)
+
+
+def retry_policy(initial_interval: float = 5.0) -> RetryPolicy:
+    """A malformed answer or a rate limit is retried by LangGraph with waits of 5, 15 and 45 s.
+    Everything else fails at once, and a call that stopped halfway resumes from the store."""
+    return RetryPolicy(
+        max_attempts=4,
+        initial_interval=initial_interval,
+        backoff_factor=3.0,
+        max_interval=120.0,
+        retry_on=is_model_error,
+    )
+
+
+MODEL_RETRY = retry_policy()
 
 
 # ---- one call --------------------------------------------------------------------------------
@@ -84,7 +108,7 @@ def run_call(
     store's folder.
     """
     call = sample_config(call_type, seed, config, receiver)
-    record = _open_record(store, call, config, agents)
+    record = _open_record(store, call, config, agents, receiver)
     if record["generation"]["status"] != "in_progress":
         return record
     context = SimContext(
@@ -109,7 +133,29 @@ def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
     return f"{call_type}{middle}_{seed:05d}"
 
 
-def new_record(call: CallConfig, config: Config, agents: Agents) -> dict[str, Any]:
+def call_id(call_type: str, seed: int, receiver: ReceiverProfile | None = None) -> str:
+    """The id of a call. The receiver's key is part of it only when the receiver was chosen
+    by hand (--receiver, --receiver-file); a sampled receiver, even a hand-written profile the
+    sampler drew, does not change the id."""
+    return record_id(call_type, seed, receiver.key if receiver else "")
+
+
+def receiver_hash(receiver: ReceiverProfile | None) -> str:
+    """Short hash of a hand-chosen receiver's fields, "" when the receiver was sampled."""
+    if receiver is None:
+        return ""
+    text = json.dumps(receiver.model_dump(), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(text.encode()).hexdigest()[:10]
+
+
+def new_record(
+    call: CallConfig,
+    config: Config,
+    agents: Agents,
+    receiver: ReceiverProfile | None = None,
+) -> dict[str, Any]:
+    """`receiver` is the hand-chosen receiver, if any: it decides the id and is remembered
+    (as a hash in generation.call) so a resume can tell it from a different one."""
     caller_voice, receiver_voice = pick_voices(
         config.agents.tts.voices,
         call.caller_gender,
@@ -117,7 +163,7 @@ def new_record(call: CallConfig, config: Config, agents: Agents) -> dict[str, An
         f"{call.call_type}:{call.seed}",
     )
     return {
-        "id": record_id(call.call_type, call.seed, call.receiver.key),
+        "id": call_id(call.call_type, call.seed, receiver),
         "channel": "call",
         "text": "",
         "audio_path": None,
@@ -136,7 +182,7 @@ def new_record(call: CallConfig, config: Config, agents: Agents) -> dict[str, An
             "config_hash": config.hash,
             "models": agents.models(),
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "call": call.to_dict(),
+            "call": {**call.to_dict(), "receiver_override": receiver_hash(receiver)},
             "voices": {CALLER: caller_voice, RECEIVER: receiver_voice},
             "briefing": None,
             "turns": [],
@@ -147,17 +193,34 @@ def new_record(call: CallConfig, config: Config, agents: Agents) -> dict[str, An
     }
 
 
-def _open_record(store: Store, call: CallConfig, config: Config, agents: Agents) -> dict:
-    """The stored call to resume, or a new one. A half-done call needs its original config."""
-    call_id = record_id(call.call_type, call.seed, call.receiver.key)
-    record = store.load(call_id)
+def _open_record(
+    store: Store,
+    call: CallConfig,
+    config: Config,
+    agents: Agents,
+    receiver: ReceiverProfile | None = None,
+) -> dict:
+    """The stored call to resume, or a new one. A half-done call needs its original config
+    and the same hand-chosen receiver (or none) it was started with."""
+    wanted_id = call_id(call.call_type, call.seed, receiver)
+    record = store.load(wanted_id)
     if record is None:
-        return new_record(call, config, agents)
-    made_with = record["generation"].get("config_hash")
-    if record["generation"]["status"] == "in_progress" and made_with != config.hash:
+        return new_record(call, config, agents, receiver)
+    generation = record["generation"]
+    if generation["status"] != "in_progress":
+        return record
+    made_with = generation.get("config_hash")
+    if made_with != config.hash:
         raise ConfigError(
-            f"{call_id} was started with config {made_with}, not {config.hash}; "
+            f"{wanted_id} was started with config {made_with}, not {config.hash}; "
             "finish it with the old config, or delete it from the store"
+        )
+    stored = generation["call"].get("receiver_override", "")
+    if stored != receiver_hash(receiver):
+        raise ConfigError(
+            f"{wanted_id} was started with a different receiver profile "
+            f"(stored {stored or 'none'}, now {receiver_hash(receiver) or 'none'}); "
+            "use the original receiver, or delete the call from the store"
         )
     return record
 
@@ -256,7 +319,8 @@ def _receiver_says(
     own_turn = len(turns) // 2
     with dspy.context(lm=agents.lms["receiver"]):
         return agents.receiver(
-            persona=call.receiver,
+            # the profile key is for choosing a profile on the command line, not for the model
+            persona=call.receiver.model_dump(exclude={"key"}),
             voice=config.agents.speakers.voice[call.receiver.gender],
             stage=stage(config, own_turn),
             conversation=_receiver_view(turns, call, config),
@@ -424,15 +488,25 @@ def _scam_start(record: dict) -> tuple[int | None, str | None]:
     the judge reads the whole call. The source is kept so the two can be compared later.
     """
     turns = record["generation"]["turns"]
-    flagged = next(
-        (i for i, turn in enumerate(turns) if turn["speaker"] == CALLER and turn["asks_now"]),
-        None,
-    )
+    reveal = record["generation"]["call"]["reveal_turn"]
+    flagged = None
+    for i, turn in enumerate(turns):
+        if turn["speaker"] != CALLER or not turn["asks_now"]:
+            continue
+        if i // 2 < reveal:  # the plan forbids asking before the reveal turn: not a scam move
+            log.warning(
+                "%s turn %d: asks_now before reveal turn %d, ignored", record["id"], i, reveal
+            )
+            continue
+        flagged = i
+        break
     if flagged is not None:
         return flagged, "caller"
     judge = record["generation"]["judge"]
-    if judge["label_holds"] and 0 <= judge["scam_start_turn"] < len(turns):
-        return judge["scam_start_turn"], "judge"
+    at = judge["scam_start_turn"]
+    # the judge must point at a caller turn: the receiver never makes a scam move
+    if judge["label_holds"] and 0 <= at < len(turns) and turns[at]["speaker"] == CALLER:
+        return at, "judge"
     return None, None
 
 
@@ -490,11 +564,25 @@ def plan_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
 
 
 def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Add one turn (caller or receiver, by turn order), speak it, save the call."""
-    ctx, record = runtime.context, state["record"]
+    """Add one turn (caller or receiver, by turn order), speak it, save the call.
+
+    Safe to retry: the turn is built first, from the record as it was; only then is it added to
+    a copy of the record, which becomes the new state once the node returns. If anything after
+    the model answer fails and LangGraph runs the node again, the state still has the old
+    turns, so a turn is never added twice or given the wrong speaker."""
+    ctx = runtime.context
+    old = state["record"]["generation"]
+    turn = _next_turn(
+        ctx.agents,
+        ctx.call,
+        ctx.config,
+        old["turns"],
+        ctx.filler,
+        (old["briefing"] or {}).get("plan", []),
+    )
+    record = copy.deepcopy(state["record"])
     turns = record["generation"]["turns"]
-    plan = (record["generation"]["briefing"] or {}).get("plan", [])
-    turns.append(_next_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan))
+    turns.append(turn)
     if ctx.voices is not None:
         _speak_turn(ctx.voices, record, len(turns) - 1, ctx.store.folder)
     ctx.store.save(record)
@@ -519,16 +607,19 @@ def next_step(
     return "caller" if len(turns) % 2 == 0 else "receiver"
 
 
-def build_graph():
+def build_graph(retry: RetryPolicy = MODEL_RETRY):
     graph = StateGraph(SimState, context_schema=SimContext)
-    graph.add_node("plan", plan_node, retry_policy=MODEL_RETRY)
-    graph.add_node("caller", turn_node, retry_policy=MODEL_RETRY)
-    graph.add_node("receiver", turn_node, retry_policy=MODEL_RETRY)
-    graph.add_node("finish", finish_node, retry_policy=MODEL_RETRY)
+    graph.add_node("plan", plan_node, retry_policy=retry)
+    graph.add_node("caller", turn_node, retry_policy=retry)
+    graph.add_node("receiver", turn_node, retry_policy=retry)
+    graph.add_node("finish", finish_node, retry_policy=retry)
     graph.add_edge(START, "plan")
     # Each node lists only the moves it can make, so the drawing shows the real call and a
     # routing mistake fails loudly instead of taking a wrong turn.
-    graph.add_conditional_edges("plan", next_step, {"caller": "caller", "finish": "finish"})
+    # plan can lead to any of them: a resumed call goes straight to whoever speaks next
+    graph.add_conditional_edges(
+        "plan", next_step, {"caller": "caller", "receiver": "receiver", "finish": "finish"}
+    )
     graph.add_conditional_edges("caller", next_step, {"receiver": "receiver", "finish": "finish"})
     graph.add_conditional_edges("receiver", next_step, {"caller": "caller", "finish": "finish"})
     graph.add_edge("finish", END)

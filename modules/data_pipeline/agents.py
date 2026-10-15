@@ -16,7 +16,7 @@ from typing import Any
 
 import dspy
 
-from .config import Agent, Config, ConfigError, ReceiverProfile
+from .config import Agent, Config, ConfigError
 
 # Docstrings are placeholders: the real instructions are set from agents.yaml.
 
@@ -55,7 +55,7 @@ class LegitCallerTurn(dspy.Signature):
 class ReceiverTurn(dspy.Signature):
     """(set from agents.yaml: receiver.instructions)"""
 
-    persona: ReceiverProfile = dspy.InputField()
+    persona: dict = dspy.InputField()  # a ReceiverProfile as a dict, without its key
     voice: str = dspy.InputField()
     stage: str = dspy.InputField()
     conversation: str = dspy.InputField()

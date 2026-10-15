@@ -25,6 +25,7 @@ Each call is a LangGraph graph (`simulate.build_graph`). The drawing below comes
 graph TD;
 	__start__([start]) --> plan;
 	plan -.-> caller;
+	plan -.-> receiver;
 	plan -.-> finish;
 	caller -.-> receiver;
 	caller -.-> finish;
@@ -38,8 +39,13 @@ graph TD;
 - The dotted edges are one routing function, `next_step`: whose turn it is, or `finish` when
   someone hung up or the call reached its length.
 - `finish`: builds the text, joins the audio, asks the judge, sets accepted or rejected.
-- A malformed model answer or a rate limit is retried by LangGraph's `RetryPolicy` (waits of 5,
-  15 and 45 s). A server that is down stops the run.
+- Only errors that come from the model are retried by LangGraph's `RetryPolicy` (waits of 5, 15
+  and 45 s): a reply DSPy cannot parse, and rate limits or 5xx answers (`simulate.is_model_error`).
+  A bug or a store error fails at once and leaves the call unfinished. A server that is down
+  stops the run.
+- `plan` can lead to `caller`, `receiver` or `finish`, because a resumed call may be waiting for
+  either speaker. A turn is built before it is added to the record, so a retry after a failed
+  save never adds it twice.
 
 The agents, the store and the config reach the nodes as LangGraph run context
 (`context_schema`), not as state. The graph has no checkpointer: every node saves the call to
@@ -55,6 +61,15 @@ python -m data_pipeline.synthesize --check-config --config my_cfg/   # check a c
 python -m data_pipeline.synthesize --export data/synthetic/calls.jsonl --approved-only
 ```
 
+Press Ctrl-C to stop: queued calls are cancelled, calls already running stop after their
+current turn, and the command prints `stopped by user; rerun to resume` and exits with a non-zero
+code. Every turn is saved, so the same command resumes. A rerun also skips finished calls, says how
+many it skipped, and warns if any were made with a different config than the current one.
+
+Do not run two commands that write the same database at the same time (two `synthesize` runs
+with the same `--db`, say). Calls are not locked, so both would work on the same call and write
+over each other's turns. Give each run its own `--db`.
+
 Calls go into one SQLite file, `data/synthetic/calls.db` (gitignored; `--db` picks another),
 with audio in `data/synthetic/audio/`. Run from the repo root. `--export` writes the accepted
 calls as JSON lines in the spec's schema, for build_dataset; `--approved-only` keeps the ones a
@@ -68,7 +83,8 @@ saved in the store. Set `CALLAS_DATASET_DB` to review another database.
 ## Choose who answers
 
 By default each call samples a receiver (see `receivers` in `config/scenarios.yaml`), and
-`profile_share` of calls use one of the people written out under `profiles`. To have every call
+`profile_share` of calls use one of the people written out under `profiles` (these keep the plain
+call id). To have every call
 in a run answered by one person:
 
 ```
@@ -94,8 +110,13 @@ ending: ends the call politely
 speech: polite, a little tired
 ```
 
-A call with a chosen receiver gets its own id (`romance_nurse_kk_00003`), so it never replaces
-the sampled call for the same seed.
+A call with a receiver chosen this way gets its own id (`romance_nurse_kk_00003`), so it never
+replaces the sampled call for the same seed. A sampled call keeps the plain id
+(`romance_00003`) even when the sampler drew one of the written-out profiles. The `key` in a
+`--receiver-file` must not be a key already used in `scenarios.yaml`. The chosen receiver is
+remembered as a short hash in the call (`generation.call.receiver_override`); a half-done call
+will not resume with a different receiver, so use the same `--receiver` or `--receiver-file`
+again, or delete the call. The receiver agent never sees the `key`.
 
 ## Change how the agents behave
 
@@ -115,8 +136,12 @@ To try a variant without touching the default:
 4. Generate into its own folder: `--config my_cfg --out data/synthetic/my_cfg`
 
 The loader refuses a config that would break the run: an unknown key, a renamed field under
-`fields`, a slot that does not exist (`{ADDRESS}`), a missing scam type, or a gender with fewer
-than two voices. Every record stores the config name and a hash of its content, and a run will
+`fields`, a slot that does not exist (`{ADDRESS}`), a missing scam type, a gender with fewer than
+two different voices or names, a pacing or stage text that `str.format` cannot fill (only `{turn}`
+and `{turns}` exist; stage texts only `{turn}`; write a literal brace as `{{`), a receiver age range
+that is not `[low, high]` within 10-100, or a reveal turn that no call can fit. The last rule:
+the shortest call a reveal turn can get (`2 * reveal + 4` turns, within `max_turns`) has the caller's
+last own turn at `(turns - 1) // 2`, and the ask must come one turn before that at the latest. Every record stores the config name and a hash of its content, and a run will
 not resume a call that was started with a different config.
 
 Before you edit:
@@ -135,14 +160,25 @@ Before you edit:
 A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 
 - it has fewer turns than `calls.min_turns`
-- an agent wrote an unknown slot or a bare number
+- an agent wrote an unknown slot (`unknown_slot:NAME`)
+- a line has a number the agent wrote itself (`number_without_slot`): 4 or more digits in a row,
+  or digit groups joined by `,` `.` `-` or a space with 3-4 digits after the first group
+  (`50,000`, `5 000`, `081.234.5678`). Small numbers (`3`, `15`) and times (`10.30`) are fine
+- a slot is left unfilled, so `{` or `}` is in the line (`stray_brace`: `{otp}`, `{OTP2}`, `{{OTP}}`)
+- a line has a line break or starts with `A:` or `B:` (`line_break`)
 - a tone mark comes before a vowel
 - the judge says it does not show the intended call, or that it names the label outright
 - a scam call has no scam move
 - the judge finds a scam in a normal call
 
-The scam start turn is the caller agent's own flag. When the caller did not flag one, the
-judge's answer is used, and `generation.scam_start_from` says which.
+The scam start turn is the caller agent's own flag. A flag on a turn before the call's reveal
+turn is ignored (the plan forbids asking then). When the caller did not flag one, the judge's
+answer is used if it points at a caller turn, and `generation.scam_start_from` says which.
+
+If the model keeps failing after the retries (an unparsable answer, rate limits), the call is
+marked `rejected` with `llm_error:<Name>`. Any other error (a bug, a store error) leaves the call
+unfinished: the command prints the call id and the error, counts it as `error` in the summary,
+exits with code 1, and the next run resumes the call.
 
 The judge's 1-5 "sounds natural" score is shown but does not reject calls: in testing it
 reported spelling errors in correctly spelled words.
