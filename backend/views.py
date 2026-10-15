@@ -8,7 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-SENSITIVE_LABELS = frozenset({"PHONE", "BANK_ACCOUNT", "OTP", "MONEY", "URL"})
+SENSITIVE_LABELS = frozenset(
+    {"PHONE", "BANK_ACCOUNT", "OTP", "MONEY", "URL", "ID_CARD", "BIRTH_DATE", "ADDRESS"}
+)
 HIGH_CONFIDENCE = 0.7  # same number as tts_voice_agent.constants.ESCALATE_THRESHOLD
 
 TYPE_NAMES: dict[str | None, str] = {
@@ -29,7 +31,7 @@ MESSAGE_INSTRUCTIONS: dict[str | None, str] = {
     None: "Do not reply, open links or send anything.",
 }
 
-LABEL_TEXT = {"BANK_ACCOUNT": "BANK ACCOUNT"}
+LABEL_TEXT = {"BANK_ACCOUNT": "BANK ACCOUNT", "ID_CARD": "ID CARD", "BIRTH_DATE": "BIRTH DATE"}
 
 
 def type_name(label_type: str | None) -> str:

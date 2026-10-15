@@ -188,6 +188,8 @@ def _export(store: Store, path: Path, approved_only: bool) -> int:
             if approved_only and record["review"]["status"] != "approved":
                 continue
             plain = {k: v for k, v in record.items() if k not in ("generation", "review")}
+            plain["receiver_leaked"] = record["generation"].get("receiver_leaked", [])
+            plain["first_leak_turn"] = record["generation"].get("first_leak_turn")
             out.write(json.dumps(plain, ensure_ascii=False) + "\n")
             written += 1
     return written

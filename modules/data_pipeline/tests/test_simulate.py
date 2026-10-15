@@ -439,3 +439,89 @@ def test_the_judge_fallback_must_point_at_a_caller_turn():
     assert _scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
     assert _scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
     assert _scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
+
+
+# ---- the receiver gives away its own details ---------------------------------------------
+
+LEAKY = [
+    dict(line="ค่ะ มีอะไรคะ", end_call=False),
+    dict(line="รหัส {OTP} ค่ะ บัตรประชาชน {ID_CARD} ค่ะ", end_call=False),
+]
+
+
+def test_receiver_leaks_are_recorded_by_code(tmp_path):
+    agents = make_agents(SCAM, LEAKY, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    turns = rec["generation"]["turns"]
+    assert [t["leaked"] for t in turns] == [[], [], [], ["OTP", "ID_CARD"], []]
+    assert rec["generation"]["receiver_leaked"] == ["ID_CARD", "OTP"]
+    assert rec["generation"]["first_leak_turn"] == 3
+    labels = {e["label"] for t in turns[3:4] for e in t["entities"]}
+    assert labels == {"OTP", "ID_CARD"}
+    assert Store(tmp_path / "calls.db").load(rec["id"]) == rec
+
+
+def test_a_call_without_leaks_records_none(tmp_path):
+    quiet = [dict(line="ค่ะ มีอะไรคะ", end_call=False), dict(line="ไม่ให้ค่ะ", end_call=False)]
+    agents = make_agents(SCAM, quiet, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert rec["generation"]["receiver_leaked"] == []
+    assert rec["generation"]["first_leak_turn"] is None
+
+
+def test_only_receiver_turns_count_as_leaks(tmp_path):
+    caller = [
+        dict(line="เบอร์คุณ {RECEIVER_PHONE} ใช่ไหมครับ {OTP}", asks_now=False, end_call=False),
+        dict(line="บัญชี {RECEIVER_ACCOUNT} ใช่ไหมครับ", asks_now=True, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    quiet = [dict(line="ค่ะ {RECEIVER_NAME} พูดค่ะ {PHONE}", end_call=False)] * 2
+    agents = make_agents(caller, quiet, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert rec["generation"]["receiver_leaked"] == []
+    assert rec["generation"]["first_leak_turn"] is None
+    assert all(t["leaked"] == [] for t in rec["generation"]["turns"])
+
+
+def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
+    agents = make_agents(SCAM, LEAKY, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    call = simulate.sample_config("phishing_otp", 1, CONFIG)
+    id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
+    turns = rec["generation"]["turns"]
+    assert id_card in turns[3]["text"]
+    view = simulate._receiver_view(turns, call, CONFIG)
+    assert "{ID_CARD}" in view and id_card not in view
+
+
+# ---- a caller does not know the receiver's own details -------------------------------------
+
+
+def test_a_caller_using_a_receiver_only_slot_is_flagged_and_rejected(tmp_path):
+    caller = [dict(d) for d in SCAM]
+    caller[1] = dict(line="บัญชี {RECEIVER_ACCOUNT} ใช่ไหมครับ", asks_now=True, end_call=False)
+    agents = make_agents(caller, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    turns = rec["generation"]["turns"]
+    assert "caller_used_receiver_slot" not in turns[0]["problems"]
+    assert "caller_used_receiver_slot" in turns[2]["problems"]
+    assert rec["generation"]["status"] == "rejected"
+    assert "caller_used_receiver_slot" in rec["generation"]["reasons"]
+
+
+def test_a_caller_may_use_the_receivers_name(tmp_path):
+    greet = dict(line="สวัสดีครับ คุณ{RECEIVER_NAME}", asks_now=False, end_call=False)
+    agents = make_agents([greet, *SCAM[1:]], REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert rec["generation"]["turns"][0]["problems"] == []
+
+
+def test_the_prompts_list_the_receiver_slots_only_for_the_receiver():
+    from data_pipeline.fill import RECEIVER_ONLY_SLOTS
+
+    agents = CONFIG.agents
+    for slot in RECEIVER_ONLY_SLOTS:
+        for caller in (agents.scam_caller, agents.legit_caller):
+            assert "{" + slot + "}" not in caller.fields["line"]
+        assert "{" + slot + "}" in agents.receiver.instructions
+    assert "{RECEIVER_NAME}" in agents.scam_caller.fields["line"]

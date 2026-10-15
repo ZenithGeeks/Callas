@@ -45,7 +45,7 @@
     </div>
     <div>
       <dt>Judge</dt>
-      {% if j %}
+      {% if j and not j.skipped %}
       <dd>{{ 'Shows the call' if j.label_holds else 'Does not show it' }}</dd>
       <dd class="facts-note">Natural score {{ j.natural_thai }} / 5 (not used to reject)</dd>
       {% else %}
@@ -111,10 +111,16 @@
                 </button>
                 {% endif %}
               </div>
-              {% if t.flags %}
+              {% if t.flags or t.leak_tag %}
               <ul class="msg-flags">
+                {% if t.leak_tag %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">{{ t.leak_tag }}</li>{% endif %}
                 {% for f in t.flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
               </ul>
+              {% endif %}
+              {% if t.spoken or t.prompt_tokens %}
+              <p class="mt-1 text-[14px] tabular-nums text-muted" lang="th">
+                {% if t.spoken %}Spoken: {{ t.spoken }}{% endif %}{% if t.spoken and t.prompt_tokens %} · {% endif %}{% if t.prompt_tokens %}<span lang="en">Prompt about {{ t.prompt_tokens }} tokens</span>{% endif %}
+              </p>
               {% endif %}
               {% if t.reasoning %}
               <details class="why msg-why">
