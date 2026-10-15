@@ -1,4 +1,4 @@
-"""Thai speech with PyThaiTTS (FastThaiG2P engine). The model loads once, on first use."""
+"""Thai speech with PyThaiTTS (FastThaiG2P engine). Each Speaker loads the model on first use."""
 
 from __future__ import annotations
 

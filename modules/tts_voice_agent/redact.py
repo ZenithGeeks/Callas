@@ -23,6 +23,7 @@ from .leak import (
     SPOKEN_THAI_RUN,
     STRIP_FOR_COMPARE,
     URL_OR_EMAIL,
+    compact_text,
     leak_reasons,
     normalize,
 )
@@ -90,10 +91,6 @@ def _entity_spans(text: str, entities: Iterable[Entity]) -> list[Span]:
     return spans
 
 
-def compact_text(text: str) -> str:
-    return STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
-
-
 def _has_digit(ch: str) -> bool:
     return any(unicodedata.decimal(c, None) is not None for c in normalize(ch))
 
@@ -101,8 +98,8 @@ def _has_digit(ch: str) -> bool:
 def _end_of_digit_run(text: str, start: int) -> int:
     """Index after the last digit of the run that begins at `start`.
 
-    Separators (- . / and zero-width characters) may sit between digits, but a run never ends
-    on one.
+    Separators (space, tab, newline, - . , / and zero-width characters) may sit between digits,
+    but a run never ends on one.
     """
     end = start + 1
     pos = end

@@ -1,6 +1,6 @@
 """Leak check for auto-reply text. Safety-critical: false positives are fine, false negatives
-are not. Anything that looks like a number, a credential word, a link, or data from the call
-is blocked."""
+are not. Anything that looks like a number, a credential word, a link, a name, an organisation,
+a Latin word or data from the call is blocked."""
 
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ def normalize(text: str) -> str:
 
 
 def compact_text(text: str) -> str:
+    """Normalized, lower-cased text without spaces, hyphens and dots, for matching."""
     return STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
 
 

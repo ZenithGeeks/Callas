@@ -85,7 +85,8 @@ class CallState:
         # turn tokens are constant across probes, so only the summary suffix is counted
         room = budget - count_tokens(self._render(self.turns, ""))
         # binary search for the longest suffix of the summary that still fits
-        kept, most = 0, len(summary) if room > 0 else 0
+        kept = 0
+        most = len(summary) if room > 0 else 0
         while kept < most:
             mid = (kept + most + 1) // 2
             if count_tokens(summary[len(summary) - mid :]) <= room:
@@ -109,6 +110,7 @@ class CallState:
 
         Over budget: fold turns older than the last RECENT_TURNS_VERBATIM into the summary,
         then truncate the summary; only if the recent turns alone are too long, fold those too.
+        Folded turns are removed from self.turns for good.
         """
         count = cache(count_tokens)  # identical strings are tokenized once per call
 

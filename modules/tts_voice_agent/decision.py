@@ -1,4 +1,4 @@
-"""Reply-or-warn rules. Pure and deterministic: same input, same answer."""
+"""Reply-or-warn rules. Deterministic: the same result and state always give the same answer."""
 
 from __future__ import annotations
 

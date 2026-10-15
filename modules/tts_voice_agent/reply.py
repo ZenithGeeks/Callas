@@ -2,11 +2,11 @@
 
 Order of checks, none of which can be skipped:
   1. the reply LLM sees only the REDACTED call context (`redact_context`);
-  2. the reply must be non-empty, short, and pass the deterministic `leaks_sensitive` gate;
-  3. only if the rules pass, an optional judge may still block it.
-Final rule: blocked = leaks_sensitive(reply) OR judge_blocks. The judge can add blocks, never
-remove one. A judge that fails, times out or answers with anything but a clear "no leak"
-counts as a block.
+  2. the reply must be non-empty, short, pass `leak_reasons` (today's date and time numbers
+     are allowed) and pass the spelling check;
+  3. only if those pass, an optional judge may still block it.
+The judge can add blocks, never remove one. A judge that fails, times out or answers with
+anything but a clear "no leak" counts as a block.
 """
 
 from __future__ import annotations
@@ -77,7 +77,11 @@ def safe_reply(
     judge: LeakJudge | None = None,
     now: datetime | None = None,
 ) -> tuple[str, bool]:
-    """Return (text, template_used). Never logs the LLM text itself."""
+    """Return (reply text, template_used). Never logs the LLM text itself.
+
+    `writer` replaces llm.complete as the reply writer. `judge` is the optional second check.
+    `now` fixes the clock for the date and time facts (tests).
+    """
     facts = current_facts(now)
     context = f"[ข้อมูลปัจจุบัน] {facts}\n" + redact_context(state.context(), state.entities_seen)
     t0 = time.perf_counter()
