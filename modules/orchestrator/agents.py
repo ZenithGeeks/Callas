@@ -65,7 +65,7 @@ def build_analyst_agent(model=None):
     return create_agent(model, TOOLS, system_prompt=ANALYST_PROMPT)
 
 
-def _text(content) -> str:
+def _content_text(content) -> str:
     if isinstance(content, str):
         return content
     return "".join(
@@ -82,4 +82,4 @@ def explain(text: str, agent=None) -> str:
         if "tool" in str(exc).lower():
             raise ToolCallingUnavailable(TOOL_HINT) from exc
         raise
-    return _text(out["messages"][-1].content).strip()
+    return _content_text(out["messages"][-1].content).strip()

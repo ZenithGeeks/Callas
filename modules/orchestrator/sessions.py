@@ -43,19 +43,21 @@ class CallSessions:
         self._states[call_id] = CallState()
         return call_id
 
-    def _input(self, call_id: str, turn: Turn) -> dict:
+    def _turn_input(self, call_id: str, turn: Turn) -> dict:
         if call_id not in self._states:
             raise KeyError(f"unknown call {call_id!r}; call start() first")
         return {"call_id": call_id, "turn": turn, "timings": {}}
 
     def on_turn(self, call_id: str, turn: Turn) -> dict:
         """Run one turn through the graph and return the final state dict."""
-        return self._turn_graph.invoke(self._input(call_id, turn), context=self.runtime.context())
+        return self._turn_graph.invoke(
+            self._turn_input(call_id, turn), context=self.runtime.context()
+        )
 
     def stream_turn(self, call_id: str, turn: Turn) -> Iterator[dict]:
         """Yield {"node": name, "update": {...}} as each node finishes."""
         for chunk in self._turn_graph.stream(
-            self._input(call_id, turn), context=self.runtime.context(), stream_mode="updates"
+            self._turn_input(call_id, turn), context=self.runtime.context(), stream_mode="updates"
         ):
             for node, update in chunk.items():
                 yield {"node": node, "update": update}

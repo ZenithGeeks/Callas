@@ -40,7 +40,8 @@ from llm_serving.client import LLMUnavailable
 from nlp_core.registry import analyze_with_tools
 from nlp_core.types import NLPResult
 from tts_voice_agent.constants import ESCALATE_THRESHOLD
-from tts_voice_agent.decision import Decision, decide
+from tts_voice_agent import decision as decision_rules
+from tts_voice_agent.decision import Decision
 from tts_voice_agent.memory import CallState, clean_turn
 from tts_voice_agent.reply import safe_reply
 
@@ -180,8 +181,8 @@ def analyze_turn(state: TurnState, ctx: TurnContext) -> dict:
     return {"context": context, "nlp": nlp}
 
 
-def decide_node(state: TurnState, ctx: TurnContext) -> dict:
-    decision = decide(state["nlp"], ctx.states[state["call_id"]])
+def decide(state: TurnState, ctx: TurnContext) -> dict:
+    decision = decision_rules.decide(state["nlp"], ctx.states[state["call_id"]])
     log.info("decision auto_reply=%s reason=%s", decision.auto_reply, decision.reason)
     return {"decision": decision}
 
@@ -224,7 +225,7 @@ def build_turn_graph(rt: Runtime):
     g = StateGraph(TurnState, context_schema=TurnContext)
     g.add_node("remember", _timed("remember", remember))
     g.add_node("analyze", _timed("analyze", analyze_turn), retry_policy=ANALYZE_RETRY)
-    g.add_node("decide", _timed("decide", decide_node))
+    g.add_node("decide", _timed("decide", decide))
     g.add_node("reply", _timed("reply", reply))
     g.add_node("escalate", _timed("escalate", escalate))
     g.add_edge(START, "remember")
