@@ -48,8 +48,9 @@ SYNTHETIC_CONTEXTS: tuple[str, ...] = (
 
 
 def load_trainset(path: Path | None) -> list[dspy.Example]:
+    """Read training rows from a JSONL file, or use the built-in synthetic contexts."""
     if path is None:
-        rows = [{"call_context": c, "verdict": "benign"} for c in SYNTHETIC_CONTEXTS]
+        rows = [{"call_context": context, "verdict": "benign"} for context in SYNTHETIC_CONTEXTS]
     else:
         rows = [
             json.loads(line)
@@ -58,17 +59,18 @@ def load_trainset(path: Path | None) -> list[dspy.Example]:
         ]
     return [
         dspy.Example(
-            call_context=r["call_context"], verdict=r.get("verdict", "benign")
+            call_context=row["call_context"], verdict=row.get("verdict", "benign")
         ).with_inputs("call_context", "verdict")
-        for r in rows
+        for row in rows
     ]
 
 
 def is_thai_enough(text: str) -> bool:
-    letters = [c for c in text if c.isalpha()]
+    """Check that at least MIN_THAI_SHARE of the letters are Thai."""
+    letters = [char for char in text if char.isalpha()]
     if not letters:
         return False
-    thai = sum(1 for c in letters if "฀" <= c <= "๿")
+    thai = sum(1 for char in letters if "฀" <= char <= "๿")
     return thai / len(letters) >= MIN_THAI_SHARE
 
 
@@ -108,10 +110,11 @@ def optimize(trainset: list[dspy.Example], out: Path, lm=None) -> tuple[float, f
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--out", type=Path, default=COMPILED_REPLY)
-    ap.add_argument("--trainset", type=Path, default=None, help="JSONL; default: synthetic set")
-    args = ap.parse_args(argv)
+    """Command line entry point: compile the reply writer and print the dev scores."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--out", type=Path, default=COMPILED_REPLY)
+    parser.add_argument("--trainset", type=Path, default=None, help="JSONL; default: synthetic set")
+    args = parser.parse_args(argv)
     before, after = optimize(load_trainset(args.trainset), args.out)
     print(f"dev score before: {before:.1f}%")
     print(f"dev score after:  {after:.1f}%")

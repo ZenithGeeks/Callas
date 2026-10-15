@@ -13,14 +13,14 @@ from .types import Entity
 
 _THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 
-_SEP = r"[\s-]?"
+_GAP = r"[\s-]?"
 _PHONE = re.compile(
     r"(?<![\d+])(?:"
-    rf"\+66{_SEP}[689]\d{_SEP}\d{{3}}{_SEP}\d{{4}}"
-    rf"|\+66{_SEP}[2-7]\d?{_SEP}\d{{3}}{_SEP}\d{{3,4}}"
-    rf"|0[689]\d{_SEP}\d{{3}}{_SEP}\d{{4}}"
-    rf"|02{_SEP}\d{{3}}{_SEP}\d{{4}}"
-    rf"|0[3-7]\d{_SEP}\d{{3}}{_SEP}\d{{3}}"
+    rf"\+66{_GAP}[689]\d{_GAP}\d{{3}}{_GAP}\d{{4}}"
+    rf"|\+66{_GAP}[2-7]\d?{_GAP}\d{{3}}{_GAP}\d{{3,4}}"
+    rf"|0[689]\d{_GAP}\d{{3}}{_GAP}\d{{4}}"
+    rf"|02{_GAP}\d{{3}}{_GAP}\d{{4}}"
+    rf"|0[3-7]\d{_GAP}\d{{3}}{_GAP}\d{{3}}"
     r")(?!\d)"
 )
 _BANK_DASHED = re.compile(r"(?<!\d)\d{3}-\d-\d{5}-\d(?!\d)|(?<!\d)\d{4}-\d{2}-\d{4,6}(?!\d)")
@@ -44,32 +44,49 @@ _URL_TRAIL = ".,;:!?)]}"
 _PRIORITY = {"BANK_ACCOUNT": 4, "OTP": 3, "PHONE": 2, "URL": 2, "MONEY": 1}
 
 
+Span = tuple[int, int, str]  # start, end, label
+
+
 def extract_entities(text: str) -> list[Entity]:
-    norm = text.translate(_THAI_DIGITS)
-    cands: list[tuple[int, int, str]] = []
+    """Find phone numbers, bank accounts, OTPs, URLs and money amounts in Thai text."""
+    ascii_text = text.translate(_THAI_DIGITS)
+    return [
+        Entity(text=text[start:end], label=label, start=start, end=end)
+        for start, end, label in _drop_overlaps(_find_spans(ascii_text))
+    ]
 
-    for m in _URL.finditer(norm):
-        end = m.end()
-        while end > m.start() and norm[end - 1] in _URL_TRAIL:
+
+def _find_spans(ascii_text: str) -> list[Span]:
+    """Every regex match, with the label of the pattern that found it."""
+    spans: list[Span] = []
+    for match in _URL.finditer(ascii_text):
+        end = match.end()
+        while end > match.start() and ascii_text[end - 1] in _URL_TRAIL:
             end -= 1
-        cands.append((m.start(), end, "URL"))
-    for m in _PHONE.finditer(norm):
-        cands.append((m.start(), m.end(), "PHONE"))
-    for m in _BANK_DASHED.finditer(norm):
-        cands.append((m.start(), m.end(), "BANK_ACCOUNT"))
-    for m in _BANK_PLAIN.finditer(norm):
-        before = norm[max(0, m.start() - 30) : m.start()]
+        spans.append((match.start(), end, "URL"))
+    for match in _PHONE.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "PHONE"))
+    for match in _BANK_DASHED.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "BANK_ACCOUNT"))
+    for match in _BANK_PLAIN.finditer(ascii_text):
+        # a bare run of digits is an account only when a bank word comes just before it
+        before = ascii_text[max(0, match.start() - 30) : match.start()]
         if _BANK_CONTEXT.search(before):
-            cands.append((m.start(), m.end(), "BANK_ACCOUNT"))
-    for m in _OTP.finditer(norm):
-        cands.append((m.start(1), m.end(1), "OTP"))
-    for m in _MONEY.finditer(norm):
-        cands.append((m.start(), m.end(), "MONEY"))
+            spans.append((match.start(), match.end(), "BANK_ACCOUNT"))
+    for match in _OTP.finditer(ascii_text):
+        spans.append((match.start(1), match.end(1), "OTP"))
+    for match in _MONEY.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "MONEY"))
+    return spans
 
-    cands.sort(key=lambda c: (-(c[1] - c[0]), -_PRIORITY[c[2]], c[0]))
-    chosen: list[tuple[int, int, str]] = []
-    for s, e, label in cands:
-        if all(e <= cs or s >= ce for cs, ce, _ in chosen):
-            chosen.append((s, e, label))
-    chosen.sort()
-    return [Entity(text=text[s:e], label=label, start=s, end=e) for s, e, label in chosen]
+
+def _drop_overlaps(spans: list[Span]) -> list[Span]:
+    """Keep the longest span, then the higher-priority label, and drop what overlaps it."""
+    strongest_first = sorted(
+        spans, key=lambda span: (-(span[1] - span[0]), -_PRIORITY[span[2]], span[0])
+    )
+    kept: list[Span] = []
+    for start, end, label in strongest_first:
+        if all(end <= kept_start or start >= kept_end for kept_start, kept_end, _ in kept):
+            kept.append((start, end, label))
+    return sorted(kept)

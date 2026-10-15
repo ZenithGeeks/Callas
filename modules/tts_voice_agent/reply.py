@@ -2,26 +2,25 @@
 
 Order of checks, none of which can be skipped:
   1. the reply LLM sees only the REDACTED call context (`redact_context`);
-  2. the reply must be non-empty, short, and pass the deterministic `leaks_sensitive` gate;
-  3. only if the rules pass, an optional judge may still block it.
-Final rule: blocked = leaks_sensitive(reply) OR judge_blocks. The judge can add blocks, never
-remove one. A judge that fails, times out or answers with anything but a clear "no leak"
-counts as a block.
+  2. the reply must be non-empty, short, pass `leak_reasons` (today's date and time numbers
+     are allowed) and pass the spelling check;
+  3. only if those pass, an optional judge may still block it.
+The judge can add blocks, never remove one. A judge that fails, times out or answers with
+anything but a clear "no leak" counts as a block.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 import time
-from datetime import datetime, timedelta
-from typing import Any, Protocol
-from zoneinfo import ZoneInfo
+from datetime import datetime
+from typing import Protocol
 
 from llm_serving.base import LLM
-from nlp_core.types import NLPResult
+from nlp_core.types import Entity, NLPResult
 
 from .constants import MAX_REPLY_CHARS
+from .facts import current_facts, fact_numbers
 from .leak import leak_reasons
 from .memory import CallState
 from .redact import redact_context
@@ -32,14 +31,32 @@ log = logging.getLogger(__name__)
 
 
 class ReplyWriter(Protocol):
+    """Writes the reply from the redacted context, instead of llm.complete (for example DSPy)."""
+
     def write(self, context: str, result: NLPResult) -> str: ...
 
 
 class LeakJudge(Protocol):
+    """Optional second check. It can only add blocks to the rule check, never remove one."""
+
     def blocks(self, reply: str, context: str) -> bool: ...
 
 
-def _judge_verdict(judge: Any, text: str, context: str) -> str | None:
+def _rule_failure(text: str, entities_seen: list[Entity], now: datetime | None) -> str | None:
+    """Log message if `text` fails a fixed rule (empty, long, leak, spelling), else None."""
+    if not text:
+        return "reply LLM returned empty text, using template"
+    if len(text) > MAX_REPLY_CHARS:
+        return f"reply too long ({len(text)} chars), using template"
+    reasons = leak_reasons(text, entities_seen, fact_numbers(now))
+    if reasons:
+        return f"reply blocked by leak check: {','.join(reasons)}"
+    if looks_misspelled(text):
+        return "reply blocked: garbled Thai spelling, using template"
+    return None
+
+
+def _judge_verdict(judge: LeakJudge, text: str, context: str) -> str | None:
     """Reason code if the judge blocks, None only for a clear "no leak" (a real False)."""
     try:
         verdict = judge.blocks(text, context)
@@ -51,32 +68,6 @@ def _judge_verdict(judge: Any, text: str, context: str) -> str | None:
     return "judge_block" if verdict is True else "judge_error"
 
 
-_DAYS = "จันทร์ อังคาร พุธ พฤหัสบดี ศุกร์ เสาร์ อาทิตย์".split()
-_MONTHS = (
-    "มกราคม กุมภาพันธ์ มีนาคม เมษายน พฤษภาคม มิถุนายน "
-    "กรกฎาคม สิงหาคม กันยายน ตุลาคม พฤศจิกายน ธันวาคม"
-).split()
-
-
-def current_facts(now: datetime | None = None) -> str:
-    """Today's date and time in Thai (Bangkok time, Buddhist year), for the reply prompt."""
-    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
-    return (
-        f"วันนี้วัน{_DAYS[now.weekday()]}ที่ {now.day} {_MONTHS[now.month - 1]} "
-        f"{now.year + 543} เวลา {now:%H:%M} น."
-    )
-
-
-def fact_numbers(now: datetime | None = None) -> set[str]:
-    """Numbers a reply may contain: those of current_facts(), allowing the minute to tick over."""
-    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
-    return {
-        n
-        for delta in (-1, 0, 1)
-        for n in re.findall(r"\d+", current_facts(now + timedelta(minutes=delta)))
-    }
-
-
 def safe_reply(
     result: NLPResult,
     state: CallState,
@@ -86,7 +77,11 @@ def safe_reply(
     judge: LeakJudge | None = None,
     now: datetime | None = None,
 ) -> tuple[str, bool]:
-    """Return (text, template_used). Never logs the LLM text itself."""
+    """Return (reply text, template_used). Never logs the LLM text itself.
+
+    `writer` replaces llm.complete as the reply writer. `judge` is the optional second check.
+    `now` fixes the clock for the date and time facts (tests).
+    """
     facts = current_facts(now)
     context = f"[ข้อมูลปัจจุบัน] {facts}\n" + redact_context(state.context(), state.entities_seen)
     t0 = time.perf_counter()
@@ -100,18 +95,9 @@ def safe_reply(
         return pick_template(result), True
     write_s = time.perf_counter() - t0
     text = (text or "").strip()
-    if not text:
-        log.warning("reply LLM returned empty text, using template")
-        return pick_template(result), True
-    if len(text) > MAX_REPLY_CHARS:
-        log.warning("reply too long (%d chars), using template", len(text))
-        return pick_template(result), True
-    reasons = leak_reasons(text, state.entities_seen, fact_numbers(now))
-    if reasons:
-        log.warning("reply blocked by leak check: %s", ",".join(reasons))
-        return pick_template(result), True
-    if looks_misspelled(text):
-        log.warning("reply blocked: garbled Thai spelling, using template")
+    failure = _rule_failure(text, state.entities_seen, now)
+    if failure:
+        log.warning(failure)
         return pick_template(result), True
     if judge is not None:
         t1 = time.perf_counter()

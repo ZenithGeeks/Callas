@@ -1,4 +1,4 @@
-"""Reply-or-warn rules. Pure and deterministic: same input, same answer."""
+"""Reply-or-warn rules. Deterministic: the same result and state always give the same answer."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from .memory import CallState
 
 @dataclass
 class Decision:
+    """Whether to auto-reply on this turn, and why. The reply fields are filled in later."""
+
     auto_reply: bool
     reason: str
     reply_text: str | None = None
@@ -19,13 +21,13 @@ class Decision:
 
 
 def decide(result: NLPResult, state: CallState) -> Decision:
+    """Reply only to a benign call. A scam result escalates, and stays escalated to call end."""
     if state.escalated:
         return Decision(auto_reply=False, reason="call already escalated")
-    if result.label_scam and result.confidence >= ESCALATE_THRESHOLD:
-        state.escalated = True
+    if not result.label_scam:
+        return Decision(auto_reply=True, reason="benign")
+    state.escalated = True
+    if result.confidence >= ESCALATE_THRESHOLD:
         return Decision(auto_reply=False, reason="high-confidence scam, escalate to user")
-    if result.label_scam:
-        # includes unknown type / confidence 0.0: when unsure, never auto-reply
-        state.escalated = True
-        return Decision(auto_reply=False, reason="low-confidence scam, escalate for review")
-    return Decision(auto_reply=True, reason="benign")
+    # includes unknown type / confidence 0.0: when unsure, never auto-reply
+    return Decision(auto_reply=False, reason="low-confidence scam, escalate for review")

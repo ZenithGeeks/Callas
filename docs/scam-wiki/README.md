@@ -1,8 +1,8 @@
 # Scam wiki
 
 One page per scam type holds the notes about how that scam works right now. The pages are the
-source of truth. The scam-call simulator reads them through the SQLite store, so a change on a
-page does nothing until you sync it.
+source of truth. The scam-call simulator (see [`modules/data_pipeline/README.md`](../../modules/data_pipeline/README.md))
+reads them through the SQLite store, so a change on a page does nothing until you sync it.
 
 Pages: `fake_authority.md`, `romance.md`, `investment.md`, `phishing_otp.md`, `lottery.md`.
 
@@ -37,14 +37,13 @@ Rules:
 - If a page cannot be read, `sync` stops and names the file and line. Nothing is changed in the
   store when any page fails.
 - Save pages as UTF-8. A byte order mark at the start of a file is accepted.
-- `sync` refuses a folder that has none of the five pages (`fake_authority.md`, `romance.md`,
-  `investment.md`, `phishing_otp.md`, `lottery.md`): it is probably the wrong folder, and
+- `sync` refuses a folder that has none of the five pages. It is probably the wrong folder, and
   syncing it would delete every stored note. If one page is missing, `sync` keeps that type's
   stored notes and prints a warning instead of deleting them.
 
 ## Workflow
 
-Edit a page by hand, then run from the repo root:
+Edit a page by hand, then run from the repo root (with `PYTHONPATH=modules` or after `pip install -e ".[data]"`):
 
 ```
 python -m data_pipeline.patterns sync
