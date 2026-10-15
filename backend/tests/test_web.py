@@ -254,3 +254,22 @@ def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
         assert ws.receive_json()["type"] == "ready"
         ws.send_text(json.dumps({"type": "end"}))
     assert seen == [False]
+
+
+def test_the_app_imports_without_pythonpath():
+    # `uvicorn backend.main:app` from the repo root, as the README says, with no PYTHONPATH.
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    result = subprocess.run(
+        [sys.executable, "-c", "import backend.main"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-500:]
