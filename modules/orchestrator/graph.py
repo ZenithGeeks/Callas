@@ -6,8 +6,8 @@ Turn graph:
                                           |
                                           +--otherwise--> escalate -> END
 
-`speak` is left out when no speaker is injected. Read `route_after_decide` and `reply` first:
-they carry the safety rules (README, "Where the safety rules live"). Per-call dependencies
+`speak` is left out when no speaker is injected. The safety rules sit in
+`route_after_decide` and `reply`, further down; they are explained in the safety rules (README, "Where the safety rules live"). Per-call dependencies
 come through the runtime context (`TurnContext`), passed as `context=` on every invoke or
 stream. The graphs hold no call data.
 """
@@ -133,7 +133,11 @@ class Runtime:
 
 
 def _timed(name: str, fn: Callable[[Any, Any], dict]) -> Callable[..., dict]:
-    """Wrap a node `fn(state, ctx)` so it adds its run time to `state["timings"]`."""
+    """Wrap a node `fn(state, ctx)` so it adds its run time to `state["timings"]`.
+
+    The wrapper has the (state, runtime) signature LangGraph expects and passes
+    `runtime.context` to `fn`. Final timings look like {"remember": 0.001, "analyze": 0.4, ...}.
+    """
 
     # LangGraph injects `runtime` by parameter name, so the wrapper must declare it.
     def wrapper(state, runtime: GraphRuntime[TurnContext]):

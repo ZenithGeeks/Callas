@@ -94,6 +94,9 @@ class LiveCall:
         self.sessions.end(self.call_id)
         self._events.put({"type": "ended", "call_id": self.call_id})
 
+    # _next_turn returns (number, turn, folded numbers), or None when the call is over.
+    # Queue items: (number, turn), or None from end(). If end() arrives while merging, the
+    # current turn is returned first and STOP_MARKER is held so the next call returns None.
     def _next_turn(self) -> tuple[int, Turn, list[int]] | None:
         """Next turn to process. Waits REPLY_DELAY_S for the caller to go on and merges that."""
         item = self._held or self._turns.get()  # a held turn goes first
@@ -119,6 +122,7 @@ class LiveCall:
             n, turn = following_n, Turn(turn.speaker, turn.start, following_turn.end, text)
 
     def _run(self) -> None:
+        """Worker thread: process turns in order until end(). A failed turn does not stop the call."""
         while (item := self._next_turn()) is not None:
             n, turn, merged = item
             try:
