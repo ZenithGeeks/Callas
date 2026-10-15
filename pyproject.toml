@@ -35,6 +35,13 @@ tts = [
 dspy = [
     "dspy>=3.4",
 ]
+# Simulated calls (data_pipeline). VachanaTTS2 voices: see modules/data_pipeline/README.md.
+data = [
+    "pyyaml>=6",
+    "pythaitts>=0.6",
+    "pythainlp>=5.0",
+    "scipy>=1.11",
+]
 ml = [
     # Install torch first from the CUDA index; the PyPI wheel on Windows is CPU only:
     #   pip install torch --index-url https://download.pytorch.org/whl/cu128
@@ -81,4 +88,4 @@ select = ["E", "F", "I", "B", "UP"]
 "notebooks/*.ipynb" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["asr_diarization", "callas_settings", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend", "conftest"]
+known-first-party = ["asr_diarization", "callas_settings", "data_pipeline", "llm_serving", "nlp_core", "orchestrator", "tts_voice_agent", "backend", "conftest"]

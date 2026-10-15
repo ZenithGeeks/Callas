@@ -49,11 +49,13 @@ _UNAVAILABLE: tuple[type[BaseException], ...] = (
 DSPY_MAX_TOKENS = 512
 
 
-def build_lm(max_tokens: int | None = None, temperature: float | None = None) -> dspy.LM:
-    """dspy.LM on the vLLM server. Same model resolution as LLMClient (empty VLLM_MODEL means
-    the first served model, which needs the server to be up)."""
+def build_lm(
+    max_tokens: int | None = None, temperature: float | None = None, model: str | None = None
+) -> dspy.LM:
+    """dspy.LM on the vLLM server. Without `model`, same model resolution as LLMClient (empty
+    VLLM_MODEL means the first served model, which needs the server to be up)."""
     s = get_settings()
-    model = LLMClient().model
+    model = model or LLMClient().model
     return dspy.LM(
         f"openai/{model}",
         api_base=s.vllm_base_url,

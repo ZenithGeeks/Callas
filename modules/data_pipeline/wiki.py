@@ -1,0 +1,236 @@
+"""The scam wiki: one Markdown page per scam type, the source of truth for pattern notes.
+
+Pages live in docs/scam-wiki/<scam_type>.md so people can read, edit and review them in
+GitHub. `sync()` copies them into the SQLite store, which is what the planner reads.
+
+Page format (see docs/scam-wiki/README.md):
+
+    # Phishing / OTP
+
+    Free text here is ignored.
+
+    ## One-line summary of the pattern
+    - source: URL or name (may be empty)
+    - published: 2026-01-31 (may be empty)
+    - active: yes
+
+    Tactics:
+    - first tactic
+
+    Phrases:
+    - Thai phrase with {SLOTS}
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from nlp_core.types import SCAM_TYPES
+
+from .store import Store
+
+DEFAULT_WIKI = Path("docs/scam-wiki")  # relative to the repo root, like the store's DEFAULT_DB
+
+TITLES = {
+    "fake_authority": "Fake authority (police, DSI, revenue department)",
+    "romance": "Romance",
+    "investment": "Investment",
+    "phishing_otp": "Phishing / OTP",
+    "lottery": "Lottery / prize",
+}
+
+_BULLET = re.compile(r"^\s*[-*]\s+(.*)$")
+_KEY = re.compile(r"^(source|published|active)\s*:\s*(.*)$", re.IGNORECASE)
+_SECTION = re.compile(r"^(tactics|phrases)\s*:\s*$", re.IGNORECASE)
+_ACTIVE_LINE = re.compile(r"^(\s*[-*]\s*active\s*:).*$", re.IGNORECASE)
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_YES = {"yes", "true", "1", "y"}
+_NO = {"no", "false", "0", "n"}
+
+
+class WikiError(ValueError):
+    """A page cannot be read. The message names the file and the line."""
+
+
+def _fail(name: str, line: int, message: str) -> WikiError:
+    return WikiError(f"{name}:{line}: {message}")
+
+
+def parse_page(text: str, name: str = "<page>") -> list[dict]:
+    """Notes of one page, in page order.
+
+    Each note has summary, source, published, active, tactics and phrases.
+    """
+    notes: list[dict] = []
+    current: dict | None = None
+    start = 0  # line of the current note's heading
+    mode = "meta"  # meta | tactics | phrases
+
+    def close() -> None:
+        if current is None:
+            return
+        if not current["tactics"]:
+            raise _fail(name, start, f"note '{current['summary']}' has no tactics")
+        notes.append(current)
+
+    for number, raw in enumerate(text.splitlines(), start=1):
+        line = raw.strip()
+        if line.startswith("## "):
+            close()
+            summary = line[3:].strip()
+            if not summary:
+                raise _fail(name, number, "note has no summary after '##'")
+            current = {
+                "summary": summary,
+                "source": "",
+                "published": None,
+                "active": True,
+                "tactics": [],
+                "phrases": [],
+            }
+            start, mode = number, "meta"
+            continue
+        if line == "##":
+            raise _fail(name, number, "note has no summary after '##'")
+        if current is None or not line:
+            continue  # title, intro and blank lines
+        section = _SECTION.match(line)
+        if section:
+            mode = section.group(1).lower()
+            continue
+        bullet = _BULLET.match(raw)
+        if not bullet:
+            raise _fail(name, number, f"expected a '- ' bullet or 'Tactics:'/'Phrases:': {line}")
+        item = bullet.group(1).strip()
+        if mode in ("tactics", "phrases"):
+            current[mode].append(item)
+            continue
+        key = _KEY.match(item)
+        if not key:
+            raise _fail(name, number, f"unknown line before 'Tactics:': {item}")
+        field, value = key.group(1).lower(), key.group(2).strip()
+        if field == "source":
+            current["source"] = value
+        elif field == "published":
+            if value and not _DATE.match(value):
+                raise _fail(name, number, f"published must be YYYY-MM-DD or empty, got: {value}")
+            current["published"] = value or None
+        else:
+            word = value.lower()
+            if word not in _YES | _NO:
+                raise _fail(name, number, f"active must be yes or no, got: {value}")
+            current["active"] = word in _YES
+    close()
+    return notes
+
+
+def _one_line(value: str) -> str:
+    return " ".join(value.split())
+
+
+def render_page(title: str, notes: list[dict], intro: str = "") -> str:
+    """A page as text. parse_page(render_page(...)) gives the notes back."""
+    out = [f"# {_one_line(title)}", ""]
+    if intro.strip():
+        out += [intro.strip(), ""]
+    out += [_render_note(n) for n in notes]
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def _render_note(note: dict) -> str:
+    lines = [
+        f"## {_one_line(note['summary'])}",
+        f"- source: {_one_line(note.get('source') or '')}".rstrip(),
+        f"- published: {note.get('published') or ''}".rstrip(),
+        f"- active: {'yes' if note.get('active', True) else 'no'}",
+        "",
+        "Tactics:",
+        *[f"- {_one_line(t)}" for t in note["tactics"]],
+        "",
+    ]
+    if note.get("phrases"):
+        lines += ["Phrases:", *[f"- {_one_line(p)}" for p in note["phrases"]], ""]
+    return "\n".join(lines)
+
+
+def page_path(folder: Path | str, scam_type: str) -> Path:
+    if scam_type not in SCAM_TYPES:
+        raise ValueError(f"unknown scam type: {scam_type}")
+    return Path(folder) / f"{scam_type}.md"
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def read_wiki(folder: Path | str = DEFAULT_WIKI) -> dict[str, list[dict]]:
+    """Notes per scam type. A type with no page has an empty list."""
+    folder = Path(folder)
+    if not folder.is_dir():
+        raise FileNotFoundError(f"wiki folder not found: {folder}")
+    wiki = {}
+    for scam_type in SCAM_TYPES:
+        path = page_path(folder, scam_type)
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        wiki[scam_type] = parse_page(text, path.as_posix())
+    return wiki
+
+
+def add_note_to_page(folder: Path | str, scam_type: str, note: dict) -> Path:
+    """Append a note to the type's page, creating the page with a title if it is missing."""
+    path = page_path(folder, scam_type)
+    section = _render_note(note)
+    parse_page(section, "<new note>")  # refuse a note the parser would reject later
+    if path.exists():
+        text = path.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + section
+    else:
+        text = render_page(TITLES[scam_type], []) + "\n" + section
+    _write(path, text.rstrip("\n") + "\n")
+    return path
+
+
+def set_active(folder: Path | str, scam_type: str, number: int, active: bool) -> str:
+    """Set the 'active:' line of the note at 1-based position `number`. Returns its summary.
+
+    Only that one line changes; the rest of the page is left as it was.
+    """
+    path = page_path(folder, scam_type)
+    name = path.as_posix()
+    text = path.read_text(encoding="utf-8")
+    notes = parse_page(text, name)
+    if not 1 <= number <= len(notes):
+        raise ValueError(f"{name} has {len(notes)} notes; there is no note {number}")
+    lines = text.splitlines()
+    value = "yes" if active else "no"
+    headings = [i for i, line in enumerate(lines) if line.strip().startswith("## ")]
+    first = headings[number - 1]
+    end = headings[number] if number < len(headings) else len(lines)
+    for j in range(first + 1, end):
+        found = _ACTIVE_LINE.match(lines[j])
+        if found:
+            lines[j] = f"{found.group(1)} {value}"
+            break
+    else:
+        lines.insert(first + 1, f"- active: {value}")
+    _write(path, "\n".join(lines) + "\n")
+    return notes[number - 1]["summary"]
+
+
+def sync(
+    store: Store, folder: Path | str = DEFAULT_WIKI, scam_types: tuple[str, ...] = SCAM_TYPES
+) -> dict[str, dict[str, int]]:
+    """Make the store's notes for each type match its page exactly.
+
+    Every page is parsed before the store is touched, so a mistake in one page changes
+    nothing. Returns {scam_type: {"notes": total, "active": active}}.
+    """
+    wiki = read_wiki(folder)
+    counts = {}
+    for scam_type in scam_types:
+        notes = wiki[scam_type]
+        store.replace_notes(scam_type, notes)
+        counts[scam_type] = {"notes": len(notes), "active": sum(n["active"] for n in notes)}
+    return counts

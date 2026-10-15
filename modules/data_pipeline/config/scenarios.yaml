@@ -1,0 +1,348 @@
+# What simulated calls are about and who answers them.
+#
+# The label of a call comes from here, never from the model: `scams.<type>` scenarios make
+# scam calls of that type, `legit` scenarios make normal calls. Keep the 5 scam types as they
+# are (they are the spec's label_type values); add or edit scenarios freely.
+#
+# Scenario fields:
+#   key      short unique id, stored in each record
+#   role     who the caller says they are
+#   org      organisation named in the call: a name, "ธนาคาร" (a random real bank),
+#            "*" (a made-up company), or leave it out for none
+#   goal     what the caller wants by the end of the call
+#   tactics  how the caller gets there (for legit calls: how they handle the call)
+# Text may use slots like {MONEY} or {URL}; the loader rejects unknown slots.
+#
+# Seeds pick scenarios and receivers by list position, so adding an item in the middle changes
+# which call a seed makes. Records store the config hash, so old and new data stay apart.
+
+scams:
+  fake_authority:
+  - key: police_warrant
+    role: police officer from a central investigation unit
+    org: กองบัญชาการตำรวจสอบสวนกลาง
+    goal: get the receiver to move their money to {BANK_ACCOUNT} 'for checking'
+    tactics: says the receiver's bank account was used for money laundering, threatens arrest, forbids
+      telling family, offers to 'clear the name' if money is moved now
+  - key: dsi_case
+    role: DSI investigator
+    org: กรมสอบสวนคดีพิเศษ
+    goal: get the receiver to add a LINE contact and send ID card photos, then transfer {MONEY}
+    tactics: claims a parcel in the receiver's name held drugs or fake passports, transfers the call to
+      a 'senior officer', asks for a video call statement
+  - key: revenue_tax
+    role: tax officer
+    org: กรมสรรพากร
+    goal: get the receiver to open {URL} and install an app to 'claim a tax refund'
+    tactics: says the receiver is owed a refund that expires today, guides step by step
+  - key: electricity_bill
+    role: officer of the electricity authority
+    org: การไฟฟ้า
+    goal: get the receiver to pay {MONEY} to {BANK_ACCOUNT} or add a LINE account
+    tactics: says a bill is overdue or a deposit refund is waiting, threatens to cut power today
+  - key: court_summons
+    role: court clerk
+    org: ศาล
+    goal: get the receiver to call back {PHONE} and pay a 'fine' of {MONEY}
+    tactics: says the receiver missed a court date about an unpaid card, warns of a warrant
+  - key: customs_parcel
+    role: customs officer
+    org: กรมศุลกากร
+    goal: get the receiver to pay a 'customs fee' of {MONEY} to {BANK_ACCOUNT}
+    tactics: says a parcel from abroad is held, adds pressure that it will be seized tomorrow
+  romance:
+  - key: engineer_abroad
+    role: someone met on a dating app who says they are an engineer working abroad
+    goal: get the receiver to pay {MONEY} 'customs tax' for a gift parcel
+    tactics: warm and personal for several turns, talks about a future together, then the parcel is stuck
+      and only the receiver can help
+  - key: soldier_mission
+    role: someone met online who says they are a soldier on a peace mission
+    goal: get the receiver to send {MONEY} so the caller can take leave and visit
+    tactics: affectionate, mentions loneliness and danger, asks for secrecy
+  - key: hospital_emergency
+    role: an online partner of some months
+    goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
+    tactics: sounds distressed, says their own card is blocked, promises to pay back next week
+  - key: partner_investment
+    role: an online partner who says they trade crypto
+    goal: get the receiver to register at {URL} and deposit {MONEY}
+    tactics: slow trust building, shows own 'profits', suggests building a future fund together
+  investment:
+  - key: gold_signal
+    role: investment advisor from a gold trading company
+    org: '*'
+    goal: get the receiver to join a LINE group and open an account at {URL}
+    tactics: promises a fixed 30% monthly return, cites famous people, limited seats today
+  - key: stock_vip
+    role: staff of a 'VIP stock club'
+    org: '*'
+    goal: get a first deposit of {MONEY} to {BANK_ACCOUNT}
+    tactics: gives a small free tip first, mentions members' profits, pushes a deadline
+  - key: crypto_mining
+    role: crypto mining fund agent
+    org: '*'
+    goal: get the receiver to buy a 'mining package' for {MONEY}
+    tactics: explains daily payouts, shows a dashboard at {URL}, says the price rises tomorrow
+  - key: task_job
+    role: recruiter for online part-time tasks
+    org: '*'
+    goal: get the receiver to pay {MONEY} to 'unlock' higher paying tasks
+    tactics: pays a small first reward, then asks for top-ups before withdrawal
+  phishing_otp:
+  - key: bank_security
+    role: bank security staff
+    org: ธนาคาร
+    goal: get the OTP the receiver just received by SMS
+    tactics: says someone is trying to log in to the receiver's account, needs the OTP to block it
+  - key: card_points
+    role: credit card staff
+    org: ธนาคาร
+    goal: get the receiver to open {URL} and enter card details to redeem expiring points
+    tactics: points expire today, the gift is valuable, the link is 'official'
+  - key: delivery_redelivery
+    role: delivery company staff
+    org: '*'
+    goal: get the receiver to open {URL} and pay a small re-delivery fee by card
+    tactics: a parcel failed delivery, address must be confirmed through the link
+  - key: app_update
+    role: mobile banking support
+    org: ธนาคาร
+    goal: get the receiver to install an app from {URL} and read the OTP
+    tactics: says the banking app must be updated today or it will be locked
+  - key: telco_sim
+    role: mobile network staff
+    org: '*'
+    goal: get the OTP to 'move the SIM to a new card'
+    tactics: says the SIM will be cut off today unless re-registered
+  lottery:
+  - key: gov_lottery
+    role: staff of a lottery prize office
+    org: สำนักงานสลากกินแบ่งรัฐบาล
+    goal: get the receiver to pay a 'tax and fee' of {MONEY} before the prize is released
+    tactics: congratulates loudly, says the prize is large, the fee must be paid today
+  - key: shopping_draw
+    role: staff of an online shopping platform
+    org: '*'
+    goal: get the receiver to pay {MONEY} 'shipping and insurance' for a won car or phone
+    tactics: the receiver was picked in a customer draw, asks to keep it quiet until delivered
+  - key: brand_anniversary
+    role: marketing staff of a drink brand
+    org: '*'
+    goal: get the receiver to open {URL} and fill in bank details to receive prize money
+    tactics: anniversary campaign, random phone numbers won, deadline tonight
+  - key: lucky_sim
+    role: telecom promotion staff
+    org: '*'
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
+    tactics: the receiver's number won a lucky draw, tone friendly then urgent
+# Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
+# real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
+legit:
+- key: bank_fraud_alert
+  role: bank fraud team
+  org: ธนาคาร
+  goal: check whether the receiver made a card payment of {MONEY}; if not, block the card
+  tactics: asks only yes or no, says the bank never asks for the OTP or PIN, offers that the receiver
+    call back the number on the back of the card
+- key: courier_address
+  role: courier
+  org: '*'
+  goal: confirm the receiver is home to receive a parcel today
+  tactics: names the shop, asks for a landmark, no payment
+- key: cod_delivery
+  role: courier with a cash-on-delivery parcel
+  org: '*'
+  goal: check the receiver ordered a COD parcel of {MONEY} before delivering
+  tactics: says the receiver may refuse the parcel if they did not order it
+- key: hospital_reminder
+  role: hospital staff
+  org: โรงพยาบาล
+  goal: remind the receiver of an appointment tomorrow and to fast before a blood test
+  tactics: polite, gives the clinic phone {PHONE} for changes
+- key: police_witness
+  role: local police officer
+  org: สถานีตำรวจ
+  goal: ask the receiver to come to the station to give a witness statement about a car accident
+  tactics: never asks for money, gives the station number {PHONE} and says to call it to verify
+- key: insurance_renewal
+  role: insurance agent the receiver already uses
+  org: '*'
+  goal: remind the receiver their car insurance ends next week and offer to send the renewal
+  tactics: the receiver can renew at a branch or the app they already have
+- key: family_member
+  role: the receiver's niece or nephew
+  goal: ask the receiver to come to a family dinner on Sunday
+  tactics: casual, family talk, maybe asks the receiver to bring food
+- key: school_teacher
+  role: a teacher at the receiver's child's school
+  org: โรงเรียน
+  goal: tell the receiver about a parent meeting and a school trip fee of {MONEY} paid at school
+  tactics: the fee is paid in person at the school office, not by transfer
+- key: telesales_legit
+  role: sales staff of the receiver's own mobile network
+  org: '*'
+  goal: offer a cheaper monthly package
+  tactics: the receiver can say no; changes are made at a shop or by the official app
+- key: landlord_repair
+  role: the receiver's landlord
+  goal: arrange a time for a plumber to fix the water pipe
+  tactics: friendly, asks which day suits, no money
+- key: bank_loan_followup
+  role: bank loan officer
+  org: ธนาคาร
+  goal: tell the receiver the loan they applied for is approved and to come to the branch
+  tactics: asks the receiver to bring ID to the branch, never asks for a transfer
+- key: government_survey
+  role: staff of the national statistics office
+  org: สำนักงานสถิติแห่งชาติ
+  goal: ask a few survey questions about household size and work
+  tactics: says answering is voluntary, asks no ID or bank details
+# The person who answers. Chosen the same way for scam and normal calls, so how they react
+# says nothing about the label. The receiver agent sees every field below as written.
+#
+# Two ways to set who answers:
+#   profiles       people written out in full, each with a `key`. `profile_share` of calls use
+#                  one of them, e.g. 0.3 means 3 calls in 10. To make every call in a run use one
+#                  person, pass --receiver <key> (or --receiver-file my_person.yaml).
+#   the pools      every other call takes one value from each list at random.
+# Keep values short and concrete; the agent reads them in English and answers in Thai.
+receivers:
+  profile_share: 0.3
+  profiles:
+  - key: teacher_cm
+    gender: female
+    age: 68
+    occupation: retired primary school teacher
+    education: bachelor's degree
+    region: a small town in Chiang Mai
+    family: lives with her husband; her son works in Bangkok
+    digital_literacy: uses LINE with family and a banking app her son set up
+    scam_awareness: has seen TV warnings but believes she would notice a scam
+    temperament: 'trusting: polite to anyone who sounds official'
+    ending: says she will ask her son first
+    speech: polite and slow, says ค่ะ often, asks people to repeat
+  - key: accountant_bkk
+    gender: male
+    age: 24
+    occupation: junior accountant at a Bangkok company
+    education: bachelor's degree
+    region: Bangkok, rents a condo near the BTS
+    family: lives alone
+    digital_literacy: banks, shops and pays bills on his phone every day
+    scam_awareness: a friend lost money to an investment group last year
+    temperament: 'busy: short answers, wants the call over quickly'
+    ending: ends the call abruptly
+    speech: casual and fast, mixes in English words
+  - key: farmer_isan
+    gender: male
+    age: 55
+    occupation: rice farmer
+    education: primary school
+    region: a village in Roi Et (Isan)
+    family: lives with his wife and grandchildren
+    digital_literacy: uses phone calls only; a grandchild handles transfers
+    scam_awareness: has never heard of call-center scams
+    temperament: 'unsure: asks questions, sometimes goes along'
+    ending: says he will ask a family member first
+    speech: friendly, uses Isan words now and then
+  genders:
+  - male
+  - female
+  age:
+  - 19
+  - 78
+  occupations:
+  - retired teacher
+  - office worker
+  - market vendor
+  - university student
+  - nurse
+  - rice farmer
+  - taxi driver
+  - small shop owner
+  - factory worker
+  - housewife
+  - civil servant
+  - freelance designer
+  education:
+  - primary school
+  - secondary school
+  - vocational certificate
+  - bachelor's degree
+  - master's degree
+  regions:
+  - Bangkok
+  - a Bangkok suburb
+  - Chiang Mai
+  - a village in Isan
+  - a town in the South
+  - the Chonburi industrial area
+  - a province in the Central plains
+  family:
+  - lives alone
+  - lives with a spouse
+  - lives with a spouse and young children
+  - lives with grown children who help with money
+  - lives with elderly parents
+  - shares a room with friends
+  digital_literacy:
+  - uses only phone calls and LINE with family
+  - uses mobile banking every day
+  - shops online often and is comfortable with apps
+  - rarely uses apps; a child set up the banking app
+  - works in IT and knows phones well
+  scam_awareness:
+  - has never heard of call-center scams
+  - has seen news about scams but thinks they happen to others
+  - a friend lost money to a scam last year
+  - knows the police warnings and checks numbers
+  - was scammed before and is now very careful
+  temperaments:
+  - 'trusting: believes people who sound official, follows instructions'
+  - 'trusting but slow: asks the caller to repeat, needs things explained twice'
+  - 'unsure: asks a few questions, sometimes goes along, sometimes hesitates'
+  - 'busy: gives short answers, wants the call over quickly'
+  - 'skeptical: asks who is calling and how to verify, even with real callers'
+  - 'skeptical: refuses to give personal details on the phone to anyone'
+  endings:
+  - goes along with what the caller asks
+  - says they will think about it and call back
+  - says they will ask a family member first
+  - says they will check with the organisation directly
+  - ends the call politely
+  - ends the call abruptly
+  speech:
+  - standard polite Thai
+  - casual, uses particles loosely
+  - uses Isan words now and then
+  - short and direct
+  - chatty, asks personal questions back
+# Call length and pacing.
+#   slow_types        scam types that build trust before the first ask
+#   reveal_turn_*     the caller's own turn (0 = first) where it may first ask. With these
+#                     lists about two thirds of scam calls wait until its turn 2 or later
+#                     (speaker turn 4+): the slow-build calls the spec asks for
+#   max_turns         [low, high] speaker turns, both sides together
+#   caller_knows_name share of calls where the caller already knows the receiver's name
+#   min_turns         shorter calls are rejected
+calls:
+  slow_types:
+  - romance
+  - investment
+  reveal_turn_slow:
+  - 2
+  - 3
+  - 3
+  - 4
+  reveal_turn_fast:
+  - 0
+  - 1
+  - 1
+  - 2
+  - 3
+  max_turns:
+  - 6
+  - 14
+  caller_knows_name: 0.5
+  min_turns: 4
