@@ -227,6 +227,8 @@ class AsrText:
         return text
 
     def _transcribe(self, audio: str | None) -> str | None:
+        """Transcribe one audio file, or None when that is not possible (no audio file, or
+        pythaiasr is not installed). The caller then refuses the call as asr_incomplete."""
         if not audio or self._unavailable or not (self.folder / audio).is_file():
             return None
         if self._asr is None:

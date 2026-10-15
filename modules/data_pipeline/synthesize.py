@@ -120,6 +120,7 @@ def _print_counts(config: Config, call_types: tuple[str, ...], counts: Counter) 
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """The command line options. The module docstring is the help text."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )

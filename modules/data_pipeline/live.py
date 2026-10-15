@@ -2,7 +2,8 @@
 
 `stream_call` does what `simulate.run_call` does, but drives the same LangGraph graph with
 `graph.stream(stream_mode="updates")` and yields an Event for every step the browser should
-show: "thinking" before an agent starts, then "plan", "turn" or "verdict" with the saved record.
+show: "thinking" before an agent starts, then "plan", "turn", "ended" (the call stopped early)
+or "verdict" with the saved record.
 The call is saved by the graph nodes exactly as in a command line run.
 
 `Capture` is a DSPy callback. It records, for every agent call, which module ran, which model,
@@ -335,7 +336,7 @@ class ScriptedLM(DummyLM):
 
 def fake_agents(config: Config, call_type: str, delay: float = 0.0) -> Agents:
     """Real DSPy programs (instructions from the config) on scripted LMs. The same lines repeat
-    if the call is long. Asking starts on the caller's second turn."""
+    if the call is long. Asking starts on the caller's third turn (scam_start_turn 2)."""
     answers = _scripted_answers(scam=call_type != "benign")
     lms = {name: ScriptedLM(answers[name], delay) for name in SIGNATURES}
     return Agents(config, lms=lms)

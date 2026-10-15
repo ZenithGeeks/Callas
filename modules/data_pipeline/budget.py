@@ -1,7 +1,7 @@
 """Keep every prompt the simulator sends inside the model's context window.
 
-qwen3.8 on the gateway has a 100K-token window (`context.window_tokens` in agents.yaml). A
-prompt plus the answer (the agent's `lm.max_tokens`) plus a safety margin has to fit in it, so
+The model has a fixed context window (`context.window_tokens` in agents.yaml, 100K by default).
+A prompt plus the answer (the agent's `lm.max_tokens`) plus a safety margin has to fit in it, so
 each agent's prompt budget is
 
     window_tokens - lm.max_tokens - safety_margin_tokens

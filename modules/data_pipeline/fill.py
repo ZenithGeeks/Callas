@@ -97,7 +97,8 @@ class SlotFiller:
             org = rng.choice(details.made_up_orgs)
         money = details.money
         amount = rng.choice(money.big if call.call_type in money.big_types else money.small)
-        # The order of rng draws below fixes each value for a given seed; do not reorder.
+        # The order of every rng draw in this method, above and below, fixes each value for a
+        # given seed; do not reorder.
         self.values = {
             "CALLER_NAME": caller,
             "RECEIVER_NAME": receiver,
