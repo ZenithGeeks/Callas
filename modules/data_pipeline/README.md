@@ -87,7 +87,7 @@ There is no checkpointer. Every node saves the call to the SQLite store, so a st
 4. `finish.py`: the finished call. Its text, the receiver's leaks, the judge, where the scam starts and the reasons to reject it.
 5. `audio.py`: speaking each turn and joining the call's audio.
 6. `simulate.py`: `run_call`, which loads or creates the record and runs the graph.
-7. `live.py`: the same graph streamed step by step for the `/studio` page.
+7. `streaming.py`: the same graph streamed step by step for the `/studio` page. `capture.py` records each agent's prompt and answer for it, and `demo.py` has the scripted LM of demo mode. `live.py` gathers their names for `backend/studio.py`.
 8. `synthesize.py`: the command line. Then `store.py`, `agents.py`, `config.py` and `fill.py`.
 
 ## Export for the classifier notebook
