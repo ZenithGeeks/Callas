@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Callas{% endblock %}</title>
 <meta name="description" content="Callas checks Thai calls and messages for scams. It runs on this machine.">
-<link rel="stylesheet" href="{{ url_for('static', path='css/app.css').path }}">
-<script src="{{ url_for('static', path='js/htmx.min.js').path }}" defer></script>
-<script src="{{ url_for('static', path='js/htmx-sse.min.js').path }}" defer></script>
-<script src="{{ url_for('static', path='js/app.js').path }}" defer></script>
+<link rel="stylesheet" href="{{ asset('css/app.css') }}">
+<script src="{{ asset('js/htmx.min.js') }}" defer></script>
+<script src="{{ asset('js/htmx-sse.min.js') }}" defer></script>
+<script src="{{ asset('js/app.js') }}" defer></script>
 {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen bg-ground font-body">
@@ -20,7 +20,7 @@ FIRST VIEWPORT: Left 392px: input slip and four numbered stages. Right: full-wid
 FORM: Public warning bulletin, grounded list position 4, seed 9c7560f1.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 -->
-{% set tabs = [('message', '/message', 'Check a message'), ('call', '/call', 'Simulate a call'), ('live', '/live', 'Live call')] %}
+{% set tabs = [('message', '/message', 'Check a message'), ('call', '/call', 'Simulate a call'), ('live', '/live', 'Live call'), ('dataset', '/dataset', 'Dataset')] %}
 <header class="border-b border-rule">
   <div class="mx-auto flex h-[128px] lg:h-[140px] max-w-[1536px] items-center px-4 lg:px-12">
     <a href="/message" class="font-display font-bold text-[26px] lg:text-[28px] leading-none tracking-[-0.02em] text-ink no-underline">Callas</a>

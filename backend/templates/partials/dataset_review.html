@@ -1,0 +1,52 @@
+{# Decision bar: sticks to the bottom of the call while you read. Expects `d` (dataset.Detail).
+   With `oob`, the queue row, progress line and view tabs are sent along out-of-band; that
+   needs `listing`, `listing_type` and `views` too. #}
+{% import "partials/_dataset.html" as ds %}
+{% import "partials/_ui.html" as ui %}
+{% set rv = d.record.review or {} %}
+{% set st = rv.status or 'pending' %}
+<section id="review-bar" class="review-bar" aria-labelledby="review-h"
+         data-review="{{ st }}"
+         data-id="{{ d.row.id }}"
+         data-name="{{ d.row.type_name }} #{{ d.row.seed }}">
+  <h2 id="review-h" class="sr-only">Your review</h2>
+  <form class="review-grid"
+        hx-post="/dataset/call/{{ d.row.id }}/review"
+        hx-target="#review-bar"
+        hx-swap="outerHTML"
+        hx-include="#f-type, #f-view"
+        hx-disabled-elt="find button"
+        data-review-form>
+    <p class="review-state" aria-live="polite">
+      {{ ds.review_mark(st) }}
+      <span>
+        {% if st == 'approved' %}<strong>Approved.</strong> It goes into the dataset.
+        {% elif st == 'rejected' %}<strong>Rejected.</strong> It stays out.
+        {% elif d.row.status == 'rejected' %}<strong>Failed checks.</strong> Reject, or approve if the checks were wrong.
+        {% else %}<strong>Not reviewed.</strong> Play it once, then decide.{% endif %}
+      </span>
+    </p>
+    <label for="note" class="sr-only">Note (optional)</label>
+    <input id="note" name="note" type="text" maxlength="500" class="field note-field"
+           placeholder="Note (optional): what is wrong, or what to keep"
+           value="{{ rv.note or '' }}" lang="th" autocomplete="off">
+    <div class="review-actions">
+      <button type="submit" name="status" value="approved" class="btn btn-primary" data-key="a"
+              {% if st == 'approved' %}aria-pressed="true"{% endif %}>{{ ui.check_icon("h-[13px] w-[15px]") }}Approve<kbd class="kbd-in">A</kbd></button>
+      <button type="submit" name="status" value="rejected" class="btn" data-key="r"
+              {% if st == 'rejected' %}aria-pressed="true"{% endif %}>{{ ds.x_icon("h-[13px] w-[13px]") }}Reject<kbd class="kbd-in">R</kbd></button>
+      {% if st in ('approved', 'rejected') %}
+      <button type="submit" name="status" value="pending" class="btn-link">Undo</button>
+      {% endif %}
+    </div>
+  </form>
+  <div class="review-foot">
+    <label class="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" class="check" data-auto-next checked> Go to the next call after a decision</label>
+    <p class="max-md:hidden"><kbd>J</kbd> <kbd>K</kbd> next and previous · <kbd>Space</kbd> play call</p>
+  </div>
+</section>
+{% if oob %}
+{{ ds.row(d.row, selected=True, oob=True) }}
+{{ ds.progress(listing, oob=True) }}
+{{ ds.view_tabs(listing, views, listing_type, oob=True) }}
+{% endif %}

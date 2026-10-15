@@ -1,0 +1,80 @@
+{# Pieces of the /dataset review page. Row, progress and view_tabs are also sent out-of-band
+   (oob=True) after a review is saved. #}
+{% import "partials/_ui.html" as ui %}
+
+{% macro x_icon(cls="") %}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
+{%- endmacro %}
+
+{# "12 turns · 1:05". Used in the queue row and in the call's facts row. #}
+{% macro turn_count(r) %}{{ r.turns }} turns{% if r.seconds %} · {{ fmt_time(r.seconds) }}{% endif %}{% endmacro %}
+
+{# The round mark for a review state: tick, cross, or empty. `state` is pending|approved|rejected. #}
+{% macro review_mark(state) %}
+{% if state == 'approved' %}
+<span class="rmark" data-tone="safe" title="Approved">{{ ui.check_icon("h-[12px] w-[14px]") }}<span class="sr-only">Approved</span></span>
+{% elif state == 'rejected' %}
+<span class="rmark" data-tone="alarm" title="Rejected">{{ x_icon("h-[12px] w-[12px]") }}<span class="sr-only">Rejected</span></span>
+{% else %}
+<span class="rmark" title="Not reviewed"><span class="sr-only">Not reviewed</span></span>
+{% endif %}
+{%- endmacro %}
+
+{# One queue entry. `r` is a dataset.Row. It links to the call and loads it into #dataset-call. #}
+{% macro row(r, selected=False, oob=False) %}
+<li id="row-{{ r.id }}" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <a class="qrow"
+     href="/dataset?id={{ r.id }}"
+     hx-get="/dataset/call/{{ r.id }}"
+     hx-target="#dataset-call"
+     hx-swap="innerHTML show:#dataset-call:top"
+     hx-push-url="/dataset?id={{ r.id }}"
+     data-row="{{ r.id }}"
+     {% if selected %}aria-current="true"{% endif %}>
+    <span class="flex items-baseline gap-2">
+      <span class="min-w-0 truncate font-display text-[16px] font-semibold text-ink">{{ r.type_name }}</span>
+      <span class="text-[14px] tabular-nums text-muted">#{{ r.seed }}</span>
+      <span class="ml-auto self-center">{{ review_mark(r.review) }}</span>
+    </span>
+    <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted">
+      {% if r.status == 'rejected' %}<span class="trow-tag !mt-0" data-tone="unsure">Failed checks</span>
+      {% elif r.status == 'in_progress' %}<span class="trow-tag !mt-0">Unfinished</span>{% endif %}
+      <span class="tabular-nums">{{ turn_count(r) }}</span>
+    </span>
+    {% if r.summary %}<span class="mt-1 line-clamp-2 text-[15px] leading-[1.55] text-text" lang="th">{{ r.summary }}</span>{% endif %}
+  </a>
+</li>
+{%- endmacro %}
+
+{# "7 of 18 reviewed" with a two-part meter: approved (green) then rejected (brick).
+   `listing` is a dataset.Listing. #}
+{% macro progress(listing, oob=False) %}
+{% set t = listing.total or 1 %}
+<div id="queue-progress" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  <p class="flex flex-wrap items-baseline justify-between gap-x-3 text-[15px] leading-[1.5] tabular-nums">
+    <span><span class="font-display text-[17px] font-semibold text-ink">{{ listing.reviewed }}</span> <span class="text-muted">of {{ listing.total }} reviewed</span></span>
+    <span class="text-[14px] text-muted">{{ listing.approved }} approved · {{ listing.rejected }} rejected</span>
+  </p>
+  <div class="meter mt-2" role="img" aria-label="{{ listing.approved }} approved, {{ listing.rejected }} rejected, {{ listing.total - listing.reviewed }} not reviewed">
+    <span class="meter-part" data-tone="safe"
+          style="width: {{ (100 * listing.approved / t) | round(2) }}%"></span><span class="meter-part" data-tone="alarm"
+          style="width: {{ (100 * listing.rejected / t) | round(2) }}%"></span>
+  </div>
+</div>
+{%- endmacro %}
+
+{# The tabs above the list, one per view with its count. `views` is dataset.VIEWS; `call_type`
+   is the type filter ("" for all), kept in each tab's link. #}
+{% macro view_tabs(listing, views, call_type, oob=False) %}
+{% set qs = "&type=" ~ call_type if call_type else "" %}
+<nav id="queue-views" class="views mt-3" aria-label="Views" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+  {% for k, (label, _) in views.items() %}
+  <a class="view-tab"
+     href="/dataset?view={{ k }}{{ qs }}"
+     hx-get="/dataset?view={{ k }}{{ qs }}"
+     hx-target="#queue"
+     hx-push-url="true"
+     {% if listing.view == k %}aria-current="page"{% endif %}>{{ label }}<span class="view-count">{{ listing.counts[k] }}</span></a>
+  {% endfor %}
+</nav>
+{%- endmacro %}
