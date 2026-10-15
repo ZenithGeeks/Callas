@@ -23,6 +23,7 @@ from .leak import (
     SPOKEN_THAI_RUN,
     STRIP_FOR_COMPARE,
     URL_OR_EMAIL,
+    Reason,
     compact_text,
     leak_reasons,
     normalize,
@@ -34,9 +35,14 @@ FALLBACK = "[REDACTED]"
 _MAX_PASSES = 3
 _DIGIT_SEPARATORS = " \t\r\n-.,/"
 _THAI_RANGE = re.compile(r"[฀-๿]")
-_BLOCKING = ("digit", "digit_word_run", "url_or_email", "entity:")
 
 Span = tuple[int, int, str]  # start, end (exclusive) in the original text, replacement
+
+# The leak reasons redaction removes. The others (keyword, name, organisation, Latin word)
+# are left for the reply check.
+REDACTED_REASONS = frozenset(
+    {Reason.DIGIT, Reason.DIGIT_WORD_RUN, Reason.URL_OR_EMAIL, Reason.ENTITY}
+)
 
 
 def _view(text: str, compact: bool) -> tuple[str, list[int]]:
@@ -162,7 +168,7 @@ def _one_pass(text: str, entities: list[Entity]) -> str:
 
 
 def _still_unsafe(text: str, entities: list[Entity]) -> bool:
-    return any(r.startswith(_BLOCKING) for r in leak_reasons(text, entities))
+    return any(r.partition(":")[0] in REDACTED_REASONS for r in leak_reasons(text, entities))
 
 
 def redact_context(text: str, entities_seen: Iterable[Entity]) -> str:
