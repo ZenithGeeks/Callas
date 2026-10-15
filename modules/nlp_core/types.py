@@ -30,6 +30,8 @@ ENTITY_LABELS: tuple[str, ...] = (
 
 @dataclass
 class Entity:
+    """A span of the text with its label; start and end index the original text."""
+
     text: str
     label: str
     start: int
@@ -38,6 +40,8 @@ class Entity:
 
 @dataclass
 class NLPResult:
+    """What analyze() returns. label_type is None for normal calls and for unsure answers."""
+
     entities: list[Entity] = field(default_factory=list)
     summary: str = ""
     label_scam: bool = False

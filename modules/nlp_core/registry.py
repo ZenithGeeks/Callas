@@ -48,11 +48,13 @@ def register(kind: str, name: str, factory: Callable[[], Any]) -> None:
 
 
 def available(kind: str) -> list[str]:
+    """Names registered for this kind, sorted."""
     _check_kind(kind)
     return sorted(_FACTORIES[kind])
 
 
 def default_name(kind: str) -> str:
+    """Name chosen by the environment variable, then .env, then the built-in default."""
     _check_kind(kind)
     from callas_settings import get_settings
 

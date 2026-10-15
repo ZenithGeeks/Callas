@@ -25,6 +25,7 @@ class Analyzer:
         self.llm = llm
 
     def analyze(self, text: str) -> NLPResult:
+        """Entities from rules, summary and scam label from two LLM calls."""
         entities = extract_entities(text)
         summary = LLMSummarizer(self.llm).summarize(text)
         label_scam, label_type, confidence = LLMClassifier(self.llm).predict(text)

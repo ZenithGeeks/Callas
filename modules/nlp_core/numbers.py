@@ -1,36 +1,8 @@
-"""Thai number words back to digits, for transcripts. Issue #53.
+"""Thai number words back to digits, for transcripts (issue #53).
 
-The ASR writes numbers the way they are said, and the rule NER (entities.py) only reads digits.
-spoken_numbers_to_digits turns such words back into digits. How a number is read depends on
-what it is, so the rule follows that. Everything that is not a number below is left as it is.
-
-1. Identifiers (phone, bank account, OTP, ID card) are read digit by digit, with ขีด for a
-   dash: "หนึ่งห้าแปดขีดห้าขีดเก้าหกศูนย์สี่ห้าขีดสอง" is 158-5-96045-2. Digit words are
-   ศูนย์ หนึ่ง สอง/โท สาม สี่ ห้า หก เจ็ด แปด เก้า (เอ็ด as 1). Speakers also pause between
-   groups or run everything together, so spaces between digit words are dropped
-   ("หนึ่งห้าแปด ห้า" is 1585) and only ขีด/ลบ becomes "-". At least MIN_DIGITS (4) digit
-   words in a row, or groups joined by ขีด/ลบ with 6 digits or more in all. "สองคน",
-   "สามสี่วัน" and "ห้าลบสอง" stay. Known trade-off: a run of 4 or more digit words converts even
-   before a counter ("สองสามสี่ห้าวัน" becomes "2345 วัน"); an extra entity is safer than a
-   missed phone number.
-2. Money is read with place value (สิบ ร้อย พัน หมื่น แสน ล้าน, ยี่สิบ, สิบเอ็ด): it is
-   converted when a unit follows (บาท, ดอลลาร์, ...) or a money word comes right before it
-   (เงิน โอน ยอด ค่า ราคา จำนวน) and no counter follows (คน ปี วัน เดือน ครั้ง ชั้น ตัว ชิ้น ข้อ
-   ที่: "จำนวนสามสิบคน" stays). "โอนหนึ่งร้อยห้าสิบแปดบาท" is "โอน 158 บาท". A bare multiplier
-   counts as 1 ("ล้านบาท", "สามร้อยสิบบาท" = 310). A single digit word before a unit ("ห้าบาท")
-   converts too, but เอ็ด alone does not. Two numbers split by a space ("สอง สามร้อยบาท")
-   are never merged: that would invent an amount, so the pair stays words. A range written
-   with a hyphen ("ห้าสิบ-หกสิบบาท") converts neither half.
-3. A place-value number with no money context stays words: "สามสิบคน", "สิบวัน", "ร้อยละห้า".
-   The one exception is a code: after รหัส / OTP / โค้ด a place-value value of 1000 or more
-   converts, as an ASR may read an OTP like a number.
-4. Low priority fallback: place-value groups joined by ลบ/ขีด ("หนึ่งร้อยห้าสิบแปดลบห้าลบ...",
-   the form our own TTS produced) need 3 groups and 6 digits, or 8 digits.
-5. English digit words ("zero eight one ...") with at least 4 in a row.
-
-A number word only counts when it is a whole word for PyThaiNLP's newmm tokenizer, so
-หนึ่งเดียว, ร้อยละ, สามารถ, สามี, ห้าง, ร้อยตำรวจ, สิบเอก, พันธุ์, โทร, ปริญญาโท are never read
-as numbers. Text with no number word is returned without being tokenized.
+The ASR writes numbers the way they are said and the rule NER (entities.py) only reads digits.
+Start with `spoken_numbers_to_digits` at the bottom. What counts as a number depends on what
+it is (phone, account, money, code); the rules and examples are in README.md.
 """
 
 from __future__ import annotations
@@ -79,10 +51,12 @@ def _place_value(words: list[str]) -> int | None:
 
 
 def _digit_or_none(words: list[str]) -> int | None:
+    """The value of a single digit word, None for anything else."""
     return _DIGITS[words[0]] if len(words) == 1 and words[0] in _DIGITS else None
 
 
 def _number_or_none(words: list[str]) -> int | None:
+    """A place-value reading, or a single digit word."""
     return _place_value(words) or _digit_or_none(words)
 
 
@@ -165,6 +139,7 @@ def _read_dashed(readings: list[_Reading]) -> str | None:
 
 
 def _read_digit_words(words: list[str], digits: str, after: str) -> str | None:
+    """Digit words read one by one: convert a long run, or one word before a currency unit."""
     if _UNIT_AFTER.match(after) and len(words) == 1:
         return None if words[0] == "เอ็ด" else digits  # เอ็ด is 1 only after สิบ or in a run
     return digits if len(words) >= MIN_DIGITS else None
@@ -225,6 +200,7 @@ def _thai_edits(text: str) -> list[tuple[int, int, str]]:
 def _edit_for_run(
     text: str, run: list[re.Match[str]], word_edges: set[int]
 ) -> tuple[int, int, str] | None:
+    """The replacement for one run of number words, None to leave the run as it is."""
     run = _trim_dashes(run)
     # only whole words: "หนึ่งเดียว" is one token, so its "หนึ่ง" is not a number
     # (tokens such as "สิบสอง" hold several number words, so only the run's ends are checked)
