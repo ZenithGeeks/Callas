@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from backend import demo, main
+from backend import call, demo, live_ws, main
 
 ROOT = Path(__file__).resolve().parents[1]
 PHISHING = (
@@ -207,9 +207,7 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
     """An upload whose stream never opens must not outlive the server process."""
     from fastapi.testclient import TestClient
 
-    from backend import main
-
-    monkeypatch.setattr(main, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(call, "UPLOAD_DIR", tmp_path / "uploads")
     stale = tmp_path / "uploads"
     stale.mkdir()
     (stale / "callas-old.wav").write_bytes(b"x")  # left by a crashed run
@@ -225,7 +223,7 @@ def test_ws_live_reports_a_call_that_cannot_start(client, monkeypatch):
     def broken(rt):
         raise RuntimeError("model would not load")
 
-    monkeypatch.setattr(main.live_ws, "make_live_call", broken)
+    monkeypatch.setattr(live_ws, "make_live_call", broken)
     with client.websocket_connect("/ws/live") as ws:
         ev = ws.receive_json()
     assert ev == {"type": "error", "turn": None, "message": "The live call could not start."}
@@ -235,7 +233,7 @@ def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
     import asyncio
 
     seen = []
-    real = main.live_ws.make_live_call
+    real = live_ws.make_live_call
 
     def recording(rt):
         try:  # inside the event loop's thread a loop is running; in a worker thread none is
@@ -245,7 +243,7 @@ def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
             seen.append(False)
         return real(rt)
 
-    monkeypatch.setattr(main.live_ws, "make_live_call", recording)
+    monkeypatch.setattr(live_ws, "make_live_call", recording)
     with client.websocket_connect("/ws/live") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_text(json.dumps({"type": "end"}))
