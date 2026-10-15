@@ -234,7 +234,7 @@ class Turn:
     flags: list[str]
     spoken: str  # what the voice was given, only when it differs from the text
     prompt_tokens: int | None  # estimated size of the prompt for this turn
-    leak_tag: str  # "Leaked: OTP, ID CARD" on a receiver turn that gave details away
+    leaked: str  # "OTP, ID CARD" on a receiver turn that gave details away, else ""
     is_scam_start: bool
 
 
@@ -263,12 +263,14 @@ def turn_flags(raw_turn: dict) -> list[str]:
     return flags
 
 
-def _leak_tag(raw_turn: dict) -> str:
-    """The red tag for a receiver turn that gave away its own details, or ''."""
+def leaked_text(raw_turn: dict) -> str:
+    """What a receiver turn gave away, e.g. "OTP, ID CARD", or "" if it leaked nothing.
+
+    The generator records the leak in the turn (`leaked` holds label names). Detection is not
+    done here. The page puts "Leaked:" in front.
+    """
     labels = raw_turn.get("leaked") or []
-    if not labels:
-        return ""
-    return "Leaked: " + ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
+    return ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
 
 
 def _build_turns(db: Store, record: dict) -> list[Turn]:
@@ -291,7 +293,7 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 audio=_turn_audio_url(db, record["id"], raw),
                 reasoning=raw.get("reasoning", ""),
                 flags=turn_flags(raw),
-                leak_tag=_leak_tag(raw),
+                leaked=leaked_text(raw),
                 spoken=_spoken_text(raw),
                 prompt_tokens=raw.get("prompt_tokens"),
                 is_scam_start=scam_start == i,

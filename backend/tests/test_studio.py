@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from backend import studio
+from backend import dataset, studio
 from data_pipeline import live
 from data_pipeline.store import Store
 
@@ -132,7 +132,7 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
             side="left",
             who="Caller",
             flags=[],
-            leaked=studio._leaked({**base, **turn}),
+            leaked=dataset.leaked_text({**base, **turn}),
             audio=None,
             tag=None,
         )

@@ -35,7 +35,7 @@ from data_pipeline.config import load_config as load_default_config
 from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
-from . import dataset, views
+from . import dataset
 from .web import form_error, page, render
 
 log = logging.getLogger("callas.studio")
@@ -491,7 +491,7 @@ def _turn_html(event: live.Event) -> str:
         side="left" if turn["speaker"] == "A" else "right",
         who=dataset.SPEAKER_NAMES[turn["speaker"]],
         flags=dataset.turn_flags(turn),
-        leaked=_leaked(turn),
+        leaked=dataset.leaked_text(turn),
         audio=_audio_url(event.record["id"], turn),
         tag=_tag(event.modules, turn["agent"], turn.get("latency_s")),
     )
@@ -545,12 +545,6 @@ def _lm_view(call: live.LmCall) -> dict:
         "answer": call.answer,
         "error": call.error,
     }
-
-
-def _leaked(turn: dict) -> str:
-    """What the turn leaked, if the turn says so. Detection is not done here."""
-    labels = turn.get("leaked") or []  # label names, e.g. ["OTP", "ID_CARD"]
-    return ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
 
 
 def _audio_url(record_id: str, turn: dict) -> str | None:

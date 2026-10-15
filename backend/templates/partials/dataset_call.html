@@ -111,9 +111,9 @@
                 </button>
                 {% endif %}
               </div>
-              {% if t.flags or t.leak_tag %}
+              {% if t.flags or t.leaked %}
               <ul class="msg-flags">
-                {% if t.leak_tag %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">{{ t.leak_tag }}</li>{% endif %}
+                {% if t.leaked %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">Leaked: {{ t.leaked }}</li>{% endif %}
                 {% for f in t.flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
               </ul>
               {% endif %}
