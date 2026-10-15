@@ -7,10 +7,13 @@ import pytest
 import yaml
 from dspy.utils import DummyLM
 
+from data_pipeline import graph as graph_module
 from data_pipeline import simulate
+from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.simulate import _scam_start, record_id, run_call
+from data_pipeline.finish import scam_start
+from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
 CONFIG = load_config()
@@ -121,7 +124,7 @@ def test_normal_call_the_judge_calls_a_scam_is_rejected(tmp_path):
 def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    real_speak = simulate._speak
+    real_speak = graph_module.write_turn
     calls = {"n": 0}
 
     def crash_on_third(*a, **kw):
@@ -130,13 +133,13 @@ def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
             raise KeyboardInterrupt
         return real_speak(*a, **kw)
 
-    monkeypatch.setattr(simulate, "_speak", crash_on_third)
+    monkeypatch.setattr(graph_module, "write_turn", crash_on_third)
     with pytest.raises(KeyboardInterrupt):
         run_call("phishing_otp", 1, store, agents, CONFIG)
     saved = store.load(record_id("phishing_otp", 1))
     assert len(saved["generation"]["turns"]) == 2
 
-    monkeypatch.setattr(simulate, "_speak", real_speak)
+    monkeypatch.setattr(graph_module, "write_turn", real_speak)
     rec = run_call("phishing_otp", 1, store, agents, CONFIG)
     assert len(rec["generation"]["turns"]) == 5
     assert rec["generation"]["status"] == "accepted"
@@ -274,7 +277,7 @@ def fast_graph(monkeypatch):
 def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, saved):
     """After 1 or 3 saved turns the receiver is next; `plan` must route there."""
     store = Store(tmp_path / "calls.db")
-    real_speak = simulate._speak
+    real_speak = graph_module.write_turn
     seen = {"n": 0}
 
     def stop_after_saved(*a, **kw):
@@ -283,13 +286,13 @@ def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, 
             raise KeyboardInterrupt
         return real_speak(*a, **kw)
 
-    monkeypatch.setattr(simulate, "_speak", stop_after_saved)
+    monkeypatch.setattr(graph_module, "write_turn", stop_after_saved)
     first = make_agents(SCAM, REPLIES, judge(start=2))
     with pytest.raises(KeyboardInterrupt):
         run_call("phishing_otp", 1, store, first, CONFIG)
     assert len(store.load(record_id("phishing_otp", 1))["generation"]["turns"]) == saved
 
-    monkeypatch.setattr(simulate, "_speak", real_speak)
+    monkeypatch.setattr(graph_module, "write_turn", real_speak)
     callers_done, receivers_done = (saved + 1) // 2, saved // 2
     second = make_agents(SCAM[callers_done:], REPLIES[receivers_done:], judge(start=2))
     rec = run_call("phishing_otp", 1, store, second, CONFIG)
@@ -429,16 +432,16 @@ def scam_record(asks, judge_at, reveal=2, holds=True):
 
 def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
     # reveal turn 2 = speaker turn 4: an ask on turn 0 or 2 is too early, so the judge decides
-    assert _scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
-    assert _scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
-    assert _scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
-    assert _scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
+    assert scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
+    assert scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
+    assert scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
+    assert scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
 
 
 def test_the_judge_fallback_must_point_at_a_caller_turn():
-    assert _scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
-    assert _scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
-    assert _scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
+    assert scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
+    assert scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
+    assert scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
@@ -490,7 +493,7 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = simulate._receiver_view(turns, call, CONFIG)
+    view = turn_module.receiver_view(turns, call, CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
 
 
@@ -525,3 +528,30 @@ def test_the_prompts_list_the_receiver_slots_only_for_the_receiver():
             assert "{" + slot + "}" not in caller.fields["line"]
         assert "{" + slot + "}" in agents.receiver.instructions
     assert "{RECEIVER_NAME}" in agents.scam_caller.fields["line"]
+
+
+def test_a_command_line_resume_keeps_the_studio_scenario_and_name(tmp_path):
+    import threading
+
+    from data_pipeline import live
+
+    sampled = simulate.sample_config("romance", 3, CONFIG).scenario
+    chosen = next(s for s in CONFIG.scenarios.scams["romance"] if s.key != sampled.key)
+    store = Store(tmp_path / "calls.db")
+    agents = live.fake_agents(CONFIG, "romance")
+    capture, cancel = live.Capture(agents), threading.Event()
+    spec = live.CallSpec("romance", 3, chosen, None, "สมหญิง")
+    for event in live.stream_call(spec, store, agents, CONFIG, None, capture, cancel):
+        if event.kind == "turn" and event.index == 1:
+            cancel.set()  # stopped in the studio after two turns
+    assert len(store.load("romance_00003")["generation"]["turns"]) == 2
+
+    caller = [
+        dict(line="คุณ{RECEIVER_NAME}ครับ ขอรหัส {OTP} ด้วยครับ", asks_now=True, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    resumed = make_agents(caller, [dict(line="ค่ะ", end_call=False)], judge(start=2))
+    rec = run_call("romance", 3, store, resumed, CONFIG)
+    assert all(kw["goal"] == chosen.goal for kw in resumed.scam_caller.calls)
+    assert "คุณสมหญิงครับ" in rec["generation"]["turns"][2]["text"]
+    assert rec["generation"]["call"]["scenario"]["key"] == chosen.key

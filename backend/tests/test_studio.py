@@ -394,17 +394,17 @@ def test_start_does_its_store_and_template_work_off_the_event_loop(client, monke
 
 def too_long_after(turns, monkeypatch):
     """Make the turn after `turns` written turns fail the way a prompt that is too long does."""
-    from data_pipeline import simulate
+    from data_pipeline import graph
     from data_pipeline.budget import ContextTooLong
 
-    real = simulate._next_turn
+    real = graph.write_turn
 
     def next_turn(agents, call, config, written, *rest):
         if len(written) >= turns:
             raise ContextTooLong("receiver", 9000, 8000)
         return real(agents, call, config, written, *rest)
 
-    monkeypatch.setattr(simulate, "_next_turn", next_turn)
+    monkeypatch.setattr(graph, "write_turn", next_turn)
 
 
 def test_a_call_that_ends_early_shows_an_ending_and_does_not_hang(client, monkeypatch, tmp_path):

@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from data_pipeline import simulate
+from data_pipeline import turns as turn_module
 from data_pipeline.agents import configured
 from data_pipeline.budget import (
     ContextTooLong,
@@ -129,17 +130,17 @@ def test_cut_article_takes_the_longest_start_that_fits():
 def test_a_long_conversation_is_trimmed_with_a_marker(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     turns = long_call(40)
-    lines = simulate.conversation_lines(turns, CONFIG, raw=True)
+    lines = turn_module.conversation_lines(turns, CONFIG, raw=True)
     answer = dict(line="ครับ", asks_now=False, end_call=False)
 
     roomy = make_agents([answer], [], judge())
-    _, _, whole_tokens = simulate._caller_says(roomy, call, CONFIG, turns, ["plan"])
+    _, _, whole_tokens = turn_module.caller_says(roomy, call, CONFIG, turns, ["plan"])
     assert roomy.scam_caller.calls[0]["conversation"] == "\n".join(lines)  # fits: untouched
 
     budget = whole_tokens - 600
     tight = config_with_budget(tmp_path, "scam_caller", budget)
     agents = make_agents([answer], [], judge(), config=tight)
-    _, _, tokens = simulate._caller_says(agents, call, tight, turns, ["plan"])
+    _, _, tokens = turn_module.caller_says(agents, call, tight, turns, ["plan"])
 
     sent = agents.scam_caller.calls[0]["conversation"].split("\n")
     shown_newest = sent[3:]
@@ -154,10 +155,10 @@ def test_the_receiver_is_trimmed_too(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     turns = long_call(40)
     roomy = make_agents([], [dict(line="ค่ะ", end_call=False)], judge())
-    _, whole_tokens = simulate._receiver_says(roomy, call, CONFIG, turns)
+    _, whole_tokens = turn_module.receiver_says(roomy, call, CONFIG, turns)
     tight = config_with_budget(tmp_path, "receiver", whole_tokens - 600)
     agents = make_agents([], [dict(line="ค่ะ", end_call=False)], judge(), config=tight)
-    simulate._receiver_says(agents, call, tight, turns)
+    turn_module.receiver_says(agents, call, tight, turns)
     sent = agents.receiver.calls[0]["conversation"]
     assert "earlier turns not shown" in sent and sent.endswith(turns[-1]["text"])
 
@@ -182,13 +183,13 @@ def test_the_planner_drops_the_oldest_notes(tmp_path):
         )
     call = sample_config("phishing_otp", 1, CONFIG)
     agents = make_agents([], [], judge())
-    all_six = simulate._plan(agents, call, CONFIG, store)
+    all_six = turn_module.write_plan(agents, call, CONFIG, store)
     assert all_six["notes_used"] == [f"note {i}" for i in (5, 4, 3, 2, 1, 0)]
 
     budget = all_six["prompt_tokens"] - 1
     tight = config_with_budget(tmp_path, "planner", budget)
     agents = make_agents([], [], judge(), config=tight)
-    briefing = simulate._plan(agents, call, tight, store)
+    briefing = turn_module.write_plan(agents, call, tight, store)
     used = briefing["notes_used"]
     assert used == all_six["notes_used"][: len(used)] and 0 < len(used) < 6
     assert "note 0" not in used  # the oldest went first
@@ -295,11 +296,11 @@ def test_a_prompt_exactly_at_the_budget_is_not_trimmed(tmp_path):
     turns = long_call(10)
     answer = dict(line="ครับ", asks_now=False, end_call=False)
     roomy = make_agents([answer], [], judge())
-    _, _, exact = simulate._caller_says(roomy, call, CONFIG, turns, ["plan"])
+    _, _, exact = turn_module.caller_says(roomy, call, CONFIG, turns, ["plan"])
 
     config = config_with_budget(tmp_path, "scam_caller", exact)  # budget == measured prompt
     agents = make_agents([answer], [], judge(), config=config)
-    _, _, tokens = simulate._caller_says(agents, call, config, turns, ["plan"])
+    _, _, tokens = turn_module.caller_says(agents, call, config, turns, ["plan"])
     assert tokens == exact
     assert agents.scam_caller.calls[0]["conversation"] == roomy.scam_caller.calls[0]["conversation"]
 
@@ -332,7 +333,7 @@ def test_a_prompt_that_cannot_fit_is_not_sent(tmp_path):
         [dict(line="ครับ", asks_now=False, end_call=False)], [], judge(), config=tight
     )
     with pytest.raises(ContextTooLong, match="scam_caller"):
-        simulate._caller_says(agents, call, tight, huge, ["plan"])
+        turn_module.caller_says(agents, call, tight, huge, ["plan"])
     assert agents.scam_caller.calls == []
 
 

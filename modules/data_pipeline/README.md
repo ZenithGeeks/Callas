@@ -52,7 +52,7 @@ Review the calls at `/dataset` in the web demo. Each message plays on its own, t
 
 ## How a call runs
 
-Each call is a LangGraph graph (`simulate.build_graph`). The drawing comes from `CALL_GRAPH.get_graph().draw_mermaid()`:
+Each call is a LangGraph graph (`graph.build_graph`). The drawing comes from `CALL_GRAPH.get_graph().draw_mermaid()`:
 
 ```mermaid
 graph TD;
@@ -69,11 +69,23 @@ graph TD;
 
 - `plan`: scam calls only. Writes the plan once.
 - `caller` and `receiver`: add one turn each and save the call.
-- The dotted edges are one routing function, `next_step`. It picks whose turn it is, or `finish` when someone hung up or the call reached its length. `plan` can lead to either speaker because a resumed call may be waiting for either one.
+- The dotted edges are one routing function, `next_speaker`. It picks whose turn it is, or `finish` when someone hung up or the call reached its length. `plan` can lead to either speaker because a resumed call may be waiting for either one.
 - `finish`: builds the text, joins the audio, asks the judge, and sets accepted or rejected.
-- LangGraph's `RetryPolicy` retries only errors that come from the model: a reply DSPy cannot parse, and rate limits or 5xx answers (`simulate.is_model_error`). Waits are 5, 15 and 45 s. A bug or a store error fails at once and leaves the call unfinished. A server that is down stops the run.
+- LangGraph's `RetryPolicy` retries only errors that come from the model: a reply DSPy cannot parse, and rate limits or 5xx answers (`turns.is_model_error`). Waits are 5, 15 and 45 s. A bug or a store error fails at once and leaves the call unfinished. A server that is down stops the run.
 
-The agents, the store and the config reach the nodes as LangGraph run context (`context_schema`), not as state. There is no checkpointer. Every node saves the call to the SQLite store, so a stopped run resumes from the last saved turn. A turn is built before it is added to the record, so a retry after a failed save never adds it twice.
+The state (`CallState`) holds only what changes during a call: the briefing, the turns, the status and the ending. Each node returns only the fields it changed. The agents, the store, the config and the call as it was loaded reach the nodes as LangGraph run context (`context_schema`), not as state. `to_record` lays the state over the loaded call to get the record the store saves.
+
+There is no checkpointer. Every node saves the call to the SQLite store, so a stopped run resumes from the last saved turn. A node saves before it returns, and LangGraph adds the new turn to the state only after the node returns, so a retry after a failed save never adds it twice.
+
+### Read the code in this order
+
+1. `graph.py`: the call graph. The state, the nodes `plan`, `caller`, `receiver` and `finish`, the routing function and `build_graph`.
+2. `turns.py`: one turn. What each agent is given, how the conversation is cut to fit the prompt, slot filling and the problems a line can have. Also the planner.
+3. `finish.py`: the finished call. Its text, the receiver's leaks, the judge, where the scam starts and the reasons to reject it.
+4. `audio.py`: speaking each turn and joining the call's audio.
+5. `simulate.py`: `run_call`, which loads or creates the record and runs the graph.
+6. `live.py`: the same graph streamed step by step for the `/studio` page.
+7. `synthesize.py`: the command line. Then `store.py`, `agents.py`, `config.py` and `fill.py`.
 
 ## Export for the classifier notebook
 
