@@ -22,6 +22,7 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
                 "agent": "scam_caller" if speaker == "A" else "receiver",
                 "raw": text,
                 "text": text,
+                "spoken_text": "",
                 "entities": entities,
                 "asks_now": speaker == "A",
                 "end_call": False,
@@ -63,6 +64,7 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
             "turns": gen_turns,
             "receiver_leaked": [],
             "first_leak_turn": None,
+            "speech_style": "",
             "scam_start_from": "caller" if scam else None,
             "judge": {"label_holds": True},
         },
@@ -267,6 +269,8 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     db.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
     db.execute("ALTER TABLE calls DROP COLUMN first_leak_turn")
     db.execute("ALTER TABLE turns DROP COLUMN leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
+    db.execute("ALTER TABLE calls DROP COLUMN speech_style")
     db.commit()
     db.close()
 
@@ -276,3 +280,14 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     assert loaded["generation"]["first_leak_turn"] is None
     assert loaded["generation"]["turns"][0]["leaked"] == []
     Store(path)  # opening twice is fine
+
+
+def test_spoken_text_and_style_round_trip(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record(turns=2)
+    record["generation"]["speech_style"] = "dash"
+    record["generation"]["turns"][0]["spoken_text"] = "ขอรหัส หนึ่งสองสาม"
+    store.save(record)
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["speech_style"] == "dash"
+    assert loaded["generation"]["turns"][0]["spoken_text"] == "ขอรหัส หนึ่งสองสาม"

@@ -190,6 +190,27 @@ store keeps them in new columns (`calls.receiver_leaked`, `calls.first_leak_turn
 New entity labels: `ID_CARD`, `BIRTH_DATE` and `ADDRESS` (in `nlp_core.types.ENTITY_LABELS`).
 `PHONE`, `BANK_ACCOUNT`, `OTP` and `PERSON` already existed.
 
+## How numbers are spoken
+
+VachanaTTS reads `158-5-96045-2` as one number with minus signs. So the voice is not given the
+stored text: `spoken.py` builds a spoken version from the turn's own entity spans and keeps it on
+the turn as `spoken_text` (shown to reviewers; the stored `text` and its spans keep the digits,
+because the digits are the labels).
+
+| Label | Said as |
+|---|---|
+| `PHONE`, `BANK_ACCOUNT`, `ID_CARD` | digit by digit per group: `158-5-96045-2` is "หนึ่งห้าแปด ขีด ห้า ขีด เก้าหกศูนย์สี่ห้า ขีด สอง" |
+| `OTP` | digit by digit, no dashes |
+| `MONEY` | place value: `49,500 บาท` is "สี่หมื่นเก้าพันห้าร้อยบาท" |
+| `BIRTH_DATE` | day and year as numbers, month as written |
+| `ADDRESS` | digits one by one, `/` as "ทับ" |
+| `PERSON`, `ORG`, `URL` | as written |
+
+People do not always say "ขีด"; often they only pause between groups. Each call picks one style
+from its seed and keeps it (`generation.speech_style`, `dash` or `pause`). The share of `dash`
+calls is `speech.say_dash_share` in `agents.yaml` (0 to 1, default 0.5). Text outside the spans is
+never changed.
+
 ## Checks before a call is accepted
 
 A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:

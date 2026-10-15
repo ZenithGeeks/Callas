@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS calls (
     scam_start_from  TEXT,                                 -- caller | judge
     receiver_leaked  TEXT NOT NULL DEFAULT '[]',           -- JSON: labels the receiver gave away
     first_leak_turn  INTEGER,                              -- index of the first leaking turn
+    speech_style     TEXT NOT NULL DEFAULT '',             -- dash | pause: how numbers are said
     reference_summary TEXT NOT NULL DEFAULT '',
     audio_path       TEXT,
     review_status    TEXT NOT NULL DEFAULT 'pending',      -- pending | approved | rejected
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS turns (
     agent      TEXT NOT NULL DEFAULT '',
     raw        TEXT NOT NULL DEFAULT '',     -- the line as written, with slots
     text       TEXT NOT NULL DEFAULT '',     -- slots filled
+    spoken_text TEXT NOT NULL DEFAULT '',    -- what the voice was given (numbers spelled out)
     entities   TEXT NOT NULL DEFAULT '[]',   -- JSON spans within `text`
     asks_now   INTEGER NOT NULL DEFAULT 0,
     end_call   INTEGER NOT NULL DEFAULT 0,
@@ -101,6 +103,7 @@ _TURN_COLUMNS = (
     "agent",
     "raw",
     "text",
+    "spoken_text",
     "entities",
     "asks_now",
     "end_call",
@@ -118,6 +121,8 @@ _JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling")
 _ADDED_COLUMNS = (
     ("calls", "receiver_leaked", "TEXT NOT NULL DEFAULT '[]'"),
     ("calls", "first_leak_turn", "INTEGER"),
+    ("calls", "speech_style", "TEXT NOT NULL DEFAULT ''"),
+    ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
 )
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")
@@ -192,9 +197,11 @@ class Store:
                     id, call_type, seed, label_scam, label_type, status, reasons,
                     config_name, config_hash, models, call, voices, briefing, judge,
                     scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
+                    speech_style,
                     reference_summary, audio_path,
                     review_status, review_note, reviewed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
                     status = excluded.status, reasons = excluded.reasons,
                     models = excluded.models, briefing = excluded.briefing,
@@ -202,6 +209,7 @@ class Store:
                     scam_start_from = excluded.scam_start_from,
                     receiver_leaked = excluded.receiver_leaked,
                     first_leak_turn = excluded.first_leak_turn,
+                    speech_style = excluded.speech_style,
                     reference_summary = excluded.reference_summary,
                     audio_path = excluded.audio_path, updated_at = excluded.updated_at
                 """,
@@ -224,6 +232,7 @@ class Store:
                     gen.get("scam_start_from"),
                     json.dumps(gen.get("receiver_leaked", []), ensure_ascii=False),
                     gen.get("first_leak_turn"),
+                    gen.get("speech_style", ""),
                     record.get("reference_summary", ""),
                     record.get("audio_path"),
                     review.get("status", "pending"),
@@ -415,7 +424,7 @@ def _turn_value(turn: dict, column: str) -> Any:
         return json.dumps(value or [], ensure_ascii=False)
     if column in _BOOL_TURN_FIELDS:
         return int(bool(value))
-    if column in ("agent", "raw", "text", "reasoning"):
+    if column in ("agent", "raw", "text", "spoken_text", "reasoning"):
         return value or ""
     return value
 
@@ -474,6 +483,7 @@ def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
             "turns": [_turn(t) for t in turns],
             "receiver_leaked": json.loads(row["receiver_leaked"]),
             "first_leak_turn": row["first_leak_turn"],
+            "speech_style": row["speech_style"],
             "scam_start_from": row["scam_start_from"],
             "judge": json.loads(row["judge"]) if row["judge"] else None,
         },

@@ -159,6 +159,14 @@ class TTS(_Strict):
         return v
 
 
+class Speech(_Strict):
+    """How numbers are said in the audio (see spoken.py)."""
+
+    # share of calls whose speakers say "ขีด" between the groups of an account, phone or ID
+    # card number; the other calls only pause. One style per call, chosen from its seed.
+    say_dash_share: float = Field(0.5, ge=0.0, le=1.0)
+
+
 class AgentsFile(_Strict):
     slot_rule: str = ""  # shared text, reused through a YAML anchor; not read by the code
     speakers: Speakers
@@ -169,6 +177,7 @@ class AgentsFile(_Strict):
     pattern_extractor: Agent
     judge: Judge
     tts: TTS
+    speech: Speech = Speech()
 
 
 # ---- scenarios.yaml ------------------------------------------------------------------------

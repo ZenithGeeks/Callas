@@ -50,6 +50,7 @@ from .config import Config, ConfigError
 from .fill import RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
 from .patterns import render_notes
 from .scenarios import CallConfig, ReceiverProfile, sample_config
+from .spoken import pick_speech_style, spoken_text
 from .store import RECORD_SCHEMA, Store
 from .tts import Voices, join_call, pick_voices
 
@@ -127,6 +128,11 @@ def run_call(
     return result["record"]
 
 
+def speech_style(call: CallConfig, config: Config) -> str:
+    """ "dash" or "pause": how this call's numbers are said (see spoken.py)."""
+    return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
+
+
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
     """romance_00001, or romance_teacher_cm_00001 for a call with a hand-picked receiver."""
     middle = f"_{receiver_key}" if receiver_key else ""
@@ -184,6 +190,7 @@ def new_record(
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "call": {**call.to_dict(), "receiver_override": receiver_hash(receiver)},
             "voices": {CALLER: caller_voice, RECEIVER: receiver_voice},
+            "speech_style": speech_style(call, config),
             "briefing": None,
             "turns": [],
             "receiver_leaked": [],
@@ -276,6 +283,7 @@ def _next_turn(
         "agent": agent_name,
         "raw": raw,
         "text": text,
+        "spoken_text": spoken_text(text, entities, speech_style(call, config)),
         "entities": entities,
         "asks_now": bool(getattr(pred, "asks_now", False)),
         "end_call": bool(pred.end_call),
@@ -457,10 +465,11 @@ def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None
     turn = record["generation"]["turns"][index]
     if not turn["text"]:
         return
+    said = turn.get("spoken_text") or turn["text"]
     rel = f"audio/{record['id']}/{index:02d}_{turn['speaker']}.wav"
     voice = record["generation"]["voices"][turn["speaker"]]
     try:
-        turn["audio_s"] = round(voices.speak(turn["text"], voice, out_dir / rel), 3)
+        turn["audio_s"] = round(voices.speak(said, voice, out_dir / rel), 3)
         turn["audio"] = rel
     except Exception as exc:  # a turn without audio is flagged, the call text is still kept
         log.warning("tts failed for %s turn %d: %s", record["id"], index, type(exc).__name__)

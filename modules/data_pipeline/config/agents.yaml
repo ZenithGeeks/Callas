@@ -172,3 +172,10 @@ tts:
     male: [th_m_1, th_m_2]
     female: [th_f_1, th_f_2]
   gap_s: 0.45  # silence between turns in the joined call audio
+
+# How numbers are said in the audio. The stored text keeps the digits; the voice is given a
+# spoken version (account, phone and ID card numbers digit by digit, money with place value).
+# Between the digit groups of a number, this share of calls say "ขีด" (dash) and the rest only
+# pause. One style per call, chosen from its seed.
+speech:
+  say_dash_share: 0.5
