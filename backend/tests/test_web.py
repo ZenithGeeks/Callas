@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from backend import demo
+from backend import demo, main
 
 ROOT = Path(__file__).resolve().parents[1]
 PHISHING = (
@@ -219,3 +219,34 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
         assert r.status_code == 200
         assert list(stale.iterdir())
     assert list(stale.iterdir()) == []  # cleared at shutdown
+
+
+def test_ws_live_reports_a_call_that_cannot_start(client, monkeypatch):
+    def broken(rt):
+        raise RuntimeError("model would not load")
+
+    monkeypatch.setattr(main.live_ws, "make_live_call", broken)
+    with client.websocket_connect("/ws/live") as ws:
+        ev = ws.receive_json()
+    assert ev == {"type": "error", "turn": None, "message": "The live call could not start."}
+
+
+def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
+    import asyncio
+
+    seen = []
+    real = main.live_ws.make_live_call
+
+    def recording(rt):
+        try:  # inside the event loop's thread a loop is running; in a worker thread none is
+            asyncio.get_running_loop()
+            seen.append(True)
+        except RuntimeError:
+            seen.append(False)
+        return real(rt)
+
+    monkeypatch.setattr(main.live_ws, "make_live_call", recording)
+    with client.websocket_connect("/ws/live") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        ws.send_text(json.dumps({"type": "end"}))
+    assert seen == [False]
