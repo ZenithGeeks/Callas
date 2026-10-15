@@ -12,16 +12,15 @@ counts as a block.
 from __future__ import annotations
 
 import logging
-import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Protocol
-from zoneinfo import ZoneInfo
 
 from llm_serving.base import LLM
 from nlp_core.types import NLPResult
 
 from .constants import MAX_REPLY_CHARS
+from .facts import current_facts, fact_numbers
 from .leak import leak_reasons
 from .memory import CallState
 from .redact import redact_context
@@ -49,31 +48,6 @@ def _judge_verdict(judge: Any, text: str, context: str) -> str | None:
     if verdict is False:
         return None
     return "judge_block" if verdict is True else "judge_error"
-
-
-_DAYS = "จันทร์ อังคาร พุธ พฤหัสบดี ศุกร์ เสาร์ อาทิตย์".split()
-_MONTHS = (
-    "มกราคม กุมภาพันธ์ มีนาคม เมษายน พฤษภาคม มิถุนายน กรกฎาคม สิงหาคม กันยายน ตุลาคม พฤศจิกายน ธันวาคม"
-).split()
-
-
-def current_facts(now: datetime | None = None) -> str:
-    """Today's date and time in Thai (Bangkok time, Buddhist year), for the reply prompt."""
-    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
-    return (
-        f"วันนี้วัน{_DAYS[now.weekday()]}ที่ {now.day} {_MONTHS[now.month - 1]} "
-        f"{now.year + 543} เวลา {now:%H:%M} น."
-    )
-
-
-def fact_numbers(now: datetime | None = None) -> set[str]:
-    """Numbers a reply may contain: those of current_facts(), allowing the minute to tick over."""
-    now = now or datetime.now(ZoneInfo("Asia/Bangkok"))
-    return {
-        n
-        for delta in (-1, 0, 1)
-        for n in re.findall(r"\d+", current_facts(now + timedelta(minutes=delta)))
-    }
 
 
 def safe_reply(

@@ -6,8 +6,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from .facts import fact_numbers
 from .leak import leak_reasons
-from .reply import fact_numbers
 
 
 class Speaker:
