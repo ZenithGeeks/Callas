@@ -198,8 +198,8 @@ async def _stream_run(request: Request, run: call_run.Run) -> AsyncIterator[str]
 
 def _render_regions(view: call_run.RunView, fresh: bool) -> dict[str, str]:
     """Each result region of the page as HTML, by name."""
-    mod = templates.env.get_template("partials/call_regions.html").module
-    return {name: str(getattr(mod, name)(view, fresh)) for name in REGIONS}
+    macros = templates.env.get_template("partials/call_regions.html").module
+    return {name: str(getattr(macros, name)(view, fresh)) for name in REGIONS}
 
 
 def _sse(event: str, data: str) -> str:

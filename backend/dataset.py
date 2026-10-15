@@ -137,22 +137,22 @@ class Row:
     summary: str
 
 
-def _row(rec: dict) -> Row:
-    gen = rec.get("generation", {})
-    call_type = rec.get("label_type") or "benign"
-    turns = rec.get("speaker_turns") or gen.get("turns") or []
+def _row(record: dict) -> Row:
+    generation = record.get("generation", {})
+    call_type = record.get("label_type") or "benign"
+    turns = record.get("speaker_turns") or generation.get("turns") or []
     end = turns[-1].get("end") if turns and isinstance(turns[-1], dict) else None
     return Row(
-        id=rec["id"],
+        id=record["id"],
         call_type=call_type,
         type_name=CALL_TYPE_NAMES.get(call_type, call_type),
-        seed=rec["id"].rsplit("_", 1)[-1],
-        label_scam=bool(rec.get("label_scam")),
-        status=gen.get("status", "in_progress"),
-        review=rec.get("review", {}).get("status", "pending"),
+        seed=record["id"].rsplit("_", 1)[-1],
+        label_scam=bool(record.get("label_scam")),
+        status=generation.get("status", "in_progress"),
+        review=record.get("review", {}).get("status", "pending"),
         turns=len(turns),
         seconds=end,
-        summary=rec.get("reference_summary", ""),
+        summary=record.get("reference_summary", ""),
     )
 
 
@@ -272,12 +272,12 @@ def _leak_tag(raw_turn: dict) -> str:
 
 
 def _build_turns(db: Store, record: dict) -> list[Turn]:
-    gen = record.get("generation", {})
+    generation = record.get("generation", {})
     rid = record["id"]
     scam_start = record.get("scam_start_turn")  # 0-based index, or None
     timings = record.get("speaker_turns") or []  # same order as the generated turns
     turns = []
-    for i, raw in enumerate(gen.get("turns", [])):
+    for i, raw in enumerate(generation.get("turns", [])):
         audio_name = Path(raw["audio"]).name if raw.get("audio") else None
         has_audio = audio_name and audio_file(db, rid, audio_name)
         timing = timings[i] if i < len(timings) else {}
@@ -304,29 +304,31 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
     return turns
 
 
-def _setup_table(gen: dict) -> dict[str, str]:
+def _setup_table(generation: dict) -> dict[str, str]:
     """Label -> value for the "How it was made" list. Empty values are left out."""
-    call = gen.get("call", {})
+    call = generation.get("call", {})
     scenario = call.get("scenario", {})
+    config_name = generation.get("config_name", "")
+    config_hash = generation.get("config_hash", "")
     table = {
         "Scenario": scenario.get("key", ""),
         "Caller plays": scenario.get("role", ""),
         "Caller wants": scenario.get("goal", ""),
         "How": scenario.get("tactics", ""),
-        "Voices": " / ".join(gen.get("voices", {}).values()),
-        "Models": ", ".join(sorted(set(gen.get("models", {}).values()))),
-        "Config": f"{gen.get('config_name', '')} {gen.get('config_hash', '')}".strip(),
+        "Voices": " / ".join(generation.get("voices", {}).values()),
+        "Models": ", ".join(sorted(set(generation.get("models", {}).values()))),
+        "Config": f"{config_name} {config_hash}".strip(),
         "Seed": str(call.get("seed", "")),
-        "Numbers spoken": SPEECH_STYLE_TEXT.get(gen.get("speech_style", ""), ""),
+        "Numbers spoken": SPEECH_STYLE_TEXT.get(generation.get("speech_style", ""), ""),
     }
     return {label: value for label, value in table.items() if value}
 
 
 def detail(db: Store, record: dict) -> Detail:
-    gen = record.get("generation", {})
+    generation = record.get("generation", {})
     rid = record["id"]
     scam_start = record.get("scam_start_turn")
-    receiver = dict(gen.get("call", {}).get("receiver", {}))
+    receiver = dict(generation.get("call", {}).get("receiver", {}))
     if "job" in receiver:  # calls made before receivers had full profiles
         receiver["occupation"] = receiver.pop("job")
     return Detail(
@@ -334,11 +336,11 @@ def detail(db: Store, record: dict) -> Detail:
         row=_row(record),
         turns=_build_turns(db, record),
         scam_start_n=None if scam_start is None else scam_start + 1,
-        scam_start_from=gen.get("scam_start_from"),
-        reasons=[reason_text(r) for r in gen.get("reasons", [])],
-        judge=gen.get("judge"),
+        scam_start_from=generation.get("scam_start_from"),
+        reasons=[reason_text(r) for r in generation.get("reasons", [])],
+        judge=generation.get("judge"),
         call_audio=f"/dataset/audio/{rid}" if audio_file(db, rid) else None,
-        setup=_setup_table(gen),
+        setup=_setup_table(generation),
         receiver=receiver,
-        plan=(gen.get("briefing") or {}).get("plan", []),
+        plan=(generation.get("briefing") or {}).get("plan", []),
     )

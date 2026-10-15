@@ -370,7 +370,9 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
                     outcome = "finished"
     except Exception as exc:
         outcome = "failed"
-        run.push("failed", render("partials/studio_failed.html", message=_explain(run, exc)))
+        run.push(
+            "failed", render("partials/studio_failed.html", message=_failure_message(run, exc))
+        )
     finally:
         try:
             html = render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
@@ -391,7 +393,7 @@ def _sync_wiki(store: Store) -> None:
             log.warning("wiki sync skipped: %s", exc)
 
 
-def _explain(run: StudioRun, exc: Exception) -> str:
+def _failure_message(run: StudioRun, exc: Exception) -> str:
     """A message for the page. The call stays in the store; model errors reject it like the CLI."""
     if isinstance(exc, LLMUnavailable):
         return f"{exc}. The call is saved as far as it got; start it again with the same seed."

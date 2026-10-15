@@ -72,7 +72,7 @@ class Seg:
         return "alarm" if self.label in SENSITIVE_LABELS else "ink"
 
 
-def _get(entity: Any, name: str) -> Any:
+def _field(entity: Any, name: str) -> Any:
     return entity[name] if isinstance(entity, dict) else getattr(entity, name)
 
 
@@ -84,10 +84,10 @@ def segments(text: str, entities: list[Any]) -> list[Seg]:
     """
     spans: list[tuple[int, int, str]] = []
     for e in entities:
-        value, label = _get(e, "text"), _get(e, "label")
+        value, label = _field(e, "text"), _field(e, "label")
         if not value:
             continue
-        start, end = _get(e, "start"), _get(e, "end")
+        start, end = _field(e, "start"), _field(e, "end")
         if text[start:end] != value:
             start = text.find(value)
             end = start + len(value)
@@ -113,7 +113,7 @@ def entity_rows(entities: list[Any]) -> list[dict]:
     """One row per distinct (text, label), in order of first appearance."""
     rows, seen = [], set()
     for e in entities:
-        key = (_get(e, "text"), _get(e, "label"))
+        key = (_field(e, "text"), _field(e, "label"))
         if key in seen:
             continue
         seen.add(key)

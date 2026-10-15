@@ -111,7 +111,7 @@ class DemoLiveCall:
             joined = "\n".join(context)
             for e in ner.extract(joined):
                 seen.setdefault((e.text, e.label), asdict(e))
-            label = demo._classify(joined)
+            label = demo.classify_call(joined)
             scam = label != "normal"
             reason = "benign"
             if scam and not escalated:
@@ -148,7 +148,7 @@ class DemoLiveCall:
                         "escalated": escalated,
                         "reason": reason,
                         "entities": list(seen.values()),
-                        "summary": demo._summary(joined),
+                        "summary": demo.summarize_call(joined),
                     },
                 )
             )

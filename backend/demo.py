@@ -88,7 +88,7 @@ class DemoNER:
         return sorted(found, key=lambda e: e.start)
 
 
-def _classify(context: str) -> str:
+def classify_call(context: str) -> str:
     if "OTP" in context:
         return "phishing_otp"
     if "โอนเงิน" in context or "ร้อยตำรวจ" in context:
@@ -96,7 +96,7 @@ def _classify(context: str) -> str:
     return "normal"
 
 
-def _summary(context: str) -> str:
+def summarize_call(context: str) -> str:
     if "OTP" in context:
         return "ข้อความอ้างว่าบัญชีถูกระงับ ให้ยืนยันตัวตนผ่านลิงก์ หรือส่งรหัส OTP กลับไป"
     if "ดำเนินคดี" in context:
@@ -110,7 +110,7 @@ def _summary(context: str) -> str:
 
 
 def make_llm() -> FakeLLM:
-    return FakeLLM({"classify": _classify, "summary": _summary, "reply": DEMO_REPLY})
+    return FakeLLM({"classify": classify_call, "summary": summarize_call, "reply": DEMO_REPLY})
 
 
 def register_demo_parts(llm: FakeLLM) -> None:
@@ -126,7 +126,7 @@ def fake_agent(text: str) -> SimpleNamespace:
             "ข้อความอ้างว่าบัญชีถูกระงับเพื่อเร่งให้รีบทำ ให้กดลิงก์ที่ไม่ใช่เว็บไซต์ธนาคาร "
             "และขอรหัส OTP ซึ่งธนาคารไม่เคยขอทางข้อความ"
         )
-    elif _classify(text) != "normal":
+    elif classify_call(text) != "normal":
         why = "ข้อความนี้มีลักษณะของการหลอกลวง เช่น การขอให้โอนเงินหรือให้รีบดำเนินการ"
     else:
         why = "ไม่พบสัญญาณของการหลอกลวงในข้อความนี้ ไม่มีการขอเงิน รหัส หรือลิงก์"

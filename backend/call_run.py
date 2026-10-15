@@ -17,7 +17,7 @@ from typing import Any
 
 from orchestrator.graph import verdict_from
 
-from . import runtime as rt
+from . import runtime
 from .views import (
     Band,
     confidence_word,
@@ -93,11 +93,11 @@ class RunView:
             keys = {(e.text, e.label) for e in self.entities}
             self.entities += [e for e in nlp.entities if (e.text, e.label) not in keys]
             self.summary = nlp.summary
-            v = verdict_from(nlp)
+            verdict = verdict_from(nlp)
             turn.level, turn.label_type, turn.confidence = (
-                v["level"],
-                v["label_type"],
-                v["confidence"],
+                verdict["level"],
+                verdict["label_type"],
+                verdict["confidence"],
             )
         elif node == "decide":
             decision = update["decision"]
@@ -346,13 +346,13 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
             gen = app_rt.sessions.simulate_call(path)
             for item in gen:
                 if not sent:
-                    put("transcript", rt.last_transcription())
+                    put("transcript", runtime.last_transcription())
                     sent = True
                 if stop.is_set():
                     break
                 put("item", item)
             if not sent:
-                put("transcript", rt.last_transcription())
+                put("transcript", runtime.last_transcription())
             put("end", None)
         except Exception as exc:
             put("error", exc)
