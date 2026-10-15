@@ -106,21 +106,31 @@ call is skipped, and counted under a reason, when the notebook's cleaning would 
 reviewed: a turn that contains a speaker tag, text in square brackets, a stage note such as
 `(เสียงร้องไห้)`, the English words Scam, Phishing or Impersonation, the word ผู้โทร in a caller turn
 (the notebook cuts the rest of the turn as narration), an empty turn, two turns in a row from one
-speaker, fewer than two turns, or a scam type outside the five. The rules are copied from the
+speaker, fewer than two turns, a scam type outside the five, or (with `--text asr`) a turn with
+no transcript. The rules are copied from the
 notebook, and a test fails if the notebook's version changes.
 
 `--text asr` writes the ASR transcript of each turn's audio instead of the written line, so the
-model trains on text like the one it reads in production. Transcripts come from the cache that
-`scripts/eval_autocorrect.py asr` keeps (`eval/results/asr_cache/typhoon_asr.json`, or the folder
-in `CALLAS_ASR_CACHE`). A turn that is not in the cache is transcribed with pythaiasr when it is
-installed and the audio file is there, and the result is added to the cache. Otherwise the written
-line is used for that turn, and the summary says how many turns that was. The cache is keyed by
-call id and turn number, so delete its entries after you regenerate a call. The transcripts go
-through the same checks as the written text.
+model trains on text like the one it reads in production. The export keeps its transcripts in
+`eval/results/asr_cache/typhoon_asr.export.json` (or the folder in `CALLAS_ASR_CACHE`). It is not
+the cache of `scripts/eval_autocorrect.py`: each entry here also holds a hash of the turn's
+written text and audio file name, and an entry whose hash differs is ignored. So a call that you
+regenerate under the same id is transcribed again. A turn that is not cached is transcribed with
+pythaiasr when it is installed and the audio file is there, and the result is added to the
+cache. If that is not possible, the call is skipped as `asr_incomplete`: a call with some turns
+written and some spoken would not match what the classifier reads in production. The
+transcripts go through the same checks as the written text.
 
-In the notebook, rows with the same `group_hint` always land in one split, and with
-`KEEP_ORIGINAL_TEST = True` the hand-written test set in `data/processed/test.csv` stays the test
-set, so generated rows only go to train and valid.
+In the notebook, rows with the same `group_hint` always land in one split. With
+`KEEP_ORIGINAL_TEST = True` every hand-written row keeps the split it has in
+`data/processed/{train,valid,test}.csv`. A generated row follows the hand-written rows of its
+group, is dropped if that split is test, and only groups that are new go to train and valid.
+Without a generated file the notebook gives back `data/processed` unchanged.
+
+One limit to know: all calls of a scenario stay in one split. Each type has 4 to 6
+scenarios, so the type model sees few distinct scenarios, and a type can have too few samples
+in valid or test to be scored. Add scenarios in `config/scenarios.yaml` before you generate
+more calls of the same type.
 
 ## Choose who answers
 

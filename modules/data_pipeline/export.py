@@ -20,6 +20,7 @@ The store is opened read-only, so this never changes calls.db.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
@@ -66,6 +67,7 @@ STAGE_NOTE_IN_TURN = "stage_note_in_turn"
 CALLER_NOUN = "caller_word_in_caller_turn"
 LABEL_NAME = "english_label_name"
 CLEANING_CHANGES_CALL = "cleaning_changes_call"
+ASR_INCOMPLETE = "asr_incomplete"
 
 # The names the notebook's TYPE_MAP maps (its step 4) for the five spec types.
 TYPE_NAMES = {t: t for t in SCAM_TYPES}
@@ -169,37 +171,47 @@ def build_row(call: dict, turns: list[dict], text_of: Callable[[dict], str]) -> 
 
 
 def default_asr_cache() -> Path:
-    """Where scripts/eval_autocorrect.py keeps its transcripts: eval/results/asr_cache."""
+    """Where the export keeps its transcripts: eval/results/asr_cache (or CALLAS_ASR_CACHE)."""
     env = os.environ.get("CALLAS_ASR_CACHE")
     return Path(env) if env else Path(__file__).resolve().parents[2] / "eval/results/asr_cache"
 
 
+def turn_signature(turn: dict) -> str:
+    """Identifies the audio a transcript belongs to: the turn's script text and audio file name.
+    A call regenerated under the same id has other text, so its old transcripts no longer match."""
+    return hashlib.sha1(f"{turn['text']}\n{turn.get('audio') or ''}".encode()).hexdigest()[:16]
+
+
 class AsrText:
-    """ASR transcript of a turn's audio. The cache has the format eval_autocorrect.py writes:
-    one json file per model, {"<call id>/<turn idx>": transcript}. A turn that is not cached is
-    transcribed when pythaiasr is installed and the audio file exists, and then cached; if not,
-    the script text is used and counted in `fallback`."""
+    """ASR transcript of a turn's audio.
+
+    The cache is one json file per model, `<model>.export.json`, with {"<call id>/<turn idx>":
+    {"sig": turn_signature, "text": transcript}}. It is not the file scripts/eval_autocorrect.py
+    writes, because that one cannot tell that a call was regenerated. An entry whose signature
+    differs is a miss. A miss is transcribed when pythaiasr is installed and the audio file
+    exists, and then cached. If that is not possible the turn has no ASR text and the call is
+    refused (asr_incomplete): mixing written and spoken text in one call would not match what
+    the classifier reads in production."""
 
     def __init__(self, folder: Path, cache_dir: Path, model: str = "typhoon_asr") -> None:
         self.folder, self.model = folder, model
-        self.cache_path = cache_dir / f"{model}.json"
-        self.cache: dict[str, str] = {}
+        self.cache_path = cache_dir / f"{model}.export.json"
+        self.cache: dict[str, dict] = {}
         if self.cache_path.exists():
             self.cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
-        self.fallback = 0
         self.transcribed = 0
         self._asr = None
         self._unavailable = False
 
     def __call__(self, call_id: str, turn: dict) -> str:
-        key = f"{call_id}/{turn['idx']}"
-        if key in self.cache:
-            return self.cache[key]
+        key, sig = f"{call_id}/{turn['idx']}", turn_signature(turn)
+        hit = self.cache.get(key)
+        if hit and hit["sig"] == sig:
+            return hit["text"]
         text = self._transcribe(turn.get("audio"))
         if text is None:
-            self.fallback += 1
-            return turn["text"]
-        self.cache[key] = text
+            raise Refused(ASR_INCOMPLETE, f"{call_id} turn {turn['idx']}")
+        self.cache[key] = {"sig": sig, "text": text}
         self.transcribed += 1
         return text
 
@@ -304,10 +316,7 @@ def run_export(out: Path, store: Path, text: str = "script") -> int:
     written, skipped = export_notebook(store, out, text, asr)
     if asr is not None:
         asr.save()
-        print(
-            f"ASR text from {asr.cache_path} ({asr.transcribed} turns transcribed now, "
-            f"{asr.fallback} turns fell back to the script text)"
-        )
+        print(f"ASR text from {asr.cache_path} ({asr.transcribed} turns transcribed now)")
     print(f"wrote {written} rows to {out} (text: {text})")
     if skipped:
         print(f"skipped {sum(skipped.values())} calls:")
