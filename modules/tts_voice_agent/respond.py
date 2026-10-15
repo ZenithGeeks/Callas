@@ -17,6 +17,7 @@ from .templates import pick_template
 
 
 def load_result(path: str) -> NLPResult:
+    """Read an NLPResult from a JSON file. Missing fields get safe defaults."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     return NLPResult(
@@ -29,6 +30,7 @@ def load_result(path: str) -> NLPResult:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the CLI. Prints the decision as JSON and returns the exit code."""
     p = argparse.ArgumentParser(description="Decide and, for benign calls, speak a reply.")
     p.add_argument("--nlp-result", required=True, help="NLPResult JSON file")
     p.add_argument("--out", required=True, help="output WAV path")

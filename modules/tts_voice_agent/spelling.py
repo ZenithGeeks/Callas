@@ -32,4 +32,5 @@ def spelling_problems(text: str) -> list[str]:
 
 
 def looks_misspelled(text: str) -> bool:
+    """True if `text` has a word outside the Thai dictionary or a misplaced tone mark."""
     return bool(spelling_problems(text))
