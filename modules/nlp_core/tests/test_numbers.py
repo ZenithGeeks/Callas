@@ -1,6 +1,9 @@
+import re
+
 import pytest
 
 from asr_diarization.types import Turn
+from nlp_core import numbers
 from nlp_core.entities import extract_entities
 from nlp_core.numbers import spoken_numbers_to_digits
 from tts_voice_agent.leak import leak_reasons
@@ -106,6 +109,75 @@ def test_spoken_numbers_become_digits(spoken, expected):
 @pytest.mark.parametrize("text", UNCHANGED)
 def test_ordinary_words_stay(text):
     assert spoken_numbers_to_digits(text) == text
+
+
+def _reference_edit_for_run(text, run, word_edges):
+    """The first version of numbers._edit_for_run: it slices the whole text before and after."""
+    run = numbers._trim_dashes(run)
+    if not run or run[0].start() not in word_edges or run[-1].end() not in word_edges:
+        return None
+    words = [m.group() for m in run]
+    start, end = run[0].start(), run[-1].end()
+    before, after = text[:start], text[end:]
+    digits = numbers._read_run(words, before, after)
+    if digits is None:
+        return None
+    long_digits = len(words) >= numbers.MIN_DIGITS and all(
+        w in numbers._DIGITS or w in numbers._DASH_WORDS for w in words
+    )
+    next_to_hyphen = before.rstrip().endswith("-") or after.lstrip().startswith("-")
+    if next_to_hyphen and not long_digits:
+        return None
+    pad_left = " " if before and not before[-1].isspace() else ""
+    pad_right = " " if after and not after[0].isspace() else ""
+    return start, end, pad_left + digits + pad_right
+
+
+def _reference_spoken(text):
+    """The first version of spoken_numbers_to_digits: one slice of the whole text per edit."""
+    text = numbers._EN_RUN.sub(
+        lambda m: "".join(
+            numbers._EN_VALUE[w.lower()] for w in re.findall(r"[a-z]+", m.group(), re.I)
+        ),
+        text,
+    )
+    matches = list(numbers._NUMBER_WORD.finditer(text))
+    if not matches:
+        return text
+    word_edges = numbers._token_edges(text)
+    edits = [_reference_edit_for_run(text, r, word_edges) for r in numbers._runs(matches, text)]
+    for start, end, out in reversed([e for e in edits if e is not None]):
+        text = text[:start] + out + text[end:]
+    return text
+
+
+# Blanks, hyphens and code words at the distance where the look-around limits matter.
+EDGE_CASES = [
+    "รหัส" + " " * 40 + "ห้าหนึ่งเจ็ดแปดสี่หนึ่ง",
+    "โอทีพี" + "x" * 15 + "สองพันห้าร้อย",
+    "โอทีพี" + "x" * 16 + "สองพันห้าร้อย",
+    "รหัส" + "x" * 15 + "สองพันห้าร้อย",
+    "รหัส" + "x" * 16 + "สองพันห้าร้อย",
+    "ยอด" + " " * 60 + "สองพันห้าร้อย",
+    "ยอด" + " " * 60 + "สองพันห้าร้อยบาท",
+    "ห้าสิบ" + " " * 50 + "-" + " " * 50 + "หกสิบบาท",
+    "-" + " " * 30 + "ห้าสิบ",
+    "โอนห้าสิบ" + " " * 30 + "บาท",
+    "ห้าร้อย" + "\n" * 9 + "คน",
+    "สามสิบ",
+    "  ห้าสิบบาท  ",
+]
+
+
+@pytest.mark.parametrize("text", [c[0] for c in CONVERTED] + UNCHANGED + EDGE_CASES)
+def test_output_matches_the_first_version(text):
+    assert spoken_numbers_to_digits(text) == _reference_spoken(text)
+
+
+def test_output_matches_the_first_version_on_a_long_text():
+    text = " ".join([c[0] for c in CONVERTED] + UNCHANGED + EDGE_CASES) * 4
+    assert len(text) > 5_000
+    assert spoken_numbers_to_digits(text) == _reference_spoken(text)
 
 
 def test_a_long_digit_run_still_converts_before_a_counter():
