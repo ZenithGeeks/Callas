@@ -96,7 +96,7 @@ def test_graph_drawing_includes_speak_only_with_speaker(fakes):
     assert "speak" in with_spk.get_graph().nodes
     assert "speak" not in without.get_graph().nodes
     assert "escalate" in with_spk.get_graph().draw_mermaid()
-    assert "verdict" in build_message_graph(Runtime(llm=FakeLLM())).get_graph().nodes
+    assert "verdict" in build_message_graph().get_graph().nodes
 
 
 def test_graph_has_no_cache_and_no_checkpointer(fakes):

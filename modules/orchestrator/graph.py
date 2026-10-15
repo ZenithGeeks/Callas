@@ -272,7 +272,7 @@ def verdict(state: MessageState, ctx: TurnContext) -> dict:
     return {"verdict": verdict_from(state["nlp"])}
 
 
-def build_message_graph(rt: Runtime):
+def build_message_graph():
     """Text message: analyze -> verdict. No reply, no memory. Invoke with `context=`."""
     g = StateGraph(MessageState, context_schema=TurnContext)
     g.add_node("analyze", _timed("analyze", analyze_text), retry_policy=ANALYZE_RETRY)
