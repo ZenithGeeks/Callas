@@ -52,6 +52,8 @@ class Speaker:
 
     def synthesize_bytes(self, text: str) -> bytes:
         """Return WAV bytes."""
+        # synthesize() checks again with a later clock, and the allowed date and time numbers
+        # can change in between (minute or day rollover), so neither check covers the other.
         self._refuse_leaky_text(text)
         fd, path = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
