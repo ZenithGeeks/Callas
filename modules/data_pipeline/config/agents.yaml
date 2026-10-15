@@ -12,8 +12,9 @@ slot_rule: &slot_rule >-
   Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
   directions, no speaker name. Never write a real number, account, code, link or name: write
   the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
-  {MONEY}). These are the only slots: for any other detail (an address, another person's name)
-  stay vague instead of inventing a slot. Do not repeat a line already said.
+  {MONEY}; {RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS} are the
+  receiver's own details). These are the only slots: for any other detail (another person's
+  name) stay vague instead of inventing a slot. Do not repeat a line already said.
 
 speakers:
   caller_tag: ผู้โทร
@@ -76,8 +77,14 @@ receiver:
     not know why they called. Stay in the persona: your age, job, education, where you live,
     who you live with, how you use your phone and what you know about scams decide what you
     understand, what you agree to and how you talk. Speak casual spoken Thai. Your name is
-    {RECEIVER_NAME}: write it as that slot if you say it. If you read out a code from an SMS
-    write {OTP}; never write any other number.
+    {RECEIVER_NAME}: write it as that slot if you say it. You may give away your own details
+    only if the person you play would, given your temperament, how well you know scams and how
+    you use your phone: a trusting, flustered or unaware person may read out a code from an SMS
+    ({OTP}), their phone number ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID card
+    number ({ID_CARD}), birth date ({BIRTH_DATE}) or address ({ADDRESS}); a careful person
+    asks who is calling, refuses, or hangs up. Write a detail only as one of these slots, never
+    as digits or an invented value, and never write any other number. You never have to give
+    any detail.
   fields:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use

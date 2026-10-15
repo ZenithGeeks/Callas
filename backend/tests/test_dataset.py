@@ -37,6 +37,7 @@ def record(rid="phishing_otp_00001", status="accepted", scam=True):
             "entities": [],
             "reasoning": "",
             "problems": ["number_without_slot"],
+            "leaked": ["OTP", "ID_CARD"],
             "spelling": [],
             "audio": f"audio/{rid}/01_B.wav",
         },
@@ -339,3 +340,10 @@ def test_reason_codes_from_the_simulator_have_words():
 
     for code in ("stray_brace", "line_break", "number_without_slot", "no_scam_move"):
         assert dataset.reason_text(code) != code
+
+
+def test_a_leaking_receiver_turn_is_tagged(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert html.count("Leaked: OTP, ID CARD") == 1
+    assert 'data-tone="alarm" data-leak lang="en">Leaked: OTP, ID CARD<' in html
+    assert dataset._leak_tag({"leaked": []}) == "" and dataset._leak_tag({}) == ""

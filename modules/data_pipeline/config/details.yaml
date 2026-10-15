@@ -9,6 +9,11 @@
 #   made_up_orgs  {ORG} when a scenario's org is "*"
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
 #   money         {MONEY} in baht; big_types use the big amounts
+#   addresses     the receiver's {ADDRESS} = <house number> ซอย<soi> <district> <province>
+#
+# The receiver also has its own made-up {RECEIVER_PHONE}, {RECEIVER_ACCOUNT}, {ID_CARD}
+# (random digits, never a valid real ID number) and {BIRTH_DATE} (matches its age); these
+# are random too, and the receiver agent may give them away (see README, Receiver leaks).
 
 names:
   male:
@@ -79,3 +84,34 @@ money:
   - 1290
   - 2500
   - 9900
+addresses:
+  # house numbers and sois are invented; the districts are invented too (so they never clash
+  # with a province); the provinces are real names, and any pairing is made up
+  house_numbers:
+  - 12/3
+  - "45"
+  - 88/21
+  - "107"
+  - 9/14
+  - "233"
+  - 56/7
+  sois:
+  - สุขสันต์ 4
+  - ร่มเย็น 12
+  - ประชาสุข 7
+  - เจริญใจ 2
+  - บ้านสวน 15
+  - ทรัพย์มั่งมี 9
+  districts:
+  - อำเภอบ้านใหม่
+  - อำเภอท่าช้าง
+  - อำเภอหนองแสง
+  - อำเภอเมืองเก่า
+  - อำเภอวังทอง
+  provinces:
+  - จังหวัดขอนแก่น
+  - จังหวัดเชียงใหม่
+  - จังหวัดนครราชสีมา
+  - จังหวัดสงขลา
+  - จังหวัดชลบุรี
+  - จังหวัดพิษณุโลก

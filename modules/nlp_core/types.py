@@ -14,7 +14,18 @@ SCAM_TYPES: tuple[str, ...] = (
 )
 
 # Entity labels used across the project.
-ENTITY_LABELS: tuple[str, ...] = ("PHONE", "BANK_ACCOUNT", "OTP", "PERSON", "ORG", "MONEY", "URL")
+ENTITY_LABELS: tuple[str, ...] = (
+    "PHONE",
+    "BANK_ACCOUNT",
+    "OTP",
+    "PERSON",
+    "ORG",
+    "MONEY",
+    "URL",
+    "ID_CARD",
+    "BIRTH_DATE",
+    "ADDRESS",
+)
 
 
 @dataclass

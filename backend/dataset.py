@@ -223,6 +223,7 @@ class Turn:
     audio: str | None  # URL
     reasoning: str
     flags: list[str]
+    leak_tag: str  # "Leaked: OTP, ID CARD" on a receiver turn that gave details away
     is_scam_start: bool
 
 
@@ -251,6 +252,14 @@ def _turn_flags(raw_turn: dict) -> list[str]:
     return flags
 
 
+def _leak_tag(raw_turn: dict) -> str:
+    """The red tag for a receiver turn that gave away its own details, or ''."""
+    labels = raw_turn.get("leaked") or []
+    if not labels:
+        return ""
+    return "Leaked: " + ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
+
+
 def _build_turns(db: Store, record: dict) -> list[Turn]:
     gen = record.get("generation", {})
     rid = record["id"]
@@ -273,6 +282,7 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 audio=f"/dataset/audio/{rid}/{audio_name}" if has_audio else None,
                 reasoning=raw.get("reasoning", ""),
                 flags=_turn_flags(raw),
+                leak_tag=_leak_tag(raw),
                 is_scam_start=scam_start == i,
             )
         )

@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS calls (
     judge            TEXT,                                 -- JSON: the judge's answer
     scam_start_turn  INTEGER,
     scam_start_from  TEXT,                                 -- caller | judge
+    receiver_leaked  TEXT NOT NULL DEFAULT '[]',           -- JSON: labels the receiver gave away
+    first_leak_turn  INTEGER,                              -- index of the first leaking turn
     reference_summary TEXT NOT NULL DEFAULT '',
     audio_path       TEXT,
     review_status    TEXT NOT NULL DEFAULT 'pending',      -- pending | approved | rejected
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS turns (
     end_call   INTEGER NOT NULL DEFAULT 0,
     reasoning  TEXT NOT NULL DEFAULT '',
     problems   TEXT NOT NULL DEFAULT '[]',
+    leaked     TEXT NOT NULL DEFAULT '[]',   -- JSON labels this receiver turn gave away
     spelling   TEXT NOT NULL DEFAULT '[]',
     latency_s  REAL,
     audio      TEXT,                         -- path relative to the store's folder
@@ -103,13 +106,29 @@ _TURN_COLUMNS = (
     "end_call",
     "reasoning",
     "problems",
+    "leaked",
     "spelling",
     "latency_s",
     "audio",
     "audio_s",
 )
-_JSON_TURN_FIELDS = ("entities", "problems", "spelling")
+_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling")
+# Columns added after the first release: (table, column, definition). An existing
+# database gets them with ALTER TABLE when it is opened.
+_ADDED_COLUMNS = (
+    ("calls", "receiver_leaked", "TEXT NOT NULL DEFAULT '[]'"),
+    ("calls", "first_leak_turn", "INTEGER"),
+    ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
+)
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")
+
+
+def _add_missing_columns(db: sqlite3.Connection) -> None:
+    """Add the columns an older database file does not have yet."""
+    for table, column, definition in _ADDED_COLUMNS:
+        have = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def now() -> str:
@@ -126,6 +145,7 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._tx() as db:
             db.executescript(SCHEMA)
+            _add_missing_columns(db)
             db.execute(
                 "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)",
                 (str(SCHEMA_VERSION),),
@@ -171,14 +191,17 @@ class Store:
                 INSERT INTO calls (
                     id, call_type, seed, label_scam, label_type, status, reasons,
                     config_name, config_hash, models, call, voices, briefing, judge,
-                    scam_start_turn, scam_start_from, reference_summary, audio_path,
+                    scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
+                    reference_summary, audio_path,
                     review_status, review_note, reviewed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
                     status = excluded.status, reasons = excluded.reasons,
                     models = excluded.models, briefing = excluded.briefing,
                     judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
                     scam_start_from = excluded.scam_start_from,
+                    receiver_leaked = excluded.receiver_leaked,
+                    first_leak_turn = excluded.first_leak_turn,
                     reference_summary = excluded.reference_summary,
                     audio_path = excluded.audio_path, updated_at = excluded.updated_at
                 """,
@@ -199,6 +222,8 @@ class Store:
                     _dump_or_none(gen.get("judge")),
                     record.get("scam_start_turn"),
                     gen.get("scam_start_from"),
+                    json.dumps(gen.get("receiver_leaked", []), ensure_ascii=False),
+                    gen.get("first_leak_turn"),
                     record.get("reference_summary", ""),
                     record.get("audio_path"),
                     review.get("status", "pending"),
@@ -447,6 +472,8 @@ def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
             "voices": json.loads(row["voices"]),
             "briefing": json.loads(row["briefing"]) if row["briefing"] else None,
             "turns": [_turn(t) for t in turns],
+            "receiver_leaked": json.loads(row["receiver_leaked"]),
+            "first_leak_turn": row["first_leak_turn"],
             "scam_start_from": row["scam_start_from"],
             "judge": json.loads(row["judge"]) if row["judge"] else None,
         },

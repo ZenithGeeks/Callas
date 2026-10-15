@@ -126,7 +126,7 @@ Everything the agents are told lives in `config/`:
 |---|---|
 | `agents.yaml` | each agent's instructions and field descriptions, model, temperature and max_tokens; caller pacing text; receiver persona and when it may hang up; judge's description of each call type; TTS voices |
 | `scenarios.yaml` | the scam and normal scenarios, the receiver pools (jobs, temperaments, endings), call length and pacing numbers |
-| `details.yaml` | names, banks, made-up companies, link words and amounts that fill the slots |
+| `details.yaml` | names, banks, made-up companies, link words, amounts and address parts that fill the slots |
 
 To try a variant without touching the default:
 
@@ -136,7 +136,7 @@ To try a variant without touching the default:
 4. Generate into its own folder: `--config my_cfg --out data/synthetic/my_cfg`
 
 The loader refuses a config that would break the run: an unknown key, a renamed field under
-`fields`, a slot that does not exist (`{ADDRESS}`), a missing scam type, a gender with fewer than
+`fields`, a slot that does not exist (`{HOUSE_NUMBER}`), a missing scam type, a gender with fewer than
 two different voices or names, a pacing or stage text that `str.format` cannot fill (only `{turn}`
 and `{turns}` exist; stage texts only `{turn}`; write a literal brace as `{{`), a receiver age range
 that is not `[low, high]` within 10-100, or a reveal turn that no call can fit. The last rule:
@@ -148,12 +148,47 @@ Before you edit:
 
 - Field names under `fields:` are fixed (the code reads them). Change the text, not the keys.
 - Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE}
-  {BANK_ACCOUNT} {OTP} {URL} {MONEY}`. Code fills them with made-up values, which gives exact
-  entity spans and keeps real numbers out of the data.
+  {BANK_ACCOUNT} {OTP} {URL} {MONEY}` and the receiver's own `{RECEIVER_PHONE}
+  {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values,
+  which gives exact entity spans and keeps real numbers out of the data.
 - Seeds pick scenarios by list position. Adding a scenario in the middle of a list changes which
   call a seed makes; the config hash keeps old and new records apart.
 - Temperature: qwen3.8 garbled Thai spelling at 0.3, so speakers run at 0.0. Variety comes from
   the sampled scenario, receiver, plan and pacing.
+
+## Receiver leaks
+
+A real victim sometimes gives personal details away, and those are the calls a scam classifier
+most needs to see. The receiver may do this when the person it plays would (its temperament, how
+much it knows about scams, how it uses its phone); it is never told whether the call is a scam.
+It can only give details through its own slots, so no real data appears:
+
+| Slot | Value | Entity label |
+|---|---|---|
+| `{OTP}` | 6 random digits | `OTP` |
+| `{RECEIVER_PHONE}` | a made-up mobile number | `PHONE` |
+| `{RECEIVER_ACCOUNT}` | a made-up bank account | `BANK_ACCOUNT` |
+| `{ID_CARD}` | 13 random digits as `1-2345-67890-12-3` (the check digit is not computed, so it is never a valid ID number) | `ID_CARD` |
+| `{BIRTH_DATE}` | day, month and Buddhist-era year, e.g. `12 มีนาคม 2511`, exactly the receiver's age on 1 July 2025 | `BIRTH_DATE` |
+| `{ADDRESS}` | built from the made-up parts under `addresses` in `details.yaml` | `ADDRESS` |
+
+The receiver's values are drawn after all the other values, so adding them did not change the
+values of existing calls. The receiver reads its own name and details back as slots in the
+conversation, so it recognises them.
+
+Leaks are found by code from the slots a receiver line uses, never reported by the model.
+`{RECEIVER_NAME}` does not count: saying your name when you answer is not a leak. A caller using
+`{RECEIVER_PHONE}` is not a leak either, only receiver turns count. Each receiver turn gets
+`leaked`, the labels it gave away in order of first use (`["OTP", "ID_CARD"]`). When the call
+finishes, `generation.receiver_leaked` has the sorted labels of the whole call and
+`generation.first_leak_turn` the 0-based index of the first leaking turn (`null` if none). The
+store keeps them in new columns (`calls.receiver_leaked`, `calls.first_leak_turn`,
+`turns.leaked`); an older `calls.db` gets the columns added when it is opened. `--export` writes
+`receiver_leaked` and `first_leak_turn` at the top level of each record. `/dataset` shows a red
+"Leaked: OTP, ID CARD" tag under a receiver message that leaked.
+
+New entity labels: `ID_CARD`, `BIRTH_DATE` and `ADDRESS` (in `nlp_core.types.ENTITY_LABELS`).
+`PHONE`, `BANK_ACCOUNT`, `OTP` and `PERSON` already existed.
 
 ## Checks before a call is accepted
 

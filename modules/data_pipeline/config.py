@@ -38,6 +38,11 @@ SLOT_NAMES = (
     "OTP",
     "URL",
     "MONEY",
+    "RECEIVER_PHONE",
+    "RECEIVER_ACCOUNT",
+    "ID_CARD",
+    "BIRTH_DATE",
+    "ADDRESS",
 )
 _SLOT_IN_TEXT = re.compile(r"\{([A-Z_]+)\}")
 
@@ -303,12 +308,22 @@ class Urls(_Strict):
     tlds: list[str] = Field(min_length=1)
 
 
+class AddressParts(_Strict):
+    """Pieces of the receiver's made-up {ADDRESS}: <house> ซอย<soi> <district> <province>."""
+
+    house_numbers: list[str] = Field(min_length=1)
+    sois: list[str] = Field(min_length=1)
+    districts: list[str] = Field(min_length=1)
+    provinces: list[str] = Field(min_length=1)
+
+
 class DetailsFile(_Strict):
     names: dict[str, list[str]]  # gender -> first names
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
     urls: Urls
     money: Money
+    addresses: AddressParts
 
 
 # ---- the whole config ----------------------------------------------------------------------

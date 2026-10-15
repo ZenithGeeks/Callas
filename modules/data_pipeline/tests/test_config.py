@@ -53,8 +53,8 @@ def test_unknown_key_is_rejected(cfg_dir):
 
 
 def test_unknown_slot_in_scenario_is_rejected(cfg_dir):
-    edit(cfg_dir, "scenarios.yaml", lambda d: d["legit"][0].update(goal="visit {ADDRESS}"))
-    with pytest.raises(ConfigError, match="ADDRESS"):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["legit"][0].update(goal="visit {HOUSE_NUMBER}"))
+    with pytest.raises(ConfigError, match="HOUSE_NUMBER"):
         load_config(cfg_dir)
 
 

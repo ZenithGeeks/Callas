@@ -47,7 +47,7 @@ from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 
 from .agents import Agents
 from .config import Config, ConfigError
-from .fill import SLOT_RE, SlotFiller
+from .fill import RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
 from .patterns import render_notes
 from .scenarios import CallConfig, ReceiverProfile, sample_config
 from .store import RECORD_SCHEMA, Store
@@ -186,6 +186,8 @@ def new_record(
             "voices": {CALLER: caller_voice, RECEIVER: receiver_voice},
             "briefing": None,
             "turns": [],
+            "receiver_leaked": [],
+            "first_leak_turn": None,
             "scam_start_from": None,
             "judge": None,
         },
@@ -266,6 +268,7 @@ def _next_turn(
     speaker, agent_name, pred = _model_call(lambda: _speak(agents, call, config, turns, plan))
     raw = (pred.line or "").strip()
     text, entities, problems = filler.fill(raw)
+    leaked = receiver_leaks(raw) if speaker == RECEIVER else []
     if not text:
         problems.append("empty_line")
     return {
@@ -278,6 +281,7 @@ def _next_turn(
         "end_call": bool(pred.end_call),
         "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
         "problems": problems,
+        "leaked": leaked,
         "spelling": spelling(raw),
         "latency_s": round(time.perf_counter() - started, 3),
         "audio": None,
@@ -290,6 +294,7 @@ def _finish_call(
 ) -> None:
     generation = record["generation"]
     _finish_text(record)
+    _finish_leaks(record)
     if voices is not None:
         _join_audio(record, out_dir, config.agents.tts.gap_s)
     generation["judge"] = _judge(agents, config, record)
@@ -328,11 +333,15 @@ def _receiver_says(
 
 
 def _receiver_view(turns: list[dict], call: CallConfig, config: Config) -> str:
-    """The call as the receiver hears it: real values, except its own name, which stays the
-    {RECEIVER_NAME} slot that its instructions call "your name". Without this the receiver did
-    not recognise its own name and answered "you have the wrong number"."""
-    own_name = SlotFiller(call, config.details).values["RECEIVER_NAME"]
-    return conversation(turns, config, raw=False).replace(own_name, "{RECEIVER_NAME}")
+    """The call as the receiver hears it: real values, except its own name and details, which
+    stay the slots that its instructions call "your name", "your bank account" and so on.
+    Without this the receiver did not recognise its own name and answered "you have the wrong
+    number"."""
+    values = SlotFiller(call, config.details).values
+    text = conversation(turns, config, raw=False)
+    for slot in sorted(RECEIVER_OWN_SLOTS, key=lambda s: -len(values[s])):
+        text = text.replace(values[slot], "{" + slot + "}")
+    return text
 
 
 def _caller_says(
@@ -433,6 +442,15 @@ def _finish_text(record: dict) -> None:
         for turn in turns
     ]
     record["entities"] = spans
+
+
+def _finish_leaks(record: dict) -> None:
+    """generation.receiver_leaked: every kind of detail the receiver gave away (sorted);
+    generation.first_leak_turn: index of the first receiver turn that gave one, else None."""
+    generation = record["generation"]
+    turns = generation["turns"]
+    generation["receiver_leaked"] = sorted({label for t in turns for label in t.get("leaked", [])})
+    generation["first_leak_turn"] = next((i for i, t in enumerate(turns) if t.get("leaked")), None)
 
 
 def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None:

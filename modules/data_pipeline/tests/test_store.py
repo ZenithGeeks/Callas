@@ -27,6 +27,7 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
                 "end_call": False,
                 "reasoning": "r",
                 "problems": [],
+                "leaked": [],
                 "spelling": [],
                 "latency_s": 1.0,
                 "audio": None,
@@ -60,6 +61,8 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
             "voices": {"A": "th_f_1", "B": "th_m_1"},
             "briefing": None,
             "turns": gen_turns,
+            "receiver_leaked": [],
+            "first_leak_turn": None,
             "scam_start_from": "caller" if scam else None,
             "judge": {"label_holds": True},
         },
@@ -238,3 +241,38 @@ def test_import_json_folder_keeps_reviews_of_new_rows(tmp_path):
     store = Store(tmp_path / "calls.db")
     assert import_json_folder(store, folder) == (1, 0)
     assert store.load(record["id"])["review"]["status"] == "approved"
+
+
+def test_leak_fields_round_trip(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record(turns=2)
+    record["generation"]["turns"][1]["leaked"] = ["OTP", "ID_CARD"]
+    record["generation"]["receiver_leaked"] = ["ID_CARD", "OTP"]
+    record["generation"]["first_leak_turn"] = 1
+    store.save(record)
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["turns"][1]["leaked"] == ["OTP", "ID_CARD"]
+    assert loaded["generation"]["turns"][0]["leaked"] == []
+    assert loaded["generation"]["receiver_leaked"] == ["ID_CARD", "OTP"]
+    assert loaded["generation"]["first_leak_turn"] == 1
+
+
+def test_an_old_database_gets_the_new_columns(tmp_path):
+    """A calls.db made before the leak fields still opens, and its calls load with defaults."""
+    import sqlite3
+
+    path = tmp_path / "calls.db"
+    Store(path).save(make_record())
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
+    db.execute("ALTER TABLE calls DROP COLUMN first_leak_turn")
+    db.execute("ALTER TABLE turns DROP COLUMN leaked")
+    db.commit()
+    db.close()
+
+    store = Store(path)  # adds the columns again
+    loaded = store.load("phishing_otp_00001")
+    assert loaded["generation"]["receiver_leaked"] == []
+    assert loaded["generation"]["first_leak_turn"] is None
+    assert loaded["generation"]["turns"][0]["leaked"] == []
+    Store(path)  # opening twice is fine
