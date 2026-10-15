@@ -128,7 +128,8 @@ def leak_summary(turns: list[Turn]) -> tuple[list[str], int | None]:
 
 
 def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str | None) -> Judge:
-    """The judge's answer: does the call show what its label says, and is the Thai natural."""
+    """The judge's answer: does the call show what its label says, and where does the scam
+    start."""
     speakers = config.agents.speakers
     tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
     transcript = "\n".join(
@@ -143,7 +144,6 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         return Judge(
             label_holds=False,
             scam_start_turn=-1,
-            natural_thai=0,
             giveaway=False,
             summary="",
             issues="not judged: the call does not fit the judge's context window",
@@ -156,7 +156,6 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         prompt_tokens=tokens,
         label_holds=bool(pred.label_holds),
         scam_start_turn=int(pred.scam_start_turn),
-        natural_thai=int(pred.natural_thai),
         giveaway=bool(pred.giveaway),
         summary=(pred.summary or "").strip(),
         issues=drop_false_spelling((pred.issues or "").strip(), turns),

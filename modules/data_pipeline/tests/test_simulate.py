@@ -37,7 +37,6 @@ def judge(holds=True, start=-1, giveaway=False):
     return dict(
         label_holds=holds,
         scam_start_turn=start,
-        natural_thai=4,
         giveaway=giveaway,
         summary="สรุป",
         issues="none",
@@ -426,7 +425,6 @@ def scam_record(asks, judge_at, reveal=2, holds=True):
     verdict = Judge(
         label_holds=holds,
         scam_start_turn=judge_at,
-        natural_thai=4,
         giveaway=False,
         summary="",
         issues="",
@@ -469,13 +467,21 @@ def test_a_spelling_claim_the_spell_check_backs_is_kept():
     assert drop_false_spelling("none", SPELLED) == "none"
 
 
+def test_the_judge_gives_no_natural_thai_score(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert "natural_thai" not in rec["generation"]["judge"]
+    assert "natural_thai" not in Agents(CONFIG, lms={}).signatures["judge"].output_fields
+
+
 def test_judge_prompt_stays_small():
-    """The judge's prompt without the call (#58 added about 65 tokens to 841)."""
+    """The judge's prompt without the call (#58 added about 65 tokens to 841; #98 dropped
+    natural_thai, about 115)."""
     tokens = prompt_tokens(
         Agents(CONFIG, lms={}).signatures["judge"],
         dict(intended="x", transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ"),
     )
-    assert tokens <= 950
+    assert tokens <= 820
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

@@ -110,6 +110,16 @@ def test_call_detail_partial(client, db_path):
     assert "ask for the OTP now" in html
 
 
+def test_the_natural_score_shows_only_for_calls_judged_with_one(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Natural score 4 / 5" in html
+    rec = record("phishing_otp_00003")
+    del rec["generation"]["judge"]["natural_thai"]  # judged after #98
+    Store(db_path).save(rec)
+    html = client.get("/dataset/call/phishing_otp_00003", headers=HX).text
+    assert "Shows the call" in html and "Natural score" not in html
+
+
 def test_detail_without_htmx_redirects_to_page(client, db_path):
     r = client.get("/dataset/call/phishing_otp_00001", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/dataset?id=phishing_otp_00001"

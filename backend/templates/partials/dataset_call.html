@@ -47,7 +47,9 @@
       <dt>Judge</dt>
       {% if j and not j.skipped %}
       <dd>{{ 'Shows the call' if j.label_holds else 'Does not show it' }}</dd>
+      {% if j.natural_thai is defined and j.natural_thai is not none %}
       <dd class="facts-note">Natural score {{ j.natural_thai }} / 5 (not used to reject)</dd>
+      {% endif %}
       {% else %}
       <dd>Not judged</dd>
       {% endif %}

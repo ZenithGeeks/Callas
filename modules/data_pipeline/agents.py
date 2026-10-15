@@ -109,7 +109,6 @@ class JudgeCall(dspy.Signature):
     transcript: str = dspy.InputField()
     label_holds: bool = dspy.OutputField()
     scam_start_turn: int = dspy.OutputField()
-    natural_thai: int = dspy.OutputField()
     giveaway: bool = dspy.OutputField()
     summary: str = dspy.OutputField()
     issues: str = dspy.OutputField()

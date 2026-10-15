@@ -244,7 +244,7 @@ The scam start turn is the caller agent's own flag. A flag on a turn before the 
 
 If the model keeps failing after the retries, the call is marked `rejected` with `llm_error:<Name>`. Any other error leaves the call unfinished. The command prints the call id and the error, counts it as `error` in the summary, exits with code 1, and the next run resumes the call.
 
-The judge's 1 to 5 "sounds natural" score is shown but does not reject calls. In testing it reported spelling errors in correctly spelled words, and it still scores some calls down for them even when told not to. Code checks spelling (`spelling` on each turn, the `tone_mark_order` reject), so a sentence about spelling in the judge's `issues` is kept only when it quotes the word as `[n] "word"` and the spell check flagged that word in turn n.
+The judge no longer gives a 1 to 5 "sounds natural" score (#98). In testing it scored calls down for spelling errors in correctly spelled words, even when told not to and even with a separate field for spelling claims, and the score never rejected a call. Calls judged before keep their score, and the /dataset page still shows it. Code checks spelling (`spelling` on each turn, the `tone_mark_order` reject), so a sentence about spelling in the judge's `issues` is kept only when it quotes the word as `[n] "word"` and the spell check flagged that word in turn n.
 
 ## Scam wiki
 

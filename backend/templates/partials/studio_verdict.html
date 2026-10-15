@@ -9,7 +9,6 @@
   {% if judge %}
   <dl class="facts mt-4">
     <div><dt>Shows the intended call</dt><dd>{{ 'Yes' if judge.label_holds else 'No' }}</dd></div>
-    <div><dt>Natural Thai</dt><dd>{{ judge.natural_thai }} / 5</dd></div>
     <div><dt>Scam starts</dt><dd>{% if scam_start is not none %}Turn {{ scam_start + 1 }}{% elif label_scam %}Not found{% else %}None{% endif %}</dd></div>
   </dl>
   {% else %}
