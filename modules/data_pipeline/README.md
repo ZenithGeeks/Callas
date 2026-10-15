@@ -211,6 +211,32 @@ from its seed and keeps it (`generation.speech_style`, `dash` or `pause`). The s
 calls is `speech.say_dash_share` in `agents.yaml` (0 to 1, default 0.5). Text outside the spans is
 never changed.
 
+## Context window
+
+qwen3.8 on the gateway has a 100K-token window. `context` in `agents.yaml` sets
+`window_tokens: 100000` and `safety_margin_tokens: 2000`. Each agent's prompt may use
+`window_tokens - lm.max_tokens - safety_margin_tokens`; the loader refuses a config where an
+agent's `max_tokens` plus the margin is not below the window, and names the agent.
+
+The prompt is measured, not guessed: `budget.py` formats the exact messages DSPy sends (the
+ChatAdapter, with the `reasoning` field ChainOfThought adds) and estimates their size as UTF-8
+bytes / 3, rounded up. That is about one token per Thai character, the worst case; it over-counts
+English, which is the safe side. When a prompt is over budget:
+
+- speakers (both callers and the receiver) keep the first 2 turns and as many of the newest turns
+  as fit; the turns between are replaced by one line, `(... N earlier turns not shown ...)`
+- the planner drops the oldest pattern notes until it fits (`generation.briefing.notes_used`
+  lists the ones it used)
+- the judge must read the whole call, so a call that does not fit is not judged: it is marked
+  `rejected` with the reason `too_long_for_judge`, and the judge program is not called
+- `patterns add` cuts the article to the longest start that fits (never more than
+  `MAX_ARTICLE_CHARS`)
+
+Every turn stores the estimated size of its prompt as `prompt_tokens` (and the plan and the judge
+store theirs). A normal call is a few thousand tokens, so none of this changes a normal run. The
+live call's `CONTEXT_TOKEN_BUDGET` counts PyThaiNLP words, not model tokens (see
+`tts_voice_agent/constants.py`).
+
 ## Checks before a call is accepted
 
 A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:

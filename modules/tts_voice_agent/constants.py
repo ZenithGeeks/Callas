@@ -5,7 +5,9 @@
 ESCALATE_THRESHOLD = 0.7
 
 # Hard cap on tokens in CallState.context(). Must stay below vLLM's --max-model-len, with
-# room left for the prompt and the answer.
+# room left for the prompt and the answer. The count is PyThaiNLP words
+# (default_count_tokens), not model tokens: Thai words are roughly 2-3 model tokens each, so
+# 1500 is about 3000-4500 model tokens, well under qwen3.8's 100K-token window.
 CONTEXT_TOKEN_BUDGET = 1500
 
 # Newest turns kept word for word; older turns are folded into the summary first.

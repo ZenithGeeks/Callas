@@ -179,3 +179,10 @@ tts:
 # pause. One style per call, chosen from its seed.
 speech:
   say_dash_share: 0.5
+
+# The model's context window (qwen3.8 on the gateway: 100K tokens). Each agent's prompt may use
+# window_tokens - its lm.max_tokens - safety_margin_tokens; longer inputs are cut (see
+# budget.py). max_tokens + safety_margin_tokens must stay below window_tokens for every agent.
+context:
+  window_tokens: 100000
+  safety_margin_tokens: 2000

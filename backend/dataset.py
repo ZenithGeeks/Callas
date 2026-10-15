@@ -42,6 +42,7 @@ REASON_TEXT = {
     "tts_failed": "Speech failed on a turn",
     "stray_brace": "A slot was left unfilled (stray { or })",
     "line_break": "A line had a line break or a speaker tag",
+    "too_long_for_judge": "Call too long for the judge's context window",
 }
 
 

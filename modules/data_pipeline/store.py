@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS turns (
     leaked     TEXT NOT NULL DEFAULT '[]',   -- JSON labels this receiver turn gave away
     spelling   TEXT NOT NULL DEFAULT '[]',
     latency_s  REAL,
+    prompt_tokens INTEGER,                   -- estimated size of the prompt sent for this turn
     audio      TEXT,                         -- path relative to the store's folder
     audio_s    REAL,
     start_s    REAL,                         -- position in the joined call audio
@@ -112,6 +113,7 @@ _TURN_COLUMNS = (
     "leaked",
     "spelling",
     "latency_s",
+    "prompt_tokens",
     "audio",
     "audio_s",
 )
@@ -123,6 +125,7 @@ _ADDED_COLUMNS = (
     ("calls", "first_leak_turn", "INTEGER"),
     ("calls", "speech_style", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
+    ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
 )
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")

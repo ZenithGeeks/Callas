@@ -167,6 +167,16 @@ class Speech(_Strict):
     say_dash_share: float = Field(0.5, ge=0.0, le=1.0)
 
 
+class Context(_Strict):
+    """The model's context window, shared by every agent (see budget.py)."""
+
+    window_tokens: int = Field(100_000, gt=0)
+    safety_margin_tokens: int = Field(2_000, gt=0)  # left free on top of the answer
+
+
+AGENT_NAMES = ("scam_caller", "legit_caller", "receiver", "planner", "pattern_extractor", "judge")
+
+
 class AgentsFile(_Strict):
     slot_rule: str = ""  # shared text, reused through a YAML anchor; not read by the code
     speakers: Speakers
@@ -178,6 +188,20 @@ class AgentsFile(_Strict):
     judge: Judge
     tts: TTS
     speech: Speech = Speech()
+    context: Context = Context()
+
+    @model_validator(mode="after")
+    def _answers_fit_the_window(self) -> AgentsFile:
+        for name in AGENT_NAMES:
+            max_tokens = getattr(self, name).lm.max_tokens
+            if max_tokens + self.context.safety_margin_tokens >= self.context.window_tokens:
+                raise ValueError(
+                    f"{name}.lm.max_tokens ({max_tokens}) plus context.safety_margin_tokens "
+                    f"({self.context.safety_margin_tokens}) must be less than "
+                    f"context.window_tokens ({self.context.window_tokens}), or the prompt "
+                    "has no room"
+                )
+        return self
 
 
 # ---- scenarios.yaml ------------------------------------------------------------------------
