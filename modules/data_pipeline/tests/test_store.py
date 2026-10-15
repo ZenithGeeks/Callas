@@ -292,3 +292,34 @@ def test_spoken_text_and_style_round_trip(tmp_path):
     loaded = store.load("phishing_otp_00001")
     assert loaded["generation"]["speech_style"] == "dash"
     assert loaded["generation"]["turns"][0]["spoken_text"] == "ขอรหัส หนึ่งสองสาม"
+
+
+class _RacingDb:
+    """Reports no columns, then fails the ALTER the way SQLite does when a second process won."""
+
+    def __init__(self, message):
+        self.message = message
+
+    def execute(self, sql):
+        import sqlite3
+
+        if sql.startswith("PRAGMA"):
+            return []
+        raise sqlite3.OperationalError(self.message)
+
+
+def test_a_column_another_process_just_added_is_ignored():
+    from data_pipeline.store import _add_missing_columns
+
+    _add_missing_columns(_RacingDb("duplicate column name: receiver_leaked"))
+
+
+def test_any_other_alter_error_is_raised():
+    import sqlite3
+
+    import pytest
+
+    from data_pipeline.store import _add_missing_columns
+
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        _add_missing_columns(_RacingDb("database is locked"))

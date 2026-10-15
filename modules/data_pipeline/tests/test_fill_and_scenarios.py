@@ -195,3 +195,15 @@ def test_receiver_leaks_are_read_from_the_slots_in_order():
         "BIRTH_DATE",
         "ADDRESS",
     ]
+
+
+def test_no_made_up_id_card_passes_the_real_checksum():
+    """A real Thai ID card ends in a mod-11 check digit; a made-up one must never validate."""
+    for seed in range(1000):
+        digits = filler("phishing_otp", seed).values["ID_CARD"].replace("-", "")
+        check = (11 - sum(int(d) * (13 - i) for i, d in enumerate(digits[:12])) % 11) % 10
+        assert int(digits[12]) != check, seed
+
+
+def test_id_card_is_the_same_for_the_same_seed():
+    assert filler(seed=9).values["ID_CARD"] == filler(seed=9).values["ID_CARD"]

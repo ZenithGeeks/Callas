@@ -43,6 +43,14 @@ REASON_TEXT = {
     "stray_brace": "A slot was left unfilled (stray { or })",
     "line_break": "A line had a line break or a speaker tag",
     "too_long_for_judge": "Call too long for the judge's context window",
+    "too_long_for_context": "A prompt did not fit the context window",
+    "caller_used_receiver_slot": "Caller used a detail only the receiver knows",
+}
+
+
+SPEECH_STYLE_TEXT = {
+    "dash": "with ขีด between digit groups",
+    "pause": "with a pause between digit groups",
 }
 
 
@@ -224,6 +232,8 @@ class Turn:
     audio: str | None  # URL
     reasoning: str
     flags: list[str]
+    spoken: str  # what the voice was given, only when it differs from the text
+    prompt_tokens: int | None  # estimated size of the prompt for this turn
     leak_tag: str  # "Leaked: OTP, ID CARD" on a receiver turn that gave details away
     is_scam_start: bool
 
@@ -284,6 +294,10 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 reasoning=raw.get("reasoning", ""),
                 flags=_turn_flags(raw),
                 leak_tag=_leak_tag(raw),
+                spoken=(raw.get("spoken_text") or "")
+                if raw.get("spoken_text") != raw.get("text")
+                else "",
+                prompt_tokens=raw.get("prompt_tokens"),
                 is_scam_start=scam_start == i,
             )
         )
@@ -303,6 +317,7 @@ def _setup_table(gen: dict) -> dict[str, str]:
         "Models": ", ".join(sorted(set(gen.get("models", {}).values()))),
         "Config": f"{gen.get('config_name', '')} {gen.get('config_hash', '')}".strip(),
         "Seed": str(call.get("seed", "")),
+        "Numbers spoken": SPEECH_STYLE_TEXT.get(gen.get("speech_style", ""), ""),
     }
     return {label: value for label, value in table.items() if value}
 

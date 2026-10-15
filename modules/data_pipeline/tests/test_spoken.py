@@ -19,14 +19,14 @@ def test_an_account_is_read_digit_by_digit_with_the_dash_word():
     assert say("BANK_ACCOUNT", "158-5-96045-2", DASH) == "หนึ่งห้าแปด ขีด ห้า ขีด เก้าหกศูนย์สี่ห้า ขีด สอง"
 
 
-def test_an_account_in_the_pause_style_has_only_spaces():
-    assert say("BANK_ACCOUNT", "158-5-96045-2", PAUSE) == "หนึ่งห้าแปด ห้า เก้าหกศูนย์สี่ห้า สอง"
+def test_an_account_in_the_pause_style_is_joined_by_pauses():
+    assert say("BANK_ACCOUNT", "158-5-96045-2", PAUSE) == "หนึ่งห้าแปด, ห้า, เก้าหกศูนย์สี่ห้า, สอง"
 
 
 def test_phone_and_id_card_are_read_digit_by_digit():
     assert say("PHONE", "081-774-2578", DASH) == "ศูนย์แปดหนึ่ง ขีด เจ็ดเจ็ดสี่ ขีด สองห้าเจ็ดแปด"
-    assert say("PHONE", "081-774-2578", PAUSE) == "ศูนย์แปดหนึ่ง เจ็ดเจ็ดสี่ สองห้าเจ็ดแปด"
-    assert say("ID_CARD", "1-2345-67890-12-3", PAUSE).split(" ")[0] == "หนึ่ง"
+    assert say("PHONE", "081-774-2578", PAUSE) == "ศูนย์แปดหนึ่ง, เจ็ดเจ็ดสี่, สองห้าเจ็ดแปด"
+    assert say("ID_CARD", "1-2345-67890-12-3", PAUSE).split(", ")[0] == "หนึ่ง"
     assert say("ID_CARD", "1-2345-67890-12-3", DASH).count("ขีด") == 4
 
 
@@ -108,3 +108,18 @@ def test_the_voice_is_given_the_spoken_text_and_the_record_keeps_both(tmp_path):
     assert otp in turns[3]["text"] and otp not in turns[3]["spoken_text"]  # text keeps digits
     assert account in turns[4]["text"] and account not in turns[4]["spoken_text"]
     assert [said for said, _ in voices.spoken] == [t["spoken_text"] for t in turns]
+
+
+def test_the_pause_style_never_says_the_dash_word():
+    assert "ขีด" not in say("BANK_ACCOUNT", "158-5-96045-2", PAUSE)
+
+
+def test_house_and_soi_numbers_are_read_by_place_value():
+    said = say("ADDRESS", "45 ซอยสุขสันต์ 4 อำเภอบ้านใหม่ จังหวัดขอนแก่น", DASH)
+    assert said == "สี่สิบห้า ซอยสุขสันต์ สี่ อำเภอบ้านใหม่ จังหวัดขอนแก่น"
+    assert say("ADDRESS", "12/3", DASH) == "สิบสองทับสาม"
+    assert say("ADDRESS", "88/21 ซอยร่มเย็น 12", DASH) == "แปดสิบแปดทับยี่สิบเอ็ด ซอยร่มเย็น สิบสอง"
+
+
+def test_a_postcode_stays_digit_by_digit():
+    assert say("ADDRESS", "จังหวัดขอนแก่น 40000", DASH) == "จังหวัดขอนแก่น สี่ศูนย์ศูนย์ศูนย์ศูนย์"

@@ -12,9 +12,9 @@ slot_rule: &slot_rule >-
   Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
   directions, no speaker name. Never write a real number, account, code, link or name: write
   the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
-  {MONEY}; {RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS} are the
-  receiver's own details). These are the only slots: for any other detail (another person's
-  name) stay vague instead of inventing a slot. Do not repeat a line already said.
+  {MONEY}). These are the only slots: for any other detail (another person's name, an
+  address, the receiver's own phone, account or ID) stay vague instead of inventing a slot or
+  claiming to know it. Do not repeat a line already said.
 
 speakers:
   caller_tag: ผู้โทร

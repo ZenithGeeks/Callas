@@ -135,6 +135,11 @@ To try a variant without touching the default:
 3. Check it: `python -m data_pipeline.synthesize --check-config --config my_cfg`
 4. Generate into its own folder: `--config my_cfg --out data/synthetic/my_cfg`
 
+Every record stores the config hash, which is a hash of the parsed YAML, so any change to
+`agents.yaml` (the `context` and `speech` settings too) gives a new hash. A call left unfinished with
+the old config is not resumed with the new one: finish it with the old config or delete it. An older
+config folder with no `addresses` in `details.yaml` still loads and uses the built-in parts.
+
 The loader refuses a config that would break the run: an unknown key, a renamed field under
 `fields`, a slot that does not exist (`{HOUSE_NUMBER}`), a missing scam type, a gender with fewer than
 two different voices or names, a pacing or stage text that `str.format` cannot fill (only `{turn}`
@@ -177,8 +182,10 @@ values of existing calls. The receiver reads its own name and details back as sl
 conversation, so it recognises them.
 
 Leaks are found by code from the slots a receiver line uses, never reported by the model.
-`{RECEIVER_NAME}` does not count: saying your name when you answer is not a leak. A caller using
-`{RECEIVER_PHONE}` is not a leak either, only receiver turns count. Each receiver turn gets
+`{RECEIVER_NAME}` does not count: saying your name when you answer is not a leak. A caller cannot know
+the receiver's own details: the callers' prompts do not list those slots, and a caller turn that
+uses one gets the problem `caller_used_receiver_slot`, which rejects the call like any other slot
+problem. Only receiver turns count as leaks. Each receiver turn gets
 `leaked`, the labels it gave away in order of first use (`["OTP", "ID_CARD"]`). When the call
 finishes, `generation.receiver_leaked` has the sorted labels of the whole call and
 `generation.first_leak_turn` the 0-based index of the first leaking turn (`null` if none). The
@@ -203,10 +210,13 @@ because the digits are the labels).
 | `OTP` | digit by digit, no dashes |
 | `MONEY` | place value: `49,500 บาท` is "สี่หมื่นเก้าพันห้าร้อยบาท" |
 | `BIRTH_DATE` | day and year as numbers, month as written |
-| `ADDRESS` | digits one by one, `/` as "ทับ" |
+| `ADDRESS` | house and soi numbers by place value (`45` is สี่สิบห้า, `12/3` is สิบสองทับสาม); a 5-digit postcode digit by digit |
 | `PERSON`, `ORG`, `URL` | as written |
 
-People do not always say "ขีด"; often they only pause between groups. Each call picks one style
+People do not always say "ขีด"; often they only pause between groups. In the audio a pause
+is a comma (", "), because VachanaTTS barely pauses on a plain space (4 digit groups: 3.41 s with
+spaces, 3.29 s with nothing, 3.55 s with commas on `th_f_1`; 3.17 s, 3.11 s and 3.80 s on
+`th_m_1`). Each call picks one style
 from its seed and keeps it (`generation.speech_style`, `dash` or `pause`). The share of `dash`
 calls is `speech.say_dash_share` in `agents.yaml` (0 to 1, default 0.5). Text outside the spans is
 never changed.
@@ -227,6 +237,8 @@ English, which is the safe side. When a prompt is over budget:
   as fit; the turns between are replaced by one line, `(... N earlier turns not shown ...)`
 - the planner drops the oldest pattern notes until it fits (`generation.briefing.notes_used`
   lists the ones it used)
+- if the prompt still does not fit (a huge newest turn, or 3 turns or fewer), the model is not
+  asked: the call ends `rejected` with the reason `too_long_for_context`
 - the judge must read the whole call, so a call that does not fit is not judged: it is marked
   `rejected` with the reason `too_long_for_judge`, and the judge program is not called
 - `patterns add` cuts the article to the longest start that fits (never more than

@@ -51,7 +51,16 @@ def prompt_budget(config: Config, agent: str) -> int:
 
 
 def hidden_marker(count: int) -> str:
-    return f"(... {count} earlier turns not shown ...)"
+    noun = "turn" if count == 1 else "turns"
+    return f"(... {count} earlier {noun} not shown ...)"
+
+
+class ContextTooLong(Exception):
+    """A prompt does not fit its agent's budget even after everything that can be cut was cut."""
+
+    def __init__(self, agent: str, tokens: int, budget: int) -> None:
+        super().__init__(f"{agent}: prompt of ~{tokens} tokens exceeds its budget of {budget}")
+        self.agent, self.tokens, self.budget = agent, tokens, budget
 
 
 def trim_turns(lines: Sequence[str], fits: Callable[[str], bool]) -> tuple[str, int]:

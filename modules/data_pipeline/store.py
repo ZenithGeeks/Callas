@@ -135,8 +135,14 @@ def _add_missing_columns(db: sqlite3.Connection) -> None:
     """Add the columns an older database file does not have yet."""
     for table, column, definition in _ADDED_COLUMNS:
         have = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
-        if column not in have:
+        if column in have:
+            continue
+        try:
             db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        except sqlite3.OperationalError as exc:
+            # another process opening the same file added it between our check and our ALTER
+            if "duplicate column" not in str(exc).lower():
+                raise
 
 
 def now() -> str:

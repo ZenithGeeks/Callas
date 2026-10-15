@@ -8,6 +8,7 @@ import yaml
 from data_pipeline import simulate
 from data_pipeline.agents import configured
 from data_pipeline.budget import (
+    ContextTooLong,
     cut_article,
     estimate_tokens,
     hidden_marker,
@@ -284,3 +285,81 @@ def test_the_context_numbers_must_be_positive(tmp_path, field, value):
     folder = edit_agents(tmp_path, lambda d: d["context"].update({field: value}))
     with pytest.raises(ConfigError, match=field):
         load_config(folder)
+
+
+# ---- the exact edge of the budget ----------------------------------------------------------
+
+
+def test_a_prompt_exactly_at_the_budget_is_not_trimmed(tmp_path):
+    call = sample_config("phishing_otp", 1, CONFIG)
+    turns = long_call(10)
+    answer = dict(line="ครับ", asks_now=False, end_call=False)
+    roomy = make_agents([answer], [], judge())
+    _, _, exact = simulate._caller_says(roomy, call, CONFIG, turns, ["plan"])
+
+    config = config_with_budget(tmp_path, "scam_caller", exact)  # budget == measured prompt
+    agents = make_agents([answer], [], judge(), config=config)
+    _, _, tokens = simulate._caller_says(agents, call, config, turns, ["plan"])
+    assert tokens == exact
+    assert agents.scam_caller.calls[0]["conversation"] == roomy.scam_caller.calls[0]["conversation"]
+
+
+def test_a_call_exactly_at_the_judge_budget_is_judged(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    needed = simulate.run_call("phishing_otp", 1, Store(tmp_path / "a.db"), agents, CONFIG)[
+        "generation"
+    ]["judge"]["prompt_tokens"]
+    config = config_with_budget(tmp_path, "judge", needed)  # budget == measured prompt
+    agents = make_agents(SCAM, REPLIES, judge(start=2), config=config)
+    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "b.db"), agents, config)
+    assert len(agents.judge.calls) == 1
+    assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
+
+
+# ---- a prompt that cannot be made to fit -------------------------------------------------
+
+
+def test_the_marker_says_turn_for_one_and_turns_for_more():
+    assert hidden_marker(1) == "(... 1 earlier turn not shown ...)"
+    assert hidden_marker(2) == "(... 2 earlier turns not shown ...)"
+
+
+def test_a_prompt_that_cannot_fit_is_not_sent(tmp_path):
+    call = sample_config("phishing_otp", 1, CONFIG)
+    huge = [{"speaker": "A", "raw": "ก" * 5000, "text": "ก" * 5000}]  # one huge turn
+    tight = config_with_budget(tmp_path, "scam_caller", 3000)
+    agents = make_agents(
+        [dict(line="ครับ", asks_now=False, end_call=False)], [], judge(), config=tight
+    )
+    with pytest.raises(ContextTooLong, match="scam_caller"):
+        simulate._caller_says(agents, call, tight, huge, ["plan"])
+    assert agents.scam_caller.calls == []
+
+
+def test_a_call_whose_prompt_cannot_fit_ends_rejected_without_the_model(tmp_path):
+    tight = config_with_budget(tmp_path, "receiver", 10)  # the receiver's prompt never fits
+    agents = make_agents(SCAM, REPLIES, judge(start=2), config=tight)
+    store = Store(tmp_path / "calls.db")
+    rec = simulate.run_call("phishing_otp", 1, store, agents, tight)
+    assert rec["generation"]["status"] == "rejected"
+    assert rec["generation"]["reasons"] == ["too_long_for_context"]
+    assert [t["speaker"] for t in rec["generation"]["turns"]] == ["A"]
+    assert agents.receiver.calls == [] and agents.judge.calls == []
+    assert rec["text"].startswith("A: ")
+    assert store.load(rec["id"]) == rec
+    # a finished call is not run again
+    again = simulate.run_call("phishing_otp", 1, store, agents, tight)
+    assert again == rec
+
+
+def test_addresses_have_a_default_so_older_config_folders_load(tmp_path):
+    from data_pipeline.config import DEFAULT_ADDRESS_PARTS
+
+    folder = tmp_path / "old_cfg"
+    shutil.copytree(DEFAULT_DIR, folder)
+    path = folder / "details.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    del data["addresses"]
+    path.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    assert load_config(folder).details.addresses == DEFAULT_ADDRESS_PARTS
+    assert CONFIG.details.addresses == DEFAULT_ADDRESS_PARTS  # the shipped file says the same

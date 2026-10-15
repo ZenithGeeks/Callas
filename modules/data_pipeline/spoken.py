@@ -20,6 +20,11 @@ from pythainlp.util import digit_to_text, num_to_thaiword
 
 DASH, PAUSE = "dash", "pause"
 DASH_WORD = "ขีด"
+# Measured with VachanaTTS (th_f_1 / th_m_1, the same 4 digit groups): joined by a space the audio
+# was 3.41 s / 3.17 s, with no separator 3.29 s / 3.11 s, so a space is almost no pause; joined
+# by ", " it was 3.55 s / 3.80 s, a real pause (about 0.1 s and 0.2 s per gap). "." and "..."
+# were unreliable (the male voice took 5.4 s and 7.4 s).
+PAUSE_JOINER = ", "
 
 _DIGIT_GROUPS = ("PHONE", "BANK_ACCOUNT", "ID_CARD")
 
@@ -31,14 +36,15 @@ def pick_speech_style(call_type: str, seed: int, say_dash_share: float) -> str:
 
 
 def _digit_groups(value: str, style: str) -> str:
-    """158-5-96045-2 -> หนึ่งห้าแปด ขีด ห้า ขีด ... (or only spaces in the pause style)."""
-    joiner = f" {DASH_WORD} " if style == DASH else " "
+    """158-5-96045-2 -> หนึ่งห้าแปด ขีด ห้า ขีด ... In the pause style the groups are joined by
+    ", ": VachanaTTS barely pauses on a plain space (see PAUSE_JOINER)."""
+    joiner = f" {DASH_WORD} " if style == DASH else PAUSE_JOINER
     parts = []
     for token in re.split(r"([-\s]+)", value):
         if not token:
             continue
         if re.fullmatch(r"[-\s]+", token):
-            parts.append(joiner if "-" in token else " ")
+            parts.append(joiner if "-" in token or style == PAUSE else " ")
         elif token.isdigit():
             parts.append(digit_to_text(token))
         else:
@@ -59,8 +65,16 @@ def _birth_date(value: str) -> str:
 
 
 def _address(value: str) -> str:
-    value = value.replace("/", " ทับ ")
-    return re.sub(r"\d+", lambda m: digit_to_text(m.group()), value)
+    """House and soi numbers by place value ("45" is สี่สิบห้า, "12/3" is สิบสองทับสาม). A
+    5-digit number is a postcode and is read digit by digit."""
+
+    def number(match: re.Match) -> str:
+        digits = match.group()
+        if len(digits) == 5:
+            return digit_to_text(digits)
+        return num_to_thaiword(int(digits))
+
+    return re.sub(r"\d+", number, value).replace("/", "ทับ")
 
 
 def say(label: str, value: str, style: str) -> str:

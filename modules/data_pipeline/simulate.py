@@ -46,9 +46,9 @@ from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 
 from .agents import Agents
-from .budget import prompt_budget, prompt_tokens, trim_notes, trim_turns
+from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config, ConfigError
-from .fill import RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
+from .fill import RECEIVER_ONLY_SLOTS, RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
 from .patterns import render_notes
 from .scenarios import CallConfig, ReceiverProfile, sample_config
 from .spoken import pick_speech_style, spoken_text
@@ -58,6 +58,7 @@ from .tts import Voices, join_call, pick_voices
 log = logging.getLogger("data_pipeline")
 
 TOO_LONG_FOR_JUDGE = "too_long_for_judge"
+TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 CALLER, RECEIVER = "A", "B"  # speaker ids in the record; the caller always speaks first
 
 
@@ -286,6 +287,8 @@ def _next_turn(
     raw = (pred.line or "").strip()
     text, entities, problems = filler.fill(raw)
     leaked = receiver_leaks(raw) if speaker == RECEIVER else []
+    if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
+        problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if not text:
         problems.append("empty_line")
     return {
@@ -356,7 +359,10 @@ def _fit_conversation(
         text, hidden = trim_turns(lines, lambda conversation: tokens(conversation) <= budget)
         if hidden:
             log.info("%s: %d earlier turns left out of the prompt", agent, hidden)
-    return text, tokens(text)
+    size = tokens(text)
+    if size > budget:  # nothing left to cut: do not send a prompt the model cannot take
+        raise ContextTooLong(agent, size, budget)
+    return text, size
 
 
 def _receiver_says(
@@ -667,14 +673,27 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     turns, so a turn is never added twice or given the wrong speaker."""
     ctx = runtime.context
     old = state["record"]["generation"]
-    turn = _next_turn(
-        ctx.agents,
-        ctx.call,
-        ctx.config,
-        old["turns"],
-        ctx.filler,
-        (old["briefing"] or {}).get("plan", []),
-    )
+    try:
+        turn = _next_turn(
+            ctx.agents,
+            ctx.call,
+            ctx.config,
+            old["turns"],
+            ctx.filler,
+            (old["briefing"] or {}).get("plan", []),
+        )
+    except ContextTooLong as exc:
+        # The prompt cannot be made to fit, so the model is not asked. The call ends here,
+        # rejected, with the turns it has.
+        log.warning("%s: %s", state["record"]["id"], exc)
+        record = copy.deepcopy(state["record"])
+        generation = record["generation"]
+        _finish_text(record)
+        _finish_leaks(record)
+        generation["reasons"] = [TOO_LONG_FOR_CONTEXT]
+        generation["status"] = "rejected"
+        ctx.store.save(record)
+        return {"record": record}
     record = copy.deepcopy(state["record"])
     turns = record["generation"]["turns"]
     turns.append(turn)
@@ -687,7 +706,8 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
 def finish_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx, record = runtime.context, state["record"]
-    _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
+    if record["generation"]["status"] == "in_progress":  # else it ended early (too long)
+        _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
     ctx.store.save(record)
     return {"record": record}
 
@@ -697,6 +717,8 @@ def next_step(
 ) -> Literal["caller", "receiver", "finish"]:
     """Whose turn it is, or "finish" when someone hung up or the call reached its length."""
     turns = state["record"]["generation"]["turns"]
+    if state["record"]["generation"]["status"] != "in_progress":
+        return "finish"
     if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
         return "finish"
     return "caller" if len(turns) % 2 == 0 else "receiver"

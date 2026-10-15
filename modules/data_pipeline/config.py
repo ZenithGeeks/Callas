@@ -350,13 +350,28 @@ class AddressParts(_Strict):
     provinces: list[str] = Field(min_length=1)
 
 
+DEFAULT_ADDRESS_PARTS = AddressParts(
+    house_numbers=["12/3", "45", "88/21", "107", "9/14", "233", "56/7"],
+    sois=["สุขสันต์ 4", "ร่มเย็น 12", "ประชาสุข 7", "เจริญใจ 2", "บ้านสวน 15", "ทรัพย์มั่งมี 9"],
+    districts=["อำเภอบ้านใหม่", "อำเภอท่าช้าง", "อำเภอหนองแสง", "อำเภอเมืองเก่า", "อำเภอวังทอง"],
+    provinces=[
+        "จังหวัดขอนแก่น",
+        "จังหวัดเชียงใหม่",
+        "จังหวัดนครราชสีมา",
+        "จังหวัดสงขลา",
+        "จังหวัดชลบุรี",
+        "จังหวัดพิษณุโลก",
+    ],
+)
+
+
 class DetailsFile(_Strict):
     names: dict[str, list[str]]  # gender -> first names
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
     urls: Urls
     money: Money
-    addresses: AddressParts
+    addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
 
 
 # ---- the whole config ----------------------------------------------------------------------
