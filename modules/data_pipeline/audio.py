@@ -16,7 +16,8 @@ log = logging.getLogger("data_pipeline")
 
 
 def speak_turn(voices: Voices, turn: Turn, index: int, record: dict, folder: Path) -> Turn:
-    """The turn with its audio file and length, or with a tts_failed problem.
+    """The turn with its audio file and length, or with a tts_failed problem. A turn with no
+    text is returned as it is.
 
     `record` is the stored call, for its id and the voice of each speaker.
     """

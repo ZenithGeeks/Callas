@@ -71,6 +71,7 @@ def finish_call(
     judge = ask_judge(agents, config, turns, record["label_type"])
     ending["judge"], ending["reference_summary"] = judge, judge["summary"]
     if record["label_scam"]:
+        # scam_start reads the judge's answer from the record, which does not have it yet
         judged = {**record, "generation": {**record["generation"], "judge": judge}}
         ending["scam_start_turn"], ending["scam_start_from"] = scam_start(judged)
     else:

@@ -149,7 +149,7 @@ def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -
     notes = store.notes(call.call_type, limit=config.agents.planner.notes_limit)
     last = (call.max_turns - 1) // 2
     scenario = call.scenario
-    turns = (
+    turn_budget = (
         f"The caller has {last + 1} turns. The first ask may come on turn "
         f"{call.reveal_turn + 1} at the earliest."
     )
@@ -158,7 +158,7 @@ def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -
         role=scenario.role,
         goal=scenario.goal,
         tactics=scenario.tactics,
-        turns=turns,
+        turns=turn_budget,
     )
     signature, budget = agents.signatures["planner"], prompt_budget(config, "planner")
 
@@ -279,7 +279,7 @@ def stage(config: Config, own_turn: int) -> str:
 
 
 def speech_style(call: CallConfig, config: Config) -> str:
-    """ "dash" or "pause": how this call's numbers are said (see spoken.py)."""
+    """How this call's numbers are said, "dash" or "pause" (see spoken.py)."""
     return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
 
 

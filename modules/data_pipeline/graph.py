@@ -66,7 +66,10 @@ def initial_state(record: dict) -> CallState:
 
 
 def to_record(record: dict, state: CallState) -> dict:
-    """The call as the store keeps it: a copy of `record` with the state written into it."""
+    """The call as the store keeps it: a copy of `record` with the state written into it.
+
+    Ending fields go at the top of the record or in its generation block (finish.RECORD_FIELDS).
+    """
     record = copy.deepcopy(record)
     generation = record["generation"]
     generation.update(briefing=state["briefing"], turns=state["turns"], status=state["status"])
