@@ -1,8 +1,8 @@
 """nlp-core analyzer, interim LLM version.
 
 Entities come from rules (entities.py); summary and scam label come from the LLM via
-llm-serving. A fine-tuned WangchanBERTa will replace this behind the same interface
-(`analyze(text) -> NLPResult`).
+llm-serving. A fine-tuned PhayaThaiBERT classifier is planned to replace the LLM scam
+check behind the same interface (`analyze(text) -> NLPResult`).
 
 An unparseable classifier answer is never treated as safe: it becomes label_scam=True
 with label_type=None and confidence 0.0, so the call is escalated for review and never

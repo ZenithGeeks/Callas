@@ -8,6 +8,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from callas_settings import get_settings
+
+DIARIZER_LABELS = {
+    "nemotron": "Nemotron-3 diarization",
+    "pyannote_segmentation": "pyannote segmentation 3.0",
+}
+
 SENSITIVE_LABELS = frozenset(
     {"PHONE", "BANK_ACCOUNT", "OTP", "MONEY", "URL", "ID_CARD", "BIRTH_DATE", "ADDRESS"}
 )
@@ -57,6 +64,11 @@ def fmt_time(seconds: float) -> str:
 def fmt_seconds(seconds: float) -> str:
     """A duration with one decimal, e.g. 0.4 s."""
     return f"{seconds:.1f} s"
+
+
+def diarizer_label() -> str:
+    """Name of the speaker-split model the DIARIZER setting picks."""
+    return DIARIZER_LABELS[get_settings().diarizer]
 
 
 def who(speaker: str) -> str:
@@ -182,6 +194,6 @@ def message_band(verdict: dict) -> Band:
         instruction=instruction,
         fact_label="Confidence",
         fact_big=confidence,
-        fact_note="Interim LLM classifier. WangchanBERTa replaces it after training.",
+        fact_note="The LLM gives this label. A PhayaThaiBERT model is planned to replace it.",
         inline_fact=f"Confidence: {confidence.lower()}",
     )

@@ -34,6 +34,7 @@ def asset(path: str) -> str:
 templates.env.globals.update(
     fmt_time=views.fmt_time,
     who=views.who,
+    diarizer_label=views.diarizer_label,
     segments=views.segments,
     entity_rows=views.entity_rows,
     asset=asset,

@@ -6,7 +6,7 @@
   <ol class="mt-3" sse-swap="stages">
     {% if regions %}{{ regions.stages }}{% else %}
     {{ ui.stage(1, "Listen", "Typhoon ASR, offline") }}
-    {{ ui.stage(2, "Split speakers", "pyannote segmentation 3.0") }}
+    {{ ui.stage(2, "Split speakers", diarizer_label()) }}
     {{ ui.stage(3, "Read", "Entities · summary · scam check, per turn") }}
     {{ ui.stage(4, "Decide", "Fixed rules. Reply or warn.") }}
     {% endif %}

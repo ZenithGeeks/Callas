@@ -50,10 +50,10 @@
 <h3 id="tools-at-a-glance">Main tools at a glance</h3>
 <div class="table-wrap"><table><thead><tr><th>Job</th><th>Main tool</th><th>Backup / compare with</th></tr></thead><tbody>
 <tr><td>Speech to text (ASR)</td><td><span class="tool">pythaiasr</span> (Typhoon ASR, ONNX, offline)</td><td><span class="tool">Thonburian Whisper</span> (also loads through pythaiasr)</td></tr>
-<tr><td>Split speakers (diarization)</td><td><span class="tool">pythaiasr</span> (Nemotron-3 diarization, ONNX)</td><td>pyannote segmentation 3.0 (ONNX, through pythaiasr)</td></tr>
-<tr><td>NER</td><td><span class="tool">WangchanBERTa</span></td><td><span class="tool">PyThaiNLP</span> NER</td></tr>
-<tr><td>Summary</td><td><span class="tool">WangchanBERTa</span> / <span class="tool">mT5-Thai</span></td><td><span class="tool">TextRank</span>; LLM on <span class="tool">vLLM</span></td></tr>
-<tr><td>Scam classifier</td><td><span class="tool">WangchanBERTa</span></td><td><span class="tool">TF-IDF + LogReg</span> (baseline); LLM on <span class="tool">vLLM</span></td></tr>
+<tr><td>Split speakers (diarization)</td><td><span class="tool">pythaiasr</span> (Nemotron-3 diarization, ONNX)</td><td>pyannote segmentation 3.0 (ONNX, through pythaiasr; set <code>DIARIZER=pyannote_segmentation</code>)</td></tr>
+<tr><td>NER</td><td>Regex rules (phone, bank account, OTP, link, money)</td><td>no trained NER model yet</td></tr>
+<tr><td>Summary</td><td>LLM on <span class="tool">vLLM</span></td><td>—</td></tr>
+<tr><td>Scam classifier</td><td>LLM on <span class="tool">vLLM</span> (what runs today)</td><td>fine-tuned <span class="tool">PhayaThaiBERT</span> (trained in a notebook, not connected to the pipeline yet); <span class="tool">TF-IDF + LogReg</span> baseline</td></tr>
 <tr><td>LLM serving</td><td><span class="tool">vLLM</span> + open-source LLM (now <code>qwen3.8-27b-fp8</code>)</td><td>—</td></tr>
 <tr><td>Reply text</td><td>LLM on <span class="tool">vLLM</span>, optional <span class="tool">DSPy</span> writer</td><td>fixed templates</td></tr>
 <tr><td>Voice reply (TTS)</td><td><span class="tool">PyThaiTTS</span> with the <span class="tool">FastThaiG2P</span> engine</td><td>—</td></tr>
@@ -65,22 +65,22 @@
 
 <h3 id="modules">Modules</h3>
 <div class="table-wrap"><table><thead><tr><th>Module</th><th>What it does</th><th>Depends on</th></tr></thead><tbody>
-<tr><td>data-pipeline</td><td>Generate scam and normal Thai call scripts and messages; scrape public scam-report sites; load and clean 2 Kaggle datasets; make labeled train/test data (gate + 5 types + NER spans)</td><td>—</td></tr>
+<tr><td>data-pipeline</td><td>Simulate labeled scam and normal Thai calls with DSPy agents and PyThaiTTS audio, keep them in a SQLite store, review them on <code>/dataset</code>, and export them as JSON lines or as the csv for the classifier notebook. Scraping, the 2 Kaggle datasets and generated messages are not built</td><td>—</td></tr>
 <tr><td>llm-serving</td><td>Run one open-source LLM with <span class="tool">vLLM</span> on a server the team runs; hold the prompts and the DSPy programs; own the speed and GPU memory settings for the whole pipeline</td><td>—</td></tr>
 <tr><td>asr-diarization</td><td>Turn call audio into Thai text and split it by speaker A/B, from a file or live from the microphone (compare Typhoon ASR and <span class="tool">Thonburian Whisper</span>)</td><td>data-pipeline</td></tr>
 <tr><td>nlp-core</td><td>Run NER, summary, and scam classifier (gate + 5 types) on call text or message text; LLM version of summary and classifier to compare</td><td>data-pipeline, llm-serving</td></tr>
 <tr><td>tts-voice-agent</td><td>Keep call memory; decide whether to auto-reply; mask call details, have the LLM write a safe Thai reply and speak it (<span class="tool">PyThaiTTS</span> + <span class="tool">FastThaiG2P</span>) for calls that are not important</td><td>nlp-core, llm-serving</td></tr>
 <tr><td>orchestrator</td><td>Run each call turn and each message through a <span class="tool">LangGraph</span> graph; hold call sessions and live calls; offer slots where nlp-core models plug in</td><td>asr-diarization, nlp-core, llm-serving, tts-voice-agent</td></tr>
 <tr><td>web-demo-app</td><td>Standalone web app (<span class="tool">FastAPI</span> + <span class="tool">Jinja</span> + <span class="tool">HTMX</span>, UI designed in <span class="tool">Figma</span>): type a message, upload a call, or take a live call from the microphone; show transcript/diarization, NER, summary, verdict + type, and play the TTS reply</td><td>orchestrator</td></tr>
-<tr><td>evaluation-report</td><td>Scripts that compute the numbers for the written report: precision/recall/F1 (gate + type), NER F1, summary quality (ROUGE/human), ASR WER, diarization DER, LLM vs. WangchanBERTa, call memory, reply safety, speed and GPU memory</td><td>data-pipeline, llm-serving, asr-diarization, nlp-core, tts-voice-agent</td></tr>
+<tr><td>evaluation-report</td><td>Scripts that compute the numbers for the written report: precision/recall/F1 (gate + type), NER F1, summary quality (ROUGE/human), ASR WER, diarization DER, LLM vs. PhayaThaiBERT, call memory, reply safety, speed and GPU memory</td><td>data-pipeline, llm-serving, asr-diarization, nlp-core, tts-voice-agent</td></tr>
 </tbody></table></div>
 <p>Build order: data-pipeline and llm-serving at the same time, then asr-diarization and nlp-core at the same time, then tts-voice-agent, then orchestrator and web-demo-app. evaluation-report starts as soon as nlp-core and asr-diarization give their first output.</p>
-<p class="note">Status (October 2026): llm-serving, asr-diarization, tts-voice-agent, orchestrator and web-demo-app are built and tested. nlp-core runs on rule-based NER and the LLM until the WangchanBERTa models are trained. data-pipeline and evaluation-report are not started.</p>
+<p class="note">Status (October 2026): llm-serving, asr-diarization, tts-voice-agent, orchestrator and web-demo-app are built and tested. nlp-core runs rule-based NER, and the LLM does the summary and the scam check. data-pipeline is started: the call simulator (<a href="../modules/data_pipeline/README.md">modules/data_pipeline</a>), the <code>/dataset</code> review page, the <code>/studio</code> page and the csv export for the classifier notebook exist. Scraping, the Kaggle datasets and generated messages do not. evaluation-report is started: <a href="../scripts/eval_autocorrect.py">scripts/eval_autocorrect.py</a> writes <a href="../eval/results/">eval/results/</a> (see <a href="eval/autocorrect.md">the autocorrect results</a>). The other score scripts are not written. A PhayaThaiBERT classifier is fine-tuned in <a href="../notebooks/scam_classifier_phayathaibert.ipynb">notebooks/scam_classifier_phayathaibert.ipynb</a>; the trained models are in <code>models/</code>, which is not in git. It is not connected to the pipeline yet.</p>
 
 <h3 id="pipeline-flow">Diagrams</h3>
 <p class="note">Made in Eraser. Click a diagram to open it full size, or <a href="https://app.eraser.io/workspace/15jDoAO4Rlj2bQ5kTYqg">edit them in Eraser</a>.</p>
 <figure class="diagram">
-<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="System architecture, left to right: browser pages, FastAPI web backend, pythaiasr speech (Typhoon ASR, Nemotron speaker split), the LangGraph orchestrator, nlp-core slots, the voice agent (decide, masking, leak check, voice) and LLM serving (vLLM, DSPy)"></a>
+<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="System architecture, left to right: browser pages, FastAPI web backend, the /dataset and /studio pages, pythaiasr speech (Typhoon ASR, Nemotron speaker split by default), the LangGraph orchestrator, nlp-core slots (the PhayaThaiBERT classifier is not connected yet), the voice agent (decide, masking, leak check, voice), the data_pipeline call simulator and LLM serving (vLLM, DSPy)"></a>
 <figcaption>System architecture</figcaption>
 </figure>
 <figure class="diagram">
@@ -92,8 +92,8 @@
 <figcaption>Live call, turn by turn, with call memory</figcaption>
 </figure>
 <figure class="diagram">
-<a href="diagrams/data-schema.png"><img src="diagrams/data-schema.png" alt="Data schema: DatasetRecord, SpeakerTurn, Entity and EvalResult on disk; CallState, NLPResult and Decision in memory during a call"></a>
-<figcaption>Data schema (blue: stored on disk, purple: in memory during a call, yellow: eval results)</figcaption>
+<a href="diagrams/data-schema.png"><img src="diagrams/data-schema.png" alt="Data schema: the SQLite store tables calls, turns, pattern_notes and meta on disk; CallState, Entity, NLPResult and Decision in memory during a call"></a>
+<figcaption>Data schema (blue: SQLite store on disk, purple: in memory during a call)</figcaption>
 </figure>
 
 <h3 id="cross-cutting-decisions">Decisions for the whole project</h3>
@@ -103,16 +103,17 @@
 <li><p><strong>Web app:</strong> <span class="tool">FastAPI</span> serves <span class="tool">Jinja</span> templates with <span class="tool">HTMX</span> and <span class="tool">Tailwind</span> (compiled with the standalone CLI, no Node). A simulated call streams turn by turn over server-sent events; a live call streams microphone audio over a WebSocket. UI designed in <span class="tool">Figma</span> first. This replaced the earlier Next.js plan so the whole project stays in Python.</p></li>
 <li><p><strong>Pipeline:</strong> <span class="tool">LangGraph</span> runs each call turn (remember, analyze, decide, then reply and speak, or escalate) and each message (analyze, verdict). The branch after decide is a plain Python function, so the LLM can never choose between warning and replying.</p></li>
 <li><p><strong>ASR:</strong> <span class="tool">pythaiasr</span> with Typhoon ASR (FastConformer, ONNX). It runs offline after the first download and also streams for live calls. The eval report compares <span class="tool">Thonburian Whisper</span> against it. Whisper goes into the live demo only if it is clearly better.</p></li>
-<li><p><strong>Diarization:</strong> Nemotron-3 diarization (ONNX) through <span class="tool">pythaiasr</span>. On a generated 34 s two-speaker call it labelled 97.8% of speech correctly; pyannote segmentation 3.0 found only one speaker (49.6%). <code>DIARIZER</code> switches between them. Live calls are labelled "Caller" for now, because pythaiasr has no streaming speaker split.</p></li>
-<li><p><strong>NER:</strong> <span class="tool">PyThaiNLP</span> NER or a token classifier built on <span class="tool">WangchanBERTa</span>.</p></li>
-<li><p><strong>Summary:</strong> fine-tuned <span class="tool">WangchanBERTa</span> / <span class="tool">mT5-Thai</span>. If that takes too long to build, use <span class="tool">TextRank</span> instead (it picks the key sentences from the text).</p></li>
-<li><p><strong>Scam classifier:</strong> fine-tuned <span class="tool">WangchanBERTa</span>, plus a simple <span class="tool">TF-IDF + LogReg</span> model as the baseline. The eval report compares the two.</p></li>
-<li><p><strong>LLM:</strong> one open-source LLM (now <code>qwen3.8-27b-fp8</code>) served with <span class="tool">vLLM</span> on a server the team runs. It gives nlp-core an extra summary and classifier option, and it writes the voice agent's reply text. Its hidden "thinking" is turned off (<code>VLLM_THINKING=false</code>), because with small output limits it used the whole budget and returned no answer. Call text never goes to a third-party LLM API.</p></li>
+<li><p><strong>Diarization:</strong> Nemotron-3 diarization (ONNX) through <span class="tool">pythaiasr</span>. On a generated 34 s two-speaker call it labelled 97.8% of speech correctly; pyannote segmentation 3.0 found only one speaker (49.6%). <code>DIARIZER</code> switches between them, and the default is <code>nemotron</code>. Live calls are labelled "Caller" for now, because pythaiasr has no streaming speaker split.</p></li>
+<li><p><strong>NER:</strong> regex rules today (phone, bank account, OTP, link, money). They find no names or organisations. A trained NER model is not started.</p></li>
+<li><p><strong>Summary:</strong> the LLM on <span class="tool">vLLM</span> writes it. A fine-tuned summary model is not started.</p></li>
+<li><p><strong>Scam classifier:</strong> the LLM on <span class="tool">vLLM</span> does the scam check today. A fine-tuned <span class="tool">PhayaThaiBERT</span> classifier (<code>clicknext/phayathaibert</code>) is trained in <code>notebooks/scam_classifier_phayathaibert.ipynb</code>, next to a <span class="tool">TF-IDF + LogReg</span> baseline. It is not connected to the pipeline yet. The eval report will compare the three.</p></li>
+<li><p><strong>LLM:</strong> one open-source LLM (now <code>qwen3.8-27b-fp8</code>) served with <span class="tool">vLLM</span> on a server the team runs. It writes the summary and the scam check for nlp-core, and the voice agent's reply text. Its hidden "thinking" is turned off (<code>VLLM_THINKING=false</code>), because with small output limits it used the whole budget and returned no answer. Call text never goes to a third-party LLM API.</p></li>
 <li><p><strong>Reply safety:</strong> before the LLM writes a reply, numbers, names and links from the call are masked. The reply then passes the leak rules and a Thai spelling check, and an optional <span class="tool">DSPy</span> judge can only block more. Any failure uses a fixed template.</p></li>
 <li><p><strong>Call memory:</strong> the voice agent remembers every turn of the current call, so a scam that only shows up after several turns is still caught. Memory is deleted when the call ends.</p></li>
 <li><p><strong>Context budget:</strong> text sent to nlp-core and the LLM has a fixed token limit. Recent turns go in word for word; older turns are replaced by a short summary.</p></li>
 <li><p><strong>Speed and memory:</strong> all models load once at server start and share one GPU. llm-serving sets the vLLM limits (quantization, <code>--gpu-memory-utilization</code>, <code>--max-model-len</code>) so everything fits. Target: under about 15s per input.</p></li>
 <li><p><strong>Testing:</strong> <span class="tool">pytest</span> to check the code works; separate eval scripts for model scores.</p></li>
+<li><p><strong>Tracing:</strong> with <code>TRACING=phoenix</code>, LangGraph nodes and LLM calls are traced to a <span class="tool">Phoenix</span> server on the same machine. It is off by default, and call text is hidden from traces unless <code>TRACE_CALL_TEXT</code> is on. Nothing goes to a cloud tracer.</p></li>
 </ul>
 
 <h3 id="key-library-references">Key library links</h3>
@@ -133,18 +134,18 @@
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
-<li><span class="job">Handle data</span> <code>pandas</code></li>
-<li><span class="job">Scraping</span> <code>requests</code> + <code>beautifulsoup4</code></li>
-<li><span class="job">Generate text</span> <span class="tool">LLM API</span> <span class="note">(provider and budget not decided yet)</span></li>
+<li><span class="job">Generate calls</span> <span class="tool">DSPy</span> agents and a <span class="tool">LangGraph</span> graph, on the vLLM server in <code>.env</code></li>
+<li><span class="job">Store</span> <span class="tool">SQLite</span> <span class="note">(<code>calls</code>, <code>turns</code>, <code>pattern_notes</code>, <code>meta</code>)</span></li>
+<li><span class="job">Review</span> the <code>/dataset</code> page (approve or reject) and the <code>/studio</code> page (watch one call being written)</li>
 <li><span class="job">Text to audio</span> <span class="tool">PyThaiTTS</span> <span class="note">(FastThaiG2P engine, same as in tts-voice-agent)</span></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Scrape:       python -m data_pipeline.scrape --source &lt;name&gt; --out data/raw/&lt;name&gt;.csv
-Synthesize:   python -m data_pipeline.synthesize --type &lt;scam_type|benign&gt; --n 200 --out data/synthetic/
-Clean/merge:  python -m data_pipeline.build_dataset --out data/processed/dataset.csv
-Split:        python -m data_pipeline.split --ratio 0.7,0.15,0.15 --seed 42
+<pre><code>Synthesize:   python -m data_pipeline.synthesize --type &lt;scam_type|benign|all&gt; --n 200
+Export:       python -m data_pipeline.synthesize --export data/synthetic/calls.jsonl --approved-only
+Notebook csv: python -m data_pipeline.synthesize --export-notebook dataset/scam_dataset_generated.csv
 Test:         pytest modules/data_pipeline/tests</code></pre>
-<p><strong>Record schema</strong> (one row per record in <code>data/processed/dataset.csv</code>, UTF-8 with BOM; the fields below are the columns):</p>
+<p>Not built: scraping public sites, the 2 Kaggle datasets, generated messages, and a fixed train/valid/test split. The classifier notebook cleans and splits its own csv. All commands are in <a href="../modules/data_pipeline/README.md">the module README</a>.</p>
+<p><strong>Record schema</strong> (the planned dataset format. <code>--export</code> writes it as JSON lines; the tables the simulator keeps are in the data schema diagram):</p>
 <pre><code>{
   "id": "msg_00042",
   "channel": "call | message",
@@ -183,7 +184,7 @@ Test:         pytest modules/data_pipeline/tests</code></pre>
 </ul>
 
 <h2 id="module-llm-serving">Module: llm-serving</h2>
-<p><strong>Objective.</strong> Run one open-source LLM with vLLM on a server the team runs. nlp-core uses it as an extra summary and scam-classifier option, to compare against WangchanBERTa. tts-voice-agent uses it to write auto-reply text. This module also owns the speed and GPU memory settings, so every model in the pipeline fits on the demo computer and a full run stays under about 15s.</p>
+<p><strong>Objective.</strong> Run one open-source LLM with vLLM on a server the team runs. nlp-core uses it for the summary and the scam check today. tts-voice-agent uses it to write auto-reply text. This module also owns the speed and GPU memory settings, so every model in the pipeline fits on the demo computer and a full run stays under about 15s.</p>
 <p><strong>Used by:</strong> nlp-core (LLM summary + LLM classifier), tts-voice-agent (reply text), evaluation-report (speed and GPU memory numbers).</p>
 <p><strong>Success:</strong> one vLLM server with an OpenAI-compatible API, one fixed prompt per job, and settings that fit next to the other models on the demo GPU.</p>
 <p><strong>Tech stack.</strong></p>
@@ -211,12 +212,12 @@ class LLMClient:
 <p><strong>Speed and memory.</strong></p>
 <ul>
 <li><p><strong>Quantization:</strong> use AWQ 4-bit or FP8 weights so the LLM leaves room for the other models.</p></li>
-<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so WangchanBERTa and the speech models still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
+<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so the speech models, and the PhayaThaiBERT classifier once it is connected, still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
 <li><p><strong><code>--max-model-len</code>:</strong> set it to the call memory context budget, not the model's maximum. A shorter length means a smaller KV cache.</p></li>
 <li><p><strong>Prefix caching:</strong> each job's prompt starts with the same fixed text on every request, so vLLM reuses it instead of processing it again.</p></li>
 <li><p><strong>Short outputs:</strong> each job has a max output length (see <code>JOBS</code>). The classifier answers with one label, not an explanation. Thinking models must run with thinking off, or a 20-token answer comes back empty.</p></li>
 <li><p><strong>DSPy tuning:</strong> on 10 hard synthetic contexts the tuned reply writer gave 10/10 usable replies at 2.7 s each; the untuned one gave 5/10 at 9.6 s.</p></li>
-<li><p><strong>Other models:</strong> WangchanBERTa runs in FP16 on the GPU. The pythaiasr models (Typhoon ASR, Nemotron diarization) are ONNX and run on CPU or GPU. Every model loads once when the backend starts, never per request.</p></li>
+<li><p><strong>Other models:</strong> The PhayaThaiBERT classifier is not loaded by the backend yet. The pythaiasr models (Typhoon ASR, Nemotron diarization) are ONNX and run on CPU or GPU. Every model loads once when the backend starts, never per request.</p></li>
 <li><p><strong>Timing:</strong> log the time of each stage (ASR, diarization, nlp-core, LLM, TTS) on every run, so we know where the 15s goes.</p></li>
 </ul>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> with a fake LLM client (CI has no GPU) for prompt building and output parsing. bench.py records tokens per second, time to first token, and peak GPU memory. These numbers go to evaluation-report.</p>
@@ -287,25 +288,22 @@ class PyThaiASR(ASRBackend):
 </ul>
 
 <h2 id="module-nlp-core">Module: nlp-core</h2>
-<p><strong>Objective.</strong> Take Thai text (call text from asr-diarization, or a message). Find named entities, write a short summary, and decide if it is a scam (the gate) and which of the 5 types it is (only when the gate says scam). Most of the project's NLP work happens in this module. Summary and classifier each also have an LLM version (through llm-serving), so the report can compare the LLM with WangchanBERTa.</p>
+<p><strong>Objective.</strong> Take Thai text (call text from asr-diarization, or a message). Find named entities, write a short summary, and decide if it is a scam (the gate) and which of the 5 types it is (only when the gate says scam). Most of the project's NLP work happens in this module. Summary and classifier each also have an LLM version (through llm-serving), so the report can compare the LLM with PhayaThaiBERT.</p>
 <p><strong>Used by:</strong> tts-voice-agent (uses the scam result and summary to decide on a reply), web-demo-app (NER highlights, summary, verdict), evaluation-report (predictions to compute scores).</p>
 <p><strong>Success:</strong> three parts (NER, summary, classifier). Each one works and can be scored on its own. All three are called through one function, for both calls and messages.</p>
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
 <li><span class="job">Tokenize + base NER</span> <span class="tool">PyThaiNLP</span></li>
-<li><span class="job">NER + classifier</span> <span class="tool">WangchanBERTa</span> fine-tuned with <code>transformers</code> <span class="note">(airesearch/wangchanberta-base-att-spm-uncased)</span></li>
+<li><span class="job">NER</span> regex rules <span class="note">(<code>nlp_core.entities</code>; a trained NER model is not started)</span></li>
+<li><span class="job">Classifier</span> <span class="tool">PhayaThaiBERT</span> fine-tuned with <code>transformers</code> <span class="note">(clicknext/phayathaibert, trained in the notebook; not connected to the pipeline yet)</span></li>
 <li><span class="job">Baseline classifier</span> <span class="tool">TF-IDF + LogReg</span> with <code>scikit-learn</code> <span class="note">(to compare against in the eval report)</span></li>
-<li><span class="job">Summary</span> fine-tuned <span class="tool">WangchanBERTa</span> / <span class="tool">mT5-Thai</span></li>
-<li><span class="job">Summary backup</span> <span class="tool">TextRank</span> <span class="note">(PyThaiNLP or <code>sumy</code>)</span></li>
-<li><span class="job">LLM option</span> prompted LLM on <span class="tool">vLLM</span> <span class="note">(through llm-serving; for summary and classifier)</span></li>
+<li><span class="job">Summary</span> prompted LLM <span class="note">(a fine-tuned summary model is not started)</span></li>
+<li><span class="job">LLM</span> prompted LLM on <span class="tool">vLLM</span> <span class="note">(through llm-serving; today it does the summary and the scam check)</span></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Train classifier:   python -m nlp_core.classify.train --data data/processed/train.csv
-Train NER:          python -m nlp_core.ner.train --data data/processed/train.csv
-Run inference:       python -m nlp_core.pipeline --text "&lt;input&gt;"
-Evaluate:            python -m nlp_core.eval --testset data/processed/test.csv
-Test:                pytest modules/nlp_core/tests</code></pre>
+<pre><code>Train classifier:   run notebooks/scam_classifier_phayathaibert.ipynb (see notebooks/README.md)
+Test:               pytest modules/nlp_core/tests</code></pre>
 <p><strong>Code style.</strong></p>
 <pre><code>@dataclass
 class NLPResult:
@@ -320,7 +318,7 @@ def analyze(text: str) -&gt; NLPResult:
     summary = summarizer.summarize(text)
     label_scam, label_type, confidence = classifier.predict(text)
     return NLPResult(entities, summary, label_scam, label_type, confidence)</code></pre>
-<p>One analyze() function handles both calls and messages, because both become plain text before they reach this module. For a live call, the text is the call memory context from tts-voice-agent (recent turns plus a summary of older ones), not only the newest turn. The summarizer and classifier each have a WangchanBERTa and an LLM version behind the same interface; a config setting picks which one runs.</p>
+<p>One analyze() function handles both calls and messages, because both become plain text before they reach this module. For a live call, the text is the call memory context from tts-voice-agent (recent turns plus a summary of older ones), not only the newest turn. The summarizer and classifier have an LLM version today, behind the same interface. The PhayaThaiBERT classifier is meant to plug in the same way once it is connected; <code>NLP_CLASSIFIER</code> picks which one runs.</p>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> for the pipeline interface and the steps before and after the model (tokenization, entity span alignment), using small fixed test inputs. Model quality is measured, not unit-tested. eval.py reports precision/recall/F1 per scam type and overall, entity-level NER F1, and ROUGE-L for summaries on data-pipeline's test set. These numbers go straight to evaluation-report. The baseline and the LLM run next to the fine-tuned model so the report can compare all three. The baseline comparison is required.</p>
 <p><strong>Boundaries.</strong></p>
 <ul>
@@ -331,7 +329,7 @@ def analyze(text: str) -&gt; NLPResult:
 <p><strong>Success criteria.</strong></p>
 <ul>
 <li><p>Both the gate and the 5-type classifier report precision/recall/F1 per class + macro-average on the test set. The fine-tuned model beats the TF-IDF baseline.</p></li>
-<li><p>The LLM classifier and LLM summary report the same scores on the same test set, next to WangchanBERTa.</p></li>
+<li><p>The LLM classifier and LLM summary report the same scores on the same test set, next to PhayaThaiBERT.</p></li>
 <li><p>NER reports entity-level F1 on the test set.</p></li>
 <li><p>Summary reports ROUGE-L on the test set (and, if there is time, scores from a small human-rated sample).</p></li>
 <li><p>pipeline.py runs fully on both call text and messages. web-demo-app does not need separate code for the two.</p></li>
@@ -421,7 +419,7 @@ def safe_reply(result: NLPResult, state: CallState) -&gt; str:
 </ul>
 
 <h2 id="module-orchestrator">Module: orchestrator</h2>
-<p><strong>Objective.</strong> Run the modules in order for each call turn and each message, keep call sessions, and run live calls. It is the only thing the web app talks to. nlp-core models plug into named slots, so the team can swap in WangchanBERTa without touching the pipeline.</p>
+<p><strong>Objective.</strong> Run the modules in order for each call turn and each message, keep call sessions, and run live calls. It is the only thing the web app talks to. nlp-core models plug into named slots, so the team can swap in the PhayaThaiBERT classifier without touching the pipeline.</p>
 <p><strong>Used by:</strong> web-demo-app.</p>
 <p><strong>Tech stack.</strong></p>
 <ul class="stack">
@@ -440,7 +438,7 @@ Test:            pytest modules/orchestrator/tests</code></pre>
 </ul>
 
 <h2 id="module-web-demo-app">Module: web-demo-app</h2>
-<p><strong>Objective.</strong> A standalone web app, and the part of the project people see and use. You type a message, upload a fake call (audio file), or take a live call from the microphone, watch the full pipeline run, and see the result: transcript/diarization, NER highlights, summary, scam verdict + type, and the TTS auto-reply (played, or shown as "escalated to user"). For calls, the result updates turn by turn, so you can see the moment the agent escalates. We design the UI in Figma first, then build it.</p>
+<p><strong>Objective.</strong> A standalone web app, and the part of the project people see and use. You type a message, upload a fake call (audio file), or take a live call from the microphone, watch the full pipeline run, and see the result: transcript/diarization, NER highlights, summary, scam verdict + type, and the TTS auto-reply (played, or shown as "escalated to user"). For calls, the result updates turn by turn, so you can see the moment the agent escalates. We design the UI in Figma first, then build it. Two more pages serve data-pipeline: <code>/dataset</code> plays and reviews simulated calls (approve or reject), and <code>/studio</code> writes one simulated call while you watch.</p>
 <p><strong>Used by:</strong> demo audience (live demo), team (for building and testing).</p>
 <p><strong>Success:</strong> a demo that works, looks good, runs fast enough, and clearly shows what the pipeline does at each step.</p>
 <p><strong>Tech stack.</strong></p>
@@ -496,7 +494,9 @@ async def message_check(text: str = Form("")):
 <li><span class="job">Charts</span> <code>matplotlib</code>, <code>seaborn</code></li>
 </ul>
 <p><strong>Commands.</strong></p>
-<pre><code>Run all evals:     python -m eval.run_all --testset data/processed/test.csv --out eval/results/
+<pre><code>Written today:     python scripts/eval_autocorrect.py   (writes eval/results/autocorrect.json)
+Planned, not written yet:
+Run all evals:     python -m eval.run_all --testset data/processed/test.csv --out eval/results/
 Classifier eval:    python -m eval.classify_eval
 NER eval:           python -m eval.ner_eval
 Summarization eval: python -m eval.summarize_eval
@@ -509,7 +509,7 @@ Test:               pytest eval/tests</code></pre>
 <p><strong>Result schema.</strong> Each eval script writes one result file in this format, so no one has to recompute numbers by hand for the report:</p>
 <pre><code>{
   "task": "scam_gate_classification",
-  "model": "wangchanberta_finetuned",
+  "model": "phayathaibert_finetuned",
   "precision": 0.91,
   "recall": 0.88,
   "f1": 0.895,
@@ -526,7 +526,7 @@ Test:               pytest eval/tests</code></pre>
 <p><strong>Success criteria.</strong></p>
 <ul>
 <li><p>eval/results/ has one result file per task (classification gate, classification type, NER, summary, ASR, diarization, call memory, reply safety, speed and memory).</p></li>
-<li><p>The report has at least: classifier P/R/F1 per class + macro-avg for baseline, WangchanBERTa and LLM; NER entity-level F1; summary ROUGE-L for WangchanBERTa/mT5 and LLM; ASR WER for both models; diarization DER; turns until escalation on slow-build calls, with memory on and off; reply leak rate; time per stage and peak GPU memory.</p></li>
+<li><p>The report has at least: classifier P/R/F1 per class + macro-avg for baseline, PhayaThaiBERT and LLM; NER entity-level F1; summary ROUGE-L for the LLM (and a fine-tuned summary model, if one is built); ASR WER for both models; diarization DER; turns until escalation on slow-build calls, with memory on and off; reply leak rate; time per stage and peak GPU memory.</p></li>
 <li><p>Every number in the written report comes from a file in eval/results/.</p></li>
 </ul>
 <p><strong>Open questions.</strong></p>

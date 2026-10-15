@@ -31,6 +31,12 @@ def test_pages_render_with_contract_comment(client, path):
     assert "/static/css/app.css" in r.text
 
 
+def test_call_page_names_the_default_speaker_split(client):
+    html = client.get("/call").text
+    assert "Nemotron-3 diarization" in html
+    assert "pyannote" not in html
+
+
 @pytest.mark.parametrize("path", ["/message", "/call", "/live"])
 def test_assets_use_paths_not_absolute_urls(client, path):
     # Behind an https proxy (tailscale serve) the app sees plain http. An absolute
