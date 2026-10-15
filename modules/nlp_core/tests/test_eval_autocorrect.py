@@ -12,7 +12,9 @@ from scripts.eval_autocorrect import (
     percentile,
     prf,
     prf_by_label,
+    resolve_store,
     score_correction,
+    to_model_text,
 )
 
 
@@ -84,3 +86,21 @@ def test_percentile():
     assert percentile([1, 2, 3, 4, 5], 0.5) == 3
     assert percentile([1, 2, 3, 4, 5], 1.0) == 5
     assert percentile([], 0.95) == 0.0
+
+
+def test_model_text_turns_newlines_into_the_space_token():
+    # the notebook's to_model_text: whitespace runs, newlines included, become one <_>
+    assert to_model_text("A: สวัสดี ครับ\nB:  ค่ะ", "<_>") == "A:<_>สวัสดี<_>ครับ<_>B:<_>ค่ะ"
+    assert to_model_text("A: x\nB: y", None) == "A: x B: y"
+
+
+def test_resolve_store_exits_with_a_clear_message(tmp_path, monkeypatch):
+    monkeypatch.delenv("CALLAS_DATASET_DB", raising=False)
+    with pytest.raises(SystemExit, match="data_pipeline.synthesize"):
+        resolve_store(tmp_path / "missing.db")
+    db = tmp_path / "calls.db"
+    db.write_text("")
+    assert resolve_store(db) == db
+    assert resolve_store(tmp_path) == db
+    monkeypatch.setenv("CALLAS_DATASET_DB", str(db))
+    assert resolve_store(None) == db

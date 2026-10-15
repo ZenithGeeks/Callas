@@ -5,7 +5,9 @@
     python scripts/eval_autocorrect.py entities   # rule NER on test.csv, autocorrect off and on
     python scripts/eval_autocorrect.py asr        # ASR mistakes, fixes, breaks, latency
 
-Needs the trained models in models/ (not in git), the simulated-call store (--store) and pythaiasr.
+Needs the trained models in models/ (not in git), pythaiasr and the simulated-call store: a
+calls.db with audio/ next to it, given by --store or CALLAS_DATASET_DB, default
+data/synthetic/calls.db. Make one with: python -m data_pipeline.synthesize
 Parts run alone only update their own keys in the JSON file.
 """
 
@@ -13,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
 import sqlite3
@@ -27,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "modules")]
 
 SEED = 42
-DEFAULT_STORE = Path("D:/text_analytics/Callas-sim/data/synthetic")
+DEFAULT_STORE = ROOT / "data" / "synthetic" / "calls.db"
 DEFAULT_MODELS = next(  # models/ is not in git; a git worktree finds the main checkout's copy
     (
         p / "models"
@@ -219,8 +222,15 @@ def render(turns: list[dict], fix: bool) -> str:
     return "\n".join(lines)
 
 
+def to_model_text(text: str, space_token: str | None) -> str:
+    """The notebook's to_model_text: every run of whitespace (newlines between turns too)
+    becomes one space, and that space becomes the space token."""
+    text = " ".join(text.split())
+    return text.replace(" ", space_token) if space_token else text
+
+
 def predict(model_dir: Path, texts: list[str], batch: int = 16) -> list[int]:
-    """Argmax label ids, tokenized like the notebook (space -> <_>, max_length from
+    """Argmax label ids, tokenized like the notebook (to_model_text, max_length from
     preprocessing.json)."""
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -231,7 +241,7 @@ def predict(model_dir: Path, texts: list[str], batch: int = 16) -> list[int]:
     space = pre["space_token"] if pre["space_token"] in tok.get_vocab() else None
     out: list[int] = []
     for i in range(0, len(texts), batch):
-        chunk = [t.replace(" ", space) if space else t for t in texts[i : i + batch]]
+        chunk = [to_model_text(t, space) for t in texts[i : i + batch]]
         enc = tok(
             chunk, truncation=True, max_length=pre["max_length"], padding=True, return_tensors="pt"
         ).to(model.device)
@@ -268,12 +278,19 @@ def run_gate(models: Path) -> dict:
     off = [render(t, False) for t in df["turns"]]
     on = [render(t, True) for t in df["turns"]]
     assert off == list(df["text"]), "turn text does not rebuild test.csv text"
-    changed = sum(a != b for a, b in zip(off, on, strict=True))
-    res: dict = {"texts": len(df), "texts_changed_by_autocorrect": changed}
+    res = gate_and_type(models, off, on, df["label_scam"], list(df["label_type"]))
+    check_against_notebook(models, res)
+    return res
 
+
+def gate_and_type(models: Path, off: list[str], on: list[str], scam, types) -> dict:
+    """Gate (all texts) and type (texts whose type is one of the type model's labels), each
+    scored with autocorrect off and on. scam: bools; types: type names or None/NaN."""
+    changed = sum(a != b for a, b in zip(off, on, strict=True))
+    res: dict = {"texts": len(off), "texts_changed_by_autocorrect": changed}
     gate_dir = models / "phayathaibert-scam-gate"
     names = json.loads((gate_dir / "config.json").read_text(encoding="utf-8"))["id2label"]
-    y = ["scam" if s else "not_scam" for s in df["label_scam"]]
+    y = ["scam" if s else "not_scam" for s in scam]
     res["gate"] = {}
     for name, texts in (("off", off), ("on", on)):
         pred = [names[str(i)] for i in predict(gate_dir, texts)]
@@ -281,16 +298,43 @@ def run_gate(models: Path) -> dict:
 
     type_dir = models / "phayathaibert-scam-type"
     tnames = json.loads((type_dir / "config.json").read_text(encoding="utf-8"))["id2label"]
-    keep = df["label_type"].isin(set(tnames.values())).to_numpy()
-    yt = list(df["label_type"][keep])
+    keep = [t in set(tnames.values()) for t in types]
+    yt = [t for t, k in zip(types, keep, strict=True) if k]
     res["type"] = {"labels": sorted(tnames.values())}
     for name, texts in (("off", off), ("on", on)):
         sub = [t for t, k in zip(texts, keep, strict=True) if k]
         res["type"][name] = classification_scores(
             yt, [tnames[str(i)] for i in predict(type_dir, sub)]
         )
-    res["type"]["note"] = "scored on test rows whose label_type is one of the model's labels"
+    res["type"]["changed_in_scored_rows"] = sum(
+        a != b for a, b, k in zip(off, on, keep, strict=True) if k
+    )
+    res["type"]["note"] = "scored on rows whose type is one of the model's labels"
     return res
+
+
+def check_against_notebook(models: Path, res: dict) -> None:
+    """The autocorrect-off scores on test.csv must equal what the notebook recorded in
+    scam_classifier_metrics.json; if not, this script feeds the models differently."""
+    path = models / "scam_classifier_metrics.json"
+    if not path.exists():
+        print(f"WARNING: {path} not found, cannot check the off scores against the notebook")
+        return
+    recorded = {
+        r["task"]: r
+        for r in json.loads(path.read_text(encoding="utf-8"))["results"]
+        if r["model"] == "phayathaibert"
+    }
+    for task, key in (("scam_gate", "gate"), ("scam_type", "type")):
+        got, want = res[key]["off"], recorded[task]
+        for mine, theirs in ((got["macro_f1"], want["f1"]), (got["accuracy"], want["accuracy"])):
+            if abs(mine - theirs) > 6e-4:  # the file rounds to 4 decimals
+                raise SystemExit(
+                    f"{key} off scores {got} do not match {path.name} "
+                    f"(f1 {want['f1']}, accuracy {want['accuracy']}): "
+                    "model input differs from the notebook"
+                )
+    res["matches_notebook_metrics"] = True
 
 
 def run_entities() -> dict:
@@ -338,12 +382,44 @@ def transcribe(store: Path, rows: list, model: str, cache: Path) -> dict[str, st
     return have
 
 
-def run_asr(store: Path, models: tuple[str, ...], cache_dir: Path, limit: int | None) -> dict:
+def resolve_store(arg: Path | None) -> Path:
+    """The calls.db to read: --store, else CALLAS_DATASET_DB, else data/synthetic/calls.db.
+    A folder is accepted too (its calls.db is used)."""
+    env = os.environ.get("CALLAS_DATASET_DB")
+    path = arg or (Path(env) if env else DEFAULT_STORE)
+    if path.is_dir():
+        path = path / "calls.db"
+    if not path.exists():
+        raise SystemExit(
+            f"No simulated-call store at {path}. Pass --store <calls.db> or set "
+            "CALLAS_DATASET_DB, or make one with: python -m data_pipeline.synthesize"
+        )
+    return path
+
+
+def asr_dialogues(rows: list[dict], hyp: dict[str, str], fix: bool) -> dict[str, str]:
+    """Each call as the model reads it: its ASR turns, normalized, 'X: turn' per line."""
+    calls: dict[str, list[dict]] = {}
+    for r in rows:
+        calls.setdefault(r["call_id"], []).append(
+            {"speaker": r["speaker"], "text": hyp[f"{r['call_id']}/{r['idx']}"]}
+        )
+    return {cid: render(turns, fix) for cid, turns in calls.items()}
+
+
+def run_asr(
+    db: Path, models: tuple[str, ...], cache_dir: Path, limit: int | None, models_dir: Path
+) -> dict:
     from nlp_core.entities import extract_entities
     from nlp_core.text import _fix_word, normalize_text
 
-    con = sqlite3.connect(f"file:{(store / 'calls.db').as_posix()}?mode=ro", uri=True)
+    store = db.parent
+    con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
+    labels = {
+        r["id"]: (bool(r["label_scam"]), r["label_type"])
+        for r in con.execute("select id, label_scam, label_type from calls")
+    }
     rows = [
         dict(r)
         for r in con.execute(
@@ -399,7 +475,17 @@ def run_asr(store: Path, models: tuple[str, ...], cache_dir: Path, limit: int | 
             autocorrect(normalize_text(hyp[f"{r['call_id']}/{r['idx']}"]))
             times_warm.append(time.perf_counter() - t0)
         mistakes_total = tally["fixed"] + tally["changed_wrong"] + tally["left"]
+        off_d, on_d = asr_dialogues(rows, hyp, False), asr_dialogues(rows, hyp, True)
+        ids = list(off_d)
+        call_gate = gate_and_type(
+            models_dir,
+            [off_d[i] for i in ids],
+            [on_d[i] for i in ids],
+            [labels[i][0] for i in ids],
+            [labels[i][1] for i in ids],
+        )
         res["models"][model] = {
+            "call_gate_and_type": call_gate,
             "cer": error_rates(pairs, chars=True),
             "wer": error_rates(pairs, chars=False),
             "cer_after_autocorrect": None,
@@ -493,13 +579,29 @@ def show(res: dict) -> None:
                 f"{lat['mean']:>8.3f}{lat['p95']:>7.3f}{lat['max']:>7.3f}"
             )
         print(f"first autocorrect call: {res['asr']['first_autocorrect_call_s']:.2f} s")
+        print("\nGate and type on the ASR text of whole calls (small n)")
+        print(
+            f"{'model':<22}{'task':<6}{'mode':<5}{'n':>4}{'macro-F1':>10}{'accuracy':>10}{'changed':>9}"
+        )
+        for name, m in res["asr"]["models"].items():
+            c = m["call_gate_and_type"]
+            for task in ("gate", "type"):
+                for mode in ("off", "on"):
+                    s = c[task][mode]
+                    changed = c["texts_changed_by_autocorrect"]
+                    print(
+                        f"{name:<22}{task:<6}{mode:<5}{s['n']:>4}{s['macro_f1']:>10.3f}"
+                        f"{s['accuracy']:>10.3f}{changed:>9}"
+                    )
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("part", nargs="?", default="all", choices=["all", "gate", "entities", "asr"])
     ap.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS)
-    ap.add_argument("--store", type=Path, default=DEFAULT_STORE)
+    ap.add_argument(
+        "--store", type=Path, help="calls.db of the simulated calls (or CALLAS_DATASET_DB)"
+    )
     ap.add_argument("--asr-models", nargs="+", default=list(ASR_MODELS))
     ap.add_argument(
         "--cache-dir",
@@ -514,7 +616,13 @@ def main() -> None:
     t0 = time.perf_counter()
     res = json.loads(args.out.read_text(encoding="utf-8")) if args.out.exists() else {}
     if args.part in ("all", "asr"):  # first, so the first-call cost is not hidden by other parts
-        res["asr"] = run_asr(args.store, tuple(args.asr_models), args.cache_dir, args.limit)
+        res["asr"] = run_asr(
+            resolve_store(args.store),
+            tuple(args.asr_models),
+            args.cache_dir,
+            args.limit,
+            args.models_dir,
+        )
     if args.part in ("all", "gate"):
         res.update(run_gate(args.models_dir))
     if args.part in ("all", "entities"):

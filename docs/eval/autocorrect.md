@@ -3,11 +3,11 @@
 Closes the checks listed in issue #30. The step measured is `AUTOCORRECT=pythainlp` in
 `nlp_core.text.autocorrect_text`, applied to each turn after `normalize_text`.
 
-Reproduce with `python scripts/eval_autocorrect.py` (about 70 s on an RTX 5070 Ti with the ASR
+Reproduce with `python scripts/eval_autocorrect.py` (about 70 to 100 s on an RTX 5070 Ti with the ASR
 transcripts cached, about 2.5 minutes the first time). Results are written to
 `eval/results/autocorrect.json`. The script needs the two trained models in `models/`
-(not in git) and the simulated-call store at `D:/text_analytics/Callas-sim/data/synthetic`
-(`--store` changes the path). Fixed seed 42, batch inference on the GPU.
+(not in git) and the simulated-call store (a `calls.db` with `audio/` beside it)
+given by `--store <calls.db>` or the env var `CALLAS_DATASET_DB` (default `data/synthetic/calls.db`; make one with `python -m data_pipeline.synthesize`). Fixed seed 42, batch inference on the GPU.
 
 ## Recommendation
 
@@ -18,12 +18,13 @@ Keep `AUTOCORRECT=off`.
 - It did not break a correct word in this data, but only because it almost never fires. The
   errors in the transcripts are real Thai words (wrong word, not wrong spelling), and a
   dictionary check cannot see those.
-- The error rates did not move: CER 0.1076 to 0.1078, WER 0.1699 to 0.1695.
-- It costs time: 1.5 s on the first call (loading the dictionary), 0.17 s per turn on average and
-  0.80 s at p95 with a cold word cache, with a worst turn of 6.5 s.
+- The error rates did not move: CER 0.1076 to 0.1078, TER 0.1699 to 0.1695.
+- It costs time: 1.5 s on the first call (loading the dictionary), 0.18 s per turn on average and
+  0.83 s at p95 with a cold word cache, with a worst turn of 6.9 s.
 - The known bad fix from PR #35 still happens (see below). In a scam call "transfer" turning into
   "withdraw" changes the meaning.
-- Scam gate, scam type and rule entity results were identical with it on and off.
+- Scam gate, scam type and rule entity results were identical with it on and off, on the test
+  set and on the ASR text of 20 calls (small n).
 
 The step may be worth another look only with a context-aware corrector, and only if the same
 checks (this script) show fixed words well above broken or still-wrong words.
@@ -54,7 +55,7 @@ transcribed with `pythaiasr.ASR(model=..., device="auto")` for `typhoon_asr` and
 punctuation are removed (the ASR writes none and places spaces freely, and Thai does not need
 them), then both are cut with PyThaiNLP `newmm`. Tokens are aligned with `difflib.SequenceMatcher`.
 Every non-equal block is one mistake. CER is the character edit distance over the joined text,
-WER the token edit distance, both over the whole corpus.
+TER (token error rate, newmm tokens, not whitespace words) the token edit distance, both over the whole corpus.
 
 To score the autocorrect, the same ASR text is corrected and re-aligned. A mistake is
 **fixed** when its tokens were replaced and now match the reference, **changed but still wrong**
@@ -71,14 +72,41 @@ a second pass.
 
 | Task | Autocorrect | n | Macro-F1 | Accuracy |
 | --- | --- | --- | --- | --- |
-| Gate | off | 55 | 0.930 | 0.945 |
-| Gate | on | 55 | 0.930 | 0.945 |
-| Type | off | 39 | 0.826 | 0.897 |
-| Type | on | 39 | 0.826 | 0.897 |
+| Gate | off | 55 | 0.952 | 0.964 |
+| Gate | on | 55 | 0.952 | 0.964 |
+| Type | off | 39 | 0.862 | 0.923 |
+| Type | on | 39 | 0.862 | 0.923 |
+
+The model input is built exactly as in the notebook (`to_model_text`: all whitespace, newlines
+between turns included, becomes the `<_>` token). The script checks that the "off" rows equal the
+phayathaibert test scores recorded in `models/scam_classifier_metrics.json` (gate F1 0.9521,
+accuracy 0.9636; type F1 0.8615, accuracy 0.9231) and stops with an error if they do not.
 
 Autocorrect changed 0 of 55 test dialogues, so the scores cannot differ. This matches PR #35
-(0 of 247 turns changed): the test set is clean written Thai, so it shows no harm and also no
-benefit. It says nothing about ASR text.
+(0 of 247 turns changed): the test set is clean written Thai, so on this text autocorrect does
+nothing. It says nothing about ASR text; the next table does.
+
+### Gate and type on ASR text of whole calls
+
+Each of the 20 simulated calls is rebuilt from its ASR turns (`A:` / `B:` lines, each turn
+normalized, then corrected for the "on" row) and labelled from the store (`label_scam`,
+`label_type`). The type model is scored on calls of its two types only. n is small, so one call
+moves a score by several points.
+
+| ASR model | Task | n | Autocorrect | Macro-F1 | Accuracy | Calls changed |
+| --- | --- | --- | --- | --- | --- | --- |
+| typhoon_asr | Gate | 20 | off | 0.804 | 0.900 | 3 of 20 |
+| typhoon_asr | Gate | 20 | on | 0.804 | 0.900 | 3 of 20 |
+| typhoon_asr | Type | 7 | off | 0.857 | 0.857 | 2 of 7 |
+| typhoon_asr | Type | 7 | on | 0.857 | 0.857 | 2 of 7 |
+| typhoon_nemotron_asr | Gate | 20 | off | 0.804 | 0.900 | 4 of 20 |
+| typhoon_nemotron_asr | Gate | 20 | on | 0.804 | 0.900 | 4 of 20 |
+| typhoon_nemotron_asr | Type | 7 | off | 0.708 | 0.714 | 0 of 7 |
+| typhoon_nemotron_asr | Type | 7 | on | 0.708 | 0.714 | 0 of 7 |
+
+Autocorrect changed 3 and 4 of the 20 call texts and no prediction changed, so on this sample
+correction did not lower the gate or the type scores. It did not raise them either. With 20
+calls this can only rule out a large drop.
 
 ### Rule entities
 
@@ -101,7 +129,7 @@ entities exist, so the exact figures are coarse.
 
 ### ASR errors (124 turns, 2,578 reference words)
 
-| Model | CER | WER | CER after autocorrect | WER after autocorrect |
+| Model | CER | TER | CER after autocorrect | TER after autocorrect |
 | --- | --- | --- | --- | --- |
 | typhoon_asr | 0.108 | 0.170 | 0.108 | 0.170 |
 | typhoon_nemotron_asr | 0.122 | 0.215 | 0.123 | 0.213 |
@@ -164,8 +192,8 @@ The full list (every mistake, with the status after autocorrect) is in
 
 | Model output | Mean | p95 | Max | Warm cache mean |
 | --- | --- | --- | --- | --- |
-| typhoon_asr | 0.17 s | 0.80 s | 6.5 s | 0.0004 s |
-| typhoon_nemotron_asr | 0.09 s | 0.75 s | 1.9 s | 0.0003 s |
+| typhoon_asr | 0.18 s | 0.83 s | 6.9 s | 0.0004 s |
+| typhoon_nemotron_asr | 0.09 s | 0.77 s | 2.1 s | 0.0003 s |
 
 The first call in a process took 1.5 s (dictionary load). Each new unknown word costs about
 0.4 s to 0.5 s in `pythainlp.spell.correct`, which is what drives p95 and max. A live turn
@@ -180,14 +208,14 @@ guards added in PR #35 (those cover shortening, names and digits, not a wrong ne
 ## Caveats
 
 - The audio is TTS. It is clean speech with no line noise, codec loss, overlap or accents. Real
-  phone recordings will have higher CER and WER, and more misspelled or invented words, so the
+  phone recordings will have higher CER and TER, and more misspelled or invented words, so the
   number of mistakes a corrector could in principle fix is probably larger than here. The result
   that matters is the fixed-to-broken ratio, and that was 0 fixed in 187 here.
 - 124 turns from 20 calls, written by a language model, is a small sample. The reference text is
   the exact text sent to the TTS engine.
 - The type model is scored on 39 dialogues of two types, and the gate on 55, so one
-  dialogue moves macro-F1 by several points. The identical scores come from 0 changed
-  dialogues, not from luck.
+  dialogue moves macro-F1 by several points. On the ASR calls (20 for the gate, 7 for the type)
+  the sample is smaller still. The identical test scores come from 0 changed dialogues.
 - The reference text uses variant spellings the ASR does not (แพ็กเกจ, โปรโมชัน). Those count as
   mistakes here and inflate the mistake count slightly.
 - Entity recall is 0 for both settings, so this evaluation cannot show whether autocorrect helps

@@ -4,6 +4,40 @@
     "calls": 20,
     "models": {
       "typhoon_asr": {
+        "call_gate_and_type": {
+          "texts": 20,
+          "texts_changed_by_autocorrect": 3,
+          "gate": {
+            "off": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            },
+            "on": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            }
+          },
+          "type": {
+            "labels": [
+              "fake_authority",
+              "phishing_otp"
+            ],
+            "off": {
+              "n": 7,
+              "macro_f1": 0.8571428571428571,
+              "accuracy": 0.8571428571428571
+            },
+            "on": {
+              "n": 7,
+              "macro_f1": 0.8571428571428571,
+              "accuracy": 0.8571428571428571
+            },
+            "changed_in_scored_rows": 2,
+            "note": "scored on rows whose type is one of the model's labels"
+          }
+        },
         "cer": 0.10759372609028309,
         "wer": 0.16989914662529093,
         "cer_after_autocorrect": 0.10778500382555471,
@@ -16,15 +50,15 @@
         "turns_changed_by_autocorrect": 3,
         "latency_s": {
           "cold_words": {
-            "mean": 0.1700248056452203,
-            "p95": 0.8013177000011638,
-            "max": 6.514947100000427,
+            "mean": 0.1752777064516375,
+            "p95": 0.8309388999987277,
+            "max": 6.858944700001302,
             "turns": 124
           },
           "warm_cache": {
-            "mean": 0.00035398145153873973,
-            "p95": 0.0006477999995695427,
-            "max": 0.0008605000002717134,
+            "mean": 0.0004040096774558826,
+            "p95": 0.0007007999993220437,
+            "max": 0.0012363000023469795,
             "turns": 124
           }
         },
@@ -1617,6 +1651,40 @@
         "wer_after_autocorrect": 0.16951124903025602
       },
       "typhoon_nemotron_asr": {
+        "call_gate_and_type": {
+          "texts": 20,
+          "texts_changed_by_autocorrect": 4,
+          "gate": {
+            "off": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            },
+            "on": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            }
+          },
+          "type": {
+            "labels": [
+              "fake_authority",
+              "phishing_otp"
+            ],
+            "off": {
+              "n": 7,
+              "macro_f1": 0.7083333333333333,
+              "accuracy": 0.7142857142857143
+            },
+            "on": {
+              "n": 7,
+              "macro_f1": 0.7083333333333333,
+              "accuracy": 0.7142857142857143
+            },
+            "changed_in_scored_rows": 0,
+            "note": "scored on rows whose type is one of the model's labels"
+          }
+        },
         "cer": 0.1222264728385616,
         "wer": 0.21450737005430567,
         "cer_after_autocorrect": 0.12270466717674063,
@@ -1629,15 +1697,15 @@
         "turns_changed_by_autocorrect": 4,
         "latency_s": {
           "cold_words": {
-            "mean": 0.08780627258062351,
-            "p95": 0.7524345000001631,
-            "max": 1.9429237999993347,
+            "mean": 0.09062516532268942,
+            "p95": 0.7722083999979077,
+            "max": 2.051719300001423,
             "turns": 124
           },
           "warm_cache": {
-            "mean": 0.00031535887096505313,
-            "p95": 0.0005129000001034001,
-            "max": 0.0006708000000799075,
+            "mean": 0.0004251072581199321,
+            "p95": 0.0007497000005969312,
+            "max": 0.0010034000006271526,
             "turns": 124
           }
         },
@@ -3606,7 +3674,7 @@
         "wer_after_autocorrect": 0.212955779674166
       }
     },
-    "first_autocorrect_call_s": 1.461765000000014,
+    "first_autocorrect_call_s": 1.513125299999956,
     "known_bad_fix": {
       "typo": "โอนเงนิ",
       "pythainlp_correct": "ถอนเงิน",
@@ -3618,13 +3686,13 @@
   "gate": {
     "off": {
       "n": 55,
-      "macro_f1": 0.9297573435504469,
-      "accuracy": 0.9454545454545454
+      "macro_f1": 0.9520905923344948,
+      "accuracy": 0.9636363636363636
     },
     "on": {
       "n": 55,
-      "macro_f1": 0.9297573435504469,
-      "accuracy": 0.9454545454545454
+      "macro_f1": 0.9520905923344948,
+      "accuracy": 0.9636363636363636
     }
   },
   "type": {
@@ -3634,15 +3702,16 @@
     ],
     "off": {
       "n": 39,
-      "macro_f1": 0.8258928571428572,
-      "accuracy": 0.8974358974358975
+      "macro_f1": 0.8615384615384616,
+      "accuracy": 0.9230769230769231
     },
     "on": {
       "n": 39,
-      "macro_f1": 0.8258928571428572,
-      "accuracy": 0.8974358974358975
+      "macro_f1": 0.8615384615384616,
+      "accuracy": 0.9230769230769231
     },
-    "note": "scored on test rows whose label_type is one of the model's labels"
+    "changed_in_scored_rows": 0,
+    "note": "scored on rows whose type is one of the model's labels"
   },
   "entities": {
     "texts": 55,
@@ -3675,6 +3744,7 @@
     "note": "The entities column of test.csv is empty for every row, so there is no gold to score against. The table compares the entities found with autocorrect on to those found with it off (off treated as the reference)."
   },
   "wall_time_s": {
-    "all": 69.38737939999919
-  }
+    "all": 97.76601650000157
+  },
+  "matches_notebook_metrics": true
 }
