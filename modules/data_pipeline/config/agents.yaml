@@ -139,7 +139,9 @@ judge:
   instructions: >-
     Check a simulated Thai phone call before it goes into a scam-detection dataset. Judge the
     transcript alone, as a careful Thai reader would. Be strict: a call that does not clearly
-    show what it is meant to show must be rejected.
+    show what it is meant to show must be rejected. The transcript is typed text and code has
+    already checked its spelling, so spelling is not your job: do not report typos and do not
+    score natural_thai down for them.
   fields:
     intended: what this call is meant to be
     transcript: "numbered speaker turns, [n] speaker: text"
@@ -149,12 +151,14 @@ judge:
       or a link, or a threat); -1 if there is none
     natural_thai: >-
       1-5: how much the flow and wording sound like a real Thai phone call (5 = real, 1 =
-      machine text). Ignore spelling: it is checked separately.
+      machine text)
     giveaway: >-
       true if the text names the label outright in a way a real call would not: narration, or
       the caller admitting it is a scam
     summary: 1-2 sentence Thai summary of what happened in the call
-    issues: short English note of problems, or 'none'
+    issues: >-
+      short English note of problems, or 'none'. A spelling claim must quote the exact word and
+      its turn, as [n] "word"
   intended:
     fake_authority: a scam call where the caller pretends to be police, a government office or a public utility
     romance: a scam call from an online love interest who wants money
