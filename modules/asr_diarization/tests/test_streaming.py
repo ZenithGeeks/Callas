@@ -1,4 +1,8 @@
+import sys
+import types
+
 import numpy as np
+import pytest
 
 import callas_settings
 from asr_diarization import streaming
@@ -146,13 +150,12 @@ def test_model_loaded_once(monkeypatch):
             return FakeEngine()
 
     monkeypatch.setattr(streaming, "_model", None)
-    import types
 
     def asr(model, device):
         calls.append((model, device))
         return types.SimpleNamespace(model=Model())
 
-    monkeypatch.setitem(__import__("sys").modules, "pythaiasr", types.SimpleNamespace(ASR=asr))
+    monkeypatch.setitem(sys.modules, "pythaiasr", types.SimpleNamespace(ASR=asr))
     monkeypatch.setenv("ASR_MODEL", "typhoon_asr")
     callas_settings.get_settings.cache_clear()
     try:
@@ -161,11 +164,10 @@ def test_model_loaded_once(monkeypatch):
     finally:
         callas_settings.get_settings.cache_clear()
     assert calls == [("typhoon_asr", "auto")]
-    monkeypatch.setattr(streaming, "_model", None)
 
 
 def test_nemotron_model_streams_through_adapter(monkeypatch):
-    class NemotronStreamingASR:  # stands in for pythaiasr's model; only the name is checked
+    class NemotronStreamingASR:  # stands in for pythaiasr's model class (checked with isinstance)
         pass
 
     class Stream:
@@ -182,26 +184,55 @@ def test_nemotron_model_streams_through_adapter(monkeypatch):
         def reset(self):
             self.fed.clear()
 
-    import sys
-    import types
-
     monkeypatch.setattr(streaming, "_model", NemotronStreamingASR())
     monkeypatch.setitem(
         sys.modules,
         "pythaiasr.typhoon_nemotron_asr",
-        types.SimpleNamespace(NemotronStreamASR=Stream),
+        types.SimpleNamespace(NemotronStreamASR=Stream, NemotronStreamingASR=NemotronStreamingASR),
     )
     engine = streaming.default_engine_factory()
     assert engine.feed_chunk(np.zeros(320, dtype=np.float32)) == "ก"
     assert engine.flush() == "ข"
     engine.reset()
-    monkeypatch.setattr(streaming, "_model", None)
 
 
 def test_model_that_cannot_stream_is_refused(monkeypatch):
-    import pytest
-
     monkeypatch.setattr(streaming, "_model", object())
     with pytest.raises(RuntimeError, match="cannot stream"):
         streaming.default_engine_factory()
+
+
+@pytest.mark.parametrize(
+    "name", ["biodatlab/whisper-small-th-combined", "airesearch/wav2vec2-large-xlsr-53-th"]
+)
+def test_non_streaming_setting_is_refused_before_loading(monkeypatch, name):
+    class LoadAttempted(Exception):
+        pass
+
+    def must_not_load(**kwargs):  # an exception _get_model does not translate
+        raise LoadAttempted("ASR() must not be called for a model that cannot stream")
+
     monkeypatch.setattr(streaming, "_model", None)
+    monkeypatch.setitem(sys.modules, "pythaiasr", types.SimpleNamespace(ASR=must_not_load))
+    monkeypatch.setenv("ASR_MODEL", name)
+    callas_settings.get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="cannot stream. Use typhoon_asr"):
+            streaming._get_model()
+    finally:
+        callas_settings.get_settings.cache_clear()
+
+
+def test_unknown_streaming_like_name_gets_a_clear_message(monkeypatch):
+    def unknown(model, device):
+        raise AssertionError(f"Model {model} is not in supported models: [...]")
+
+    monkeypatch.setattr(streaming, "_model", None)
+    monkeypatch.setitem(sys.modules, "pythaiasr", types.SimpleNamespace(ASR=unknown))
+    monkeypatch.setenv("ASR_MODEL", "typhoon_typo")
+    callas_settings.get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="'typhoon_typo' cannot stream"):
+            streaming._get_model()
+    finally:
+        callas_settings.get_settings.cache_clear()

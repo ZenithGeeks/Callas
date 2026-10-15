@@ -147,7 +147,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`.
 | `VLLM_MODEL` | empty | Model name. Empty means the first model the server lists |
 | `VLLM_API_KEY` | `EMPTY` | Key for the vLLM server, if it needs one |
 | `VLLM_TIMEOUT_S` | `30` | Seconds before an LLM call gives up |
-| `ASR_MODEL` | `typhoon_asr` | Speech-to-text model (pythaiasr), for recordings and the live mic. `typhoon_nemotron_asr` (Nemotron 3.5, INT4) is about 3x slower on the live mic on CPU and slightly faster with `onnxruntime-gpu`; on one test clip it kept words `typhoon_asr` dropped |
+| `ASR_MODEL` | `typhoon_asr` | Speech-to-text model (pythaiasr), for recordings and the live mic. `typhoon_nemotron_asr` (Nemotron 3.5, INT4) is the better choice with a GPU; see `.env.example` |
 | `DIARIZER` | `nemotron` | Speaker split: `nemotron` or `pyannote_segmentation` |
 | `TTS_PRETRAINED` | `fastthaig2p` | Voice engine (PyThaiTTS) |
 | `TTS_SPEAKER` | `thai_som` | Voice |

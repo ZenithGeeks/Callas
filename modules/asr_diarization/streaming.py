@@ -4,6 +4,10 @@ The pythaiasr StreamingTranscriber.feed_chunk(float32 at 16 kHz) returns only th
 since the last call (committed, never revised), and flush() returns the tail. So the running
 text of a turn is the concatenation of those pieces. The ONNX model is loaded once per process
 (`_get_model`); each LiveTranscriber only creates a cheap streaming session on top of it.
+
+ASR_MODEL picks the model: a Typhoon FastConformer streams through its own session, a Typhoon
+Nemotron through _NemotronEngine, which maps pythaiasr's process_chunk to feed_chunk. Any other
+model is refused with a message naming the two that stream.
 """
 
 from __future__ import annotations
@@ -49,17 +53,29 @@ _model = None
 _model_lock = threading.Lock()
 
 
+# Every pythaiasr model that can stream is a Typhoon FastConformer or a Typhoon Nemotron, and all
+# their names contain one of these. Checking the name first means a Whisper or Wav2Vec2 setting
+# fails with a clear message instead of trying to load torch (device="auto" is not a torch device).
+STREAMING_NAME_PARTS = ("typhoon", "nemotron")
+CANNOT_STREAM = "ASR_MODEL {name!r} cannot stream. Use typhoon_asr or typhoon_nemotron_asr."
+
+
 def _get_model():
     """Load the ASR_MODEL pythaiasr ONNX model once and share it across all calls."""
     global _model
     with _model_lock:
         if _model is None:
-            from pythaiasr import ASR  # heavy import, lazy
-
             from callas_settings import get_settings
 
             name = get_settings().asr_model
-            _model = ASR(model=name, device="auto").model
+            if not any(part in name.lower() for part in STREAMING_NAME_PARTS):
+                raise RuntimeError(CANNOT_STREAM.format(name=name))
+            from pythaiasr import ASR  # heavy import, lazy
+
+            try:
+                _model = ASR(model=name, device="auto").model
+            except (AssertionError, ImportError) as exc:  # unknown name, missing extras
+                raise RuntimeError(f"{CANNOT_STREAM.format(name=name)} ({exc})") from exc
             log.info("loaded streaming ASR model=%s", name)
         return _model
 
@@ -86,11 +102,11 @@ def default_engine_factory() -> Engine:
     model = _get_model()
     if hasattr(model, "create_streaming_session"):  # Typhoon FastConformer
         return model.create_streaming_session()
-    if type(model).__name__ == "NemotronStreamingASR":
+    from pythaiasr.typhoon_nemotron_asr import NemotronStreamingASR
+
+    if isinstance(model, NemotronStreamingASR):
         return _NemotronEngine(model)
-    raise RuntimeError(
-        f"ASR_MODEL {type(model).__name__} cannot stream. Use typhoon_asr or typhoon_nemotron_asr."
-    )
+    raise RuntimeError(CANNOT_STREAM.format(name=type(model).__name__))
 
 
 class LiveTranscriber:
