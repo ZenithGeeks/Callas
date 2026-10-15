@@ -1,4 +1,4 @@
-"""LangGraph graphs: one call turn, and one text message.
+"""LangGraph graphs: one call turn (`build_turn_graph`) and one text message.
 
 Turn graph:
 
@@ -6,19 +6,10 @@ Turn graph:
                                           |
                                           +--otherwise--> escalate -> END
 
-(`speak` is left out of the graph when no speaker is injected.)
-
-Safety rules that live here:
-  * `route_after_decide` is a plain Python function that reads only `Decision.auto_reply`.
-    No LLM output can change the route; only `tts_voice_agent.decision.decide` decides.
-  * The only node that makes speech text is `reply`, and it calls `safe_reply` (redacted
-    context, leak check, optional judge that can only add blocks, template fallback). Only the
-    reply text goes into the state; chain-of-thought reasoning is dropped inside the writer.
-    `speak` only voices `reply_text`.
-  * Call memory is the CallState objects in `Runtime.states`, in process memory only.
-    The graphs are compiled without a checkpointer, so LangGraph stores nothing.
-  * Per-call dependencies reach the nodes through LangGraph's runtime context
-    (`TurnContext`), passed as `context=` on every invoke/stream. The graphs hold no call data.
+`speak` is left out when no speaker is injected. Read `route_after_decide` and `reply` first:
+they carry the safety rules (README, "Where the safety rules live"). Per-call dependencies
+come through the runtime context (`TurnContext`), passed as `context=` on every invoke or
+stream. The graphs hold no call data.
 """
 
 from __future__ import annotations
@@ -39,8 +30,8 @@ from llm_serving.base import LLM
 from llm_serving.client import LLMUnavailable
 from nlp_core.registry import analyze_with_tools
 from nlp_core.types import NLPResult
-from tts_voice_agent.constants import ESCALATE_THRESHOLD
 from tts_voice_agent import decision as decision_rules
+from tts_voice_agent.constants import ESCALATE_THRESHOLD
 from tts_voice_agent.decision import Decision
 from tts_voice_agent.memory import CallState, clean_turn
 from tts_voice_agent.reply import safe_reply
@@ -49,6 +40,8 @@ log = logging.getLogger(__name__)
 
 
 class TurnState(TypedDict, total=False):
+    """What flows through the turn graph. Each node adds its own keys."""
+
     call_id: str
     turn: Turn
     context: str
@@ -63,6 +56,8 @@ class TurnState(TypedDict, total=False):
 
 
 class MessageState(TypedDict, total=False):
+    """What flows through the message graph."""
+
     text: str
     nlp: NLPResult
     verdict: dict
@@ -83,6 +78,7 @@ class TurnContext:
     judge: Any | None
 
     def analyze(self, text: str) -> NLPResult:
+        """Run NER, classifier and summarizer on `text` with the names chosen for this run."""
         return analyze_with_tools(
             text, ner=self.ner, classifier=self.classifier, summarizer=self.summarizer
         )
@@ -135,11 +131,10 @@ class Runtime:
             judge=self.judge,
         )
 
-    def analyze(self, text: str) -> NLPResult:
-        return self.context().analyze(text)
-
 
 def _timed(name: str, fn: Callable[[Any, Any], dict]) -> Callable[..., dict]:
+    """Wrap a node `fn(state, ctx)` so it adds its run time to `state["timings"]`."""
+
     # LangGraph injects `runtime` by parameter name, so the wrapper must declare it.
     def wrapper(state, runtime: GraphRuntime[TurnContext]):
         t0 = time.perf_counter()
@@ -168,41 +163,45 @@ ANALYZE_RETRY = RetryPolicy(
 
 
 def remember(state: TurnState, ctx: TurnContext) -> dict:
+    """Clean the turn text once and add it to call memory."""
     turn = clean_turn(state["turn"])  # one clean text for every tool and for the screen
     ctx.states[state["call_id"]].add(turn)
     return {"turn": turn}
 
 
 def analyze_turn(state: TurnState, ctx: TurnContext) -> dict:
-    cs = ctx.states[state["call_id"]]
-    context = cs.context()
+    """Run the NLP tools on the whole call so far and remember the entities found."""
+    call = ctx.states[state["call_id"]]
+    context = call.context()
     nlp = ctx.analyze(context)
-    cs.add_entities(nlp.entities)
+    call.add_entities(nlp.entities)
     return {"context": context, "nlp": nlp}
 
 
 def decide(state: TurnState, ctx: TurnContext) -> dict:
+    """Choose between a reply and escalation. The rules are in tts_voice_agent.decision."""
     decision = decision_rules.decide(state["nlp"], ctx.states[state["call_id"]])
     log.info("decision auto_reply=%s reason=%s", decision.auto_reply, decision.reason)
     return {"decision": decision}
 
 
 def reply(state: TurnState, ctx: TurnContext) -> dict:
+    """Write the reply with safe_reply. This is the only node that makes speech text."""
+    call = ctx.states[state["call_id"]]
     text, template_used = safe_reply(
-        state["nlp"],
-        ctx.states[state["call_id"]],
-        ctx.llm,
-        writer=ctx.writer,
-        judge=ctx.judge,
+        state["nlp"], call, ctx.llm, writer=ctx.writer, judge=ctx.judge
     )
+    # The final state's Decision carries the reply, so it is filled in place (not in the update).
     decision = state["decision"]
     decision.reply_text, decision.template_used = text, template_used
-    t = state["turn"]  # remember what we said, so the next reply can follow on from it
-    ctx.states[state["call_id"]].add(Turn("agent", t.end, t.end, text))
+    caller_turn = state["turn"]
+    # Remember what we said, so the next reply can follow on from it.
+    call.add(Turn("agent", caller_turn.end, caller_turn.end, text))
     return {"reply_text": text, "template_used": template_used}
 
 
 def speak(state: TurnState, ctx: TurnContext) -> dict:
+    """Voice reply_text. It never makes text of its own."""
     try:
         return {"audio": ctx.speaker.synthesize_bytes(state["reply_text"])}
     except Exception as exc:  # TTS trouble must not lose the text reply
@@ -211,6 +210,7 @@ def speak(state: TurnState, ctx: TurnContext) -> dict:
 
 
 def escalate(state: TurnState, ctx: TurnContext) -> dict:
+    """Record why the call went to a person. Nothing is said to the caller."""
     return {"escalation_reason": state["decision"].reason}
 
 
@@ -241,10 +241,11 @@ def build_turn_graph(rt: Runtime):
     else:
         g.add_edge("reply", END)
     g.add_edge("escalate", END)
-    return g.compile()
+    return g.compile()  # no checkpointer: call memory lives only in ctx.states
 
 
 def verdict_from(nlp: NLPResult) -> dict:
+    """Turn an NLP result into the verdict dict: level safe, suspicious or scam."""
     if not nlp.label_scam:
         level = "safe"
     elif nlp.confidence >= ESCALATE_THRESHOLD:
@@ -261,10 +262,12 @@ def verdict_from(nlp: NLPResult) -> dict:
 
 
 def analyze_text(state: MessageState, ctx: TurnContext) -> dict:
+    """Run the NLP tools on one text message."""
     return {"nlp": ctx.analyze(state["text"])}
 
 
 def verdict(state: MessageState, ctx: TurnContext) -> dict:
+    """Make the verdict from the NLP result."""
     return {"verdict": verdict_from(state["nlp"])}
 
 
@@ -276,4 +279,4 @@ def build_message_graph(rt: Runtime):
     g.add_edge(START, "analyze")
     g.add_edge("analyze", "verdict")
     g.add_edge("verdict", END)
-    return g.compile()
+    return g.compile()  # no checkpointer, no memory
