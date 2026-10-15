@@ -76,3 +76,18 @@ def test_agent_sends_system_prompt_and_user_text_to_model(fakes):
     sent = seen[0]
     assert isinstance(sent[0], SystemMessage) and sent[0].content == ANALYST_PROMPT
     assert isinstance(sent[-1], HumanMessage) and sent[-1].content == "hello there"
+
+
+def test_tool_choice_error_from_real_agent_graph_is_mapped(fakes):
+    """The server's 400 travels through the real create_agent graph, not a stub agent."""
+
+    class RejectsTools(ScriptedChat):
+        def _generate(self, messages, *args, **kwargs):
+            resp = httpx.Response(400, request=httpx.Request("POST", "http://x/v1/chat"))
+            raise openai.BadRequestError(
+                '"auto" tool choice requires --enable-auto-tool-choice', response=resp, body=None
+            )
+
+    agent = build_analyst_agent(RejectsTools(messages=iter([])))
+    with pytest.raises(ToolCallingUnavailable, match="enable-auto-tool-choice"):
+        explain("x", agent=agent)
