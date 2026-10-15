@@ -51,8 +51,8 @@ ENGLISH_DIGIT_WORDS = "zero one two three four five six seven eight nine oh".spl
 _EN_VALUE = {w: str(i) for i, w in enumerate(ENGLISH_DIGIT_WORDS[:10])} | {"oh": "0"}
 
 _UNITS = ("บาท", "ดอลลาร์", "เหรียญ", "หยวน", "เยน", "ยูโร", "ปอนด์", "สตางค์")
-_ALT = "|".join(sorted((*THAI_NUMBER_WORDS, *_DASH), key=len, reverse=True))
-_WORD = re.compile(_ALT)
+_WORD_ALT = "|".join(sorted((*THAI_NUMBER_WORDS, *_DASH), key=len, reverse=True))
+_NUMBER_WORD = re.compile(_WORD_ALT)
 _UNIT_AFTER = re.compile(rf"\s*(?:{'|'.join(_UNITS)})")
 _COUNTER_AFTER = re.compile(r"\s*(?:คน|ปี|วัน|เดือน|ครั้ง|ชั้น|ตัว|ชิ้น|ข้อ|ที่)")
 _MONEY_BEFORE = re.compile(r"(?:เงิน|โอน|ยอด|ค่า|ราคา|จำนวน)\s*$")
@@ -140,25 +140,25 @@ def _read_run(words: list[str], before: str, after: str) -> str | None:
 
 
 def _thai_edits(text: str) -> list[tuple[int, int, str]]:
-    found = list(_WORD.finditer(text))
-    if not found:
+    word_matches = list(_NUMBER_WORD.finditer(text))
+    if not word_matches:
         return []
     from pythainlp.tokenize import word_tokenize
 
-    edges, pos = {0}, 0
+    word_edges, offset = {0}, 0
     for tok in word_tokenize(text, engine="newmm", keep_whitespace=True):
-        pos += len(tok)
-        edges.add(pos)
+        offset += len(tok)
+        word_edges.add(offset)
     edits: list[tuple[int, int, str]] = []
     i = 0
-    while i < len(found):
+    while i < len(word_matches):
         j = i
-        while j + 1 < len(found):
-            gap = text[found[j].end() : found[j + 1].start()]
+        while j + 1 < len(word_matches):
+            gap = text[word_matches[j].end() : word_matches[j + 1].start()]
             if gap.strip() or len(gap) > 2:
                 break
             j += 1
-        run = found[i : j + 1]
+        run = word_matches[i : j + 1]
         i = j + 1
         # a dash at either end is an ordinary word ("ลบ" = delete), not part of the number
         while run and run[-1].group() in _DASH:
@@ -167,7 +167,7 @@ def _thai_edits(text: str) -> list[tuple[int, int, str]]:
             run = run[1:]
         # only whole words: "หนึ่งเดียว" is one token, so its "หนึ่ง" is not a number
         # (tokens such as "สิบสอง" hold several number words, so only the run's ends are checked)
-        if not run or run[0].start() not in edges or run[-1].end() not in edges:
+        if not run or run[0].start() not in word_edges or run[-1].end() not in word_edges:
             continue
         words = [m.group() for m in run]
         start, end = run[0].start(), run[-1].end()

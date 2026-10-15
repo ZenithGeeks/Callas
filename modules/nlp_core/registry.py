@@ -56,8 +56,8 @@ def default_name(kind: str) -> str:
     _check_kind(kind)
     from callas_settings import get_settings
 
-    from_env = os.environ.get(ENV_VARS[kind], "").strip()
-    return from_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
+    from_process_env = os.environ.get(ENV_VARS[kind], "").strip()
+    return from_process_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
 
 
 def get(kind: str, name: str | None = None) -> Any:
