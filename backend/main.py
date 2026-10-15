@@ -7,10 +7,13 @@ This file builds the app; each page's routes are in its own router module.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
-from .web import ROOT
+# Put modules/ on the path before importing any backend module, because they import from it.
+# This is what lets `uvicorn backend.main:app` run without PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "modules"))
 
-sys.path.insert(0, str(ROOT.parent / "modules"))  # run without PYTHONPATH
+from .web import ROOT  # noqa: E402
 
 import logging  # noqa: E402
 import os  # noqa: E402
