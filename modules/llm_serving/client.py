@@ -24,7 +24,7 @@ LABELS: tuple[str, ...] = (
     "phishing_otp",
     "lottery",
 )
-_LABEL_RES = {lab: re.compile(rf"(?<![a-z_]){lab}(?![a-z_])") for lab in LABELS}
+_LABEL_RES = {label: re.compile(rf"(?<![a-z_]){label}(?![a-z_])") for label in LABELS}
 
 TEMPERATURE = {"classify": 0.0, "summary": 0.0, "reply": 0.3}
 
@@ -39,7 +39,7 @@ def parse_label(raw: str) -> str:
     Accepts quotes, punctuation or extra words only when exactly one known label appears.
     """
     text = (raw or "").strip().lower()
-    hits = [lab for lab, rx in _LABEL_RES.items() if rx.search(text)]
+    hits = [label for label, pattern in _LABEL_RES.items() if pattern.search(text)]
     return hits[0] if len(hits) == 1 else "unknown"
 
 
@@ -51,22 +51,22 @@ class LLMClient:
         api_key: str | None = None,
         timeout: float | None = None,
     ) -> None:
-        s = get_settings()
-        self.base_url = base_url or s.vllm_base_url
-        self._model = model if model is not None else s.vllm_model
-        key = api_key if api_key is not None else s.vllm_api_key.get_secret_value()
+        settings = get_settings()
+        self.base_url = base_url or settings.vllm_base_url
+        self._model = model if model is not None else settings.vllm_model
+        key = api_key if api_key is not None else settings.vllm_api_key.get_secret_value()
         self._client = OpenAI(
             base_url=self.base_url,
             api_key=key or "EMPTY",
-            timeout=timeout if timeout is not None else s.vllm_timeout_s,
+            timeout=timeout if timeout is not None else settings.vllm_timeout_s,
             max_retries=0,
         )
 
     def list_models(self) -> list[str]:
         try:
             return [m.id for m in self._client.models.list().data]
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
-            raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {e}") from e
+        except (openai.APIConnectionError, openai.APITimeoutError) as error:
+            raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {error}") from error
 
     @property
     def model(self) -> str:
@@ -83,26 +83,26 @@ class LLMClient:
         template, version = load_prompt(job)
         prompt = render(template, context)
         model = self.model
-        t0 = time.perf_counter()
+        started = time.perf_counter()
         try:
-            resp = self._client.chat.completions.create(
+            response = self._client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=TEMPERATURE[job],
                 max_tokens=JOBS[job],
                 extra_body=get_settings().llm_extra_body() or None,
             )
-        except (openai.APIConnectionError, openai.APITimeoutError) as e:
-            raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {e}") from e
-        latency = time.perf_counter() - t0
-        out = (resp.choices[0].message.content or "").strip()
+        except (openai.APIConnectionError, openai.APITimeoutError) as error:
+            raise LLMUnavailable(f"cannot reach LLM server at {self.base_url}: {error}") from error
+        latency = time.perf_counter() - started
+        output = (response.choices[0].message.content or "").strip()
         log.info(
             "llm call model=%s job=%s prompt=%s context_chars=%d output_chars=%d latency_s=%.3f",
             model,
             job,
             version,
             len(context),
-            len(out),
+            len(output),
             latency,
         )
-        return out
+        return output
