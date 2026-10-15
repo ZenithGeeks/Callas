@@ -180,7 +180,7 @@ Before you edit:
 
 ## Receiver leaks
 
-A real victim sometimes gives personal details away. Those are the calls a scam classifier most needs to see. The receiver may do this when the person it plays would: its instructions say a trusting or unsure person who knows little about scams often goes along, and a skeptical one refuses. In a test of 20 phishing_otp and fake_authority calls with trusting or unsure profiles, 4 leaked an OTP; 10 skeptical calls leaked nothing. It gives details only through its own slots, so no real data appears:
+A real victim sometimes gives personal details away. Those are the calls a scam classifier most needs to see. The receiver may do this when the person it plays would: its instructions say a trusting or unsure person who knows little about scams often goes along, and a skeptical one refuses. In a test of 20 phishing_otp and fake_authority calls with trusting or unsure profiles, 4 leaked an OTP; 10 skeptical calls leaked nothing. Three fake_authority scenarios (`police_warrant`, `dsi_case`, `court_summons`) ask for the receiver's ID card number and another detail to "verify identity"; with those, 5 of 20 trusting fake_authority calls leaked (#99). It gives details only through its own slots, so no real data appears:
 
 | Slot | Value | Entity label |
 |---|---|---|
@@ -190,6 +190,8 @@ A real victim sometimes gives personal details away. Those are the calls a scam 
 | `{ID_CARD}` | 13 random digits as `1-2345-67890-12-3`. The check digit is not computed, so it is never a valid ID number | `ID_CARD` |
 | `{BIRTH_DATE}` | day, month and Buddhist-era year, for example `12 มีนาคม 2511`, matching the receiver's age on 1 July 2025 | `BIRTH_DATE` |
 | `{ADDRESS}` | built from the made-up parts under `addresses` in `details.yaml` | `ADDRESS` |
+
+The receiver also hears the caller's numbers and links as slots (`{MONEY}`, `{PHONE}`, `{BANK_ACCOUNT}`, `{URL}`, and `{OTP}` if the caller says one), so a receiver that repeats one writes the slot instead of digits that would get the call rejected as `number_without_slot`. Repeating the caller's slots is not a leak: only the slots in the table above are.
 
 `ID_CARD`, `BIRTH_DATE` and `ADDRESS` are in `nlp_core.types.ENTITY_LABELS`.
 

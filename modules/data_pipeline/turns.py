@@ -20,7 +20,14 @@ from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 from .agents import Agents
 from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config
-from .fill import RECEIVER_ONLY_SLOTS, RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
+from .fill import (
+    CALLER_NUMBER_SLOTS,
+    RECEIVER_ONLY_SLOTS,
+    RECEIVER_OWN_SLOTS,
+    SLOT_RE,
+    SlotFiller,
+    receiver_leaks,
+)
 from .patterns import render_notes
 from .records import Briefing, Turn
 from .scenarios import CallConfig
@@ -207,16 +214,18 @@ def conversation_lines(turns: list[Turn], config: Config, *, raw: bool) -> list[
 def receiver_lines(turns: list[Turn], filler: SlotFiller, config: Config) -> list[str]:
     """The call as the receiver hears it, one line per turn: real values, except its own name
     and details, which stay the slots that its instructions call "your name", "your bank
-    account" and so on. Without this the receiver did not recognise its own name and answered
-    "you have the wrong number".
+    account" and so on, and the caller's numbers and links (fill.CALLER_NUMBER_SLOTS). Without
+    its own slots the receiver did not recognise its own name and answered "you have the wrong
+    number"; without the caller's, it repeated the digits instead of the slot (#99).
 
     `filler` must be this call's: the studio can give the receiver another name than the seed.
     """
     values = filler.values
-    own = sorted(RECEIVER_OWN_SLOTS, key=lambda slot: -len(values[slot]))
+    # longest value first, so a value inside a longer one is not replaced on its own
+    slots = sorted(RECEIVER_OWN_SLOTS + CALLER_NUMBER_SLOTS, key=lambda slot: -len(values[slot]))
     lines = []
     for line in conversation_lines(turns, config, raw=False):
-        for slot in own:
+        for slot in slots:
             line = line.replace(values[slot], "{" + slot + "}")
         lines.append(line)
     return lines
