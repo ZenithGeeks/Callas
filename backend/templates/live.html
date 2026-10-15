@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "partials/_ui.html" as ui %}
 {% block title %}Live call | Callas{% endblock %}
-{% block head %}<script src="{{ url_for('static', path='js/live.js') }}" defer></script>{% endblock %}
+{% block head %}<script src="{{ url_for('static', path='js/live.js').path }}" defer></script>{% endblock %}
 {% block main %}
 <div id="live" class="flex flex-col gap-6 lg:grid lg:grid-cols-[392px_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-12"
      data-demo="{{ 'true' if demo else 'false' }}" data-high-conf="{{ high_conf }}" data-types="{{ types_json }}">

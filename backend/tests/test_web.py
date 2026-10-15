@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from backend import demo
+from backend import demo, main
 
 ROOT = Path(__file__).resolve().parents[1]
 PHISHING = (
@@ -29,6 +29,15 @@ def test_pages_render_with_contract_comment(client, path):
     assert CONTRACT.search(r.text)
     assert "FINISH: unreviewed and undocumented is unfinished" in r.text
     assert "/static/css/app.css" in r.text
+
+
+@pytest.mark.parametrize("path", ["/message", "/call", "/live"])
+def test_assets_use_paths_not_absolute_urls(client, path):
+    # Behind an https proxy (tailscale serve) the app sees plain http. An absolute
+    # http:// asset URL on an https page is blocked as mixed content.
+    html = client.get(path, headers={"Host": "callas.example.ts.net"}).text
+    assets = re.findall(r'(?:href|src)="([^"]*/static/[^"]*)"', html)
+    assert assets and all(a.startswith("/static/") for a in assets)
 
 
 def test_band_is_a_size_container(client):
@@ -210,3 +219,34 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
         assert r.status_code == 200
         assert list(stale.iterdir())
     assert list(stale.iterdir()) == []  # cleared at shutdown
+
+
+def test_ws_live_reports_a_call_that_cannot_start(client, monkeypatch):
+    def broken(rt):
+        raise RuntimeError("model would not load")
+
+    monkeypatch.setattr(main.live_ws, "make_live_call", broken)
+    with client.websocket_connect("/ws/live") as ws:
+        ev = ws.receive_json()
+    assert ev == {"type": "error", "turn": None, "message": "The live call could not start."}
+
+
+def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
+    import asyncio
+
+    seen = []
+    real = main.live_ws.make_live_call
+
+    def recording(rt):
+        try:  # inside the event loop's thread a loop is running; in a worker thread none is
+            asyncio.get_running_loop()
+            seen.append(True)
+        except RuntimeError:
+            seen.append(False)
+        return real(rt)
+
+    monkeypatch.setattr(main.live_ws, "make_live_call", recording)
+    with client.websocket_connect("/ws/live") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        ws.send_text(json.dumps({"type": "end"}))
+    assert seen == [False]
