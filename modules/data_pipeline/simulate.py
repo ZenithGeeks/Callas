@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 from .agents import Agents
-from .config import Config, ConfigError
+from .config import Config, ConfigError, Scenario
 from .fill import SlotFiller
 from .graph import (
     CALL_GRAPH,
@@ -70,7 +71,7 @@ def run_call(
     record = _open_record(store, call, config, agents, receiver)
     if record["generation"]["status"] != "in_progress":
         return record
-    filler = SlotFiller(call, config.details)
+    call, filler = _as_started(call, record, config)
     context = SimContext(agents, config, call, store, voices, filler, record)
     # One step per turn plus plan and finish; a call that runs past this is a bug.
     limit = call.max_turns + 5
@@ -182,3 +183,15 @@ def _open_record(
             "use the original receiver, or delete the call from the store"
         )
     return record
+
+
+def _as_started(call: CallConfig, record: dict, config: Config) -> tuple[CallConfig, SlotFiller]:
+    """The call and its slot values as the record was started. The studio can pick another
+    scenario and receiver name than the seed does; both are kept in generation.call, so a
+    command line resume must use them too (#63)."""
+    stored = record["generation"]["call"]
+    call = replace(call, scenario=Scenario.model_validate(stored["scenario"]))
+    filler = SlotFiller(call, config.details)
+    if stored.get("receiver_name"):
+        filler.values["RECEIVER_NAME"] = stored["receiver_name"]
+    return call, filler
