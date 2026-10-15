@@ -44,7 +44,7 @@ class TurnState(TypedDict, total=False):
 
     call_id: str
     turn: Turn
-    context: str
+    transcript: str
     nlp: NLPResult
     decision: Decision
     reply_text: str
@@ -176,10 +176,10 @@ def remember(state: TurnState, ctx: TurnContext) -> dict:
 def analyze_turn(state: TurnState, ctx: TurnContext) -> dict:
     """Run the NLP tools on the whole call so far and remember the entities found."""
     call = ctx.states[state["call_id"]]
-    context = call.context()
-    nlp = ctx.analyze(context)
+    transcript = call.context()
+    nlp = ctx.analyze(transcript)
     call.add_entities(nlp.entities)
-    return {"context": context, "nlp": nlp}
+    return {"transcript": transcript, "nlp": nlp}
 
 
 def decide(state: TurnState, ctx: TurnContext) -> dict:
