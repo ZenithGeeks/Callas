@@ -1,13 +1,10 @@
 """The /studio page: make a simulated call from the browser and watch it being written.
 
-The form starts a background thread that runs the simulator's LangGraph graph
-(data_pipeline.live.stream_call). Each step is rendered as an HTML piece and kept in the run's
-event list; /studio/{run}/events sends the list to the browser as server-sent events and sends
-new pieces as they arrive. The browser never has to stay connected: the thread finishes the call
-and saves it to the same store /dataset reads, whether or not anyone is watching.
-
-One run at a time per server. A second Start gets a 409 with a message. The Stop button asks the
-thread to stop after the step it is working on; the call stays in the store as unfinished.
+POST /studio/start starts a background thread that runs the simulator graph
+(data_pipeline.live.stream_call) and saves the call to the store /dataset reads. Each step is
+rendered as an HTML piece and added to the run's event list. GET /studio/{run}/events sends
+that list as server-sent events, so a page that opens late, or again, sees the whole call.
+One run at a time per server. Stop asks the thread to stop after the step it is working on.
 """
 
 from __future__ import annotations
@@ -66,6 +63,8 @@ DETAIL_FIELDS = [
 
 
 class FormProblem(Exception):
+    """A form value the user has to fix. `status` is the HTTP code (409 when a run is busy)."""
+
     def __init__(self, message: str, status: int = 422) -> None:
         super().__init__(message)
         self.status = status
@@ -73,6 +72,8 @@ class FormProblem(Exception):
 
 @dataclass
 class StudioRun:
+    """One call being written: what was asked for, the HTML pieces so far, and the stop flag."""
+
     id: str
     spec: live.CallSpec
     title: str
@@ -139,14 +140,13 @@ router = APIRouter(lifespan=_lifespan)
 
 @router.get("/studio", response_class=HTMLResponse)
 def studio_page(request: Request) -> HTMLResponse:
+    """The form, with the run that is going now (if any) already opened."""
     config = _config()
     pools = config.scenarios.receivers
     scenarios = [
-        (s.key, call_type, f"{s.key}: {s.role}")
+        (scenario.key, call_type, f"{scenario.key}: {scenario.role}")
         for call_type in CALL_TYPES
-        for s in (
-            config.scenarios.legit if call_type == BENIGN else config.scenarios.scams[call_type]
-        )
+        for scenario in _scenarios_of(config, call_type)
     ]
     run = BOARD.running()
     return page(
@@ -169,8 +169,11 @@ def _config() -> Config:
     return load_default_config()
 
 
-def _demo(request: Request) -> bool:
-    return request.app.state.rt.is_demo
+def _scenarios_of(config: Config, call_type: str) -> list:
+    """The scenarios the config has for this kind of call."""
+    if call_type == BENIGN:
+        return config.scenarios.legit
+    return config.scenarios.scams[call_type]
 
 
 def _type_options() -> list[tuple[str, str]]:
@@ -183,11 +186,14 @@ def _profile_label(profile: ReceiverProfile) -> str:
 
 @router.post("/studio/start", response_class=HTMLResponse)
 async def studio_start(request: Request) -> Response:
+    """Check the form and start a run, or answer with the problem."""
     form = await request.form()  # the store and the templates are used in a worker thread
-    return await run_in_threadpool(_begin, form, _demo(request), request.app.state.pace)
+    demo = request.app.state.rt.is_demo
+    return await run_in_threadpool(_begin, form, demo, request.app.state.pace)
 
 
 def _begin(form: Any, demo: bool, pace: float) -> Response:
+    """Register the run and start its thread (runs in the worker pool: it uses the store)."""
     try:
         spec = parse_form(form, _config(), _taken_ids())
         run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
@@ -207,28 +213,37 @@ def parse_form(form: Any, config: Config, taken_ids: set[str]) -> live.CallSpec:
     call_type = str(form.get("call_type", ""))
     if call_type not in CALL_TYPES:
         raise FormProblem("Choose the kind of call.")
-    scenario = None
-    if key := str(form.get("scenario", "")):
-        pool = config.scenarios.legit if call_type == BENIGN else config.scenarios.scams[call_type]
-        scenario = next((s for s in pool if s.key == key), None)
-        if scenario is None:
-            raise FormProblem("That scenario does not belong to this kind of call.")
+    scenario = _parse_scenario(form, config, call_type)
     receiver = _parse_receiver(form, config)
     name = _clean(form.get("receiver_name", ""))
     seed_text = str(form.get("seed", "")).strip()
-    if seed_text:
-        if not (seed_text.isascii() and seed_text.isdigit()) or int(seed_text) > MAX_SEED:
-            raise FormProblem(f"The seed is a whole number from 0 to {MAX_SEED}, or empty.")
-        seed = int(seed_text)
-        spec = live.CallSpec(call_type, seed, scenario, receiver, name)
-        if spec.record_id in taken_ids:
-            raise FormProblem(
-                f"{spec.record_id} is already in the dataset. "
-                "Choose another seed, or leave the seed empty to take the next free one."
-            )
-        return spec
-    seed = live.next_free_seed(call_type, taken_ids, receiver)
-    return live.CallSpec(call_type, seed, scenario, receiver, name)
+    if not seed_text:
+        seed = live.next_free_seed(call_type, taken_ids, receiver)
+        return live.CallSpec(call_type, seed, scenario, receiver, name)
+    spec = live.CallSpec(call_type, _parse_seed(seed_text), scenario, receiver, name)
+    if spec.record_id in taken_ids:
+        raise FormProblem(
+            f"{spec.record_id} is already in the dataset. "
+            "Choose another seed, or leave the seed empty to take the next free one."
+        )
+    return spec
+
+
+def _parse_scenario(form: Any, config: Config, call_type: str) -> Any:
+    """The chosen scenario of this kind of call, or None when the form leaves it empty."""
+    key = str(form.get("scenario", ""))
+    if not key:
+        return None
+    scenario = next((s for s in _scenarios_of(config, call_type) if s.key == key), None)
+    if scenario is None:
+        raise FormProblem("That scenario does not belong to this kind of call.")
+    return scenario
+
+
+def _parse_seed(text: str) -> int:
+    if not (text.isascii() and text.isdigit()) or int(text) > MAX_SEED:
+        raise FormProblem(f"The seed is a whole number from 0 to {MAX_SEED}, or empty.")
+    return int(text)
 
 
 def _clean(value: Any) -> str:
@@ -241,15 +256,20 @@ def _clean(value: Any) -> str:
 
 
 def _parse_receiver(form: Any, config: Config) -> ReceiverProfile | None:
+    """The chosen saved person, the described one, or None when the form leaves it empty."""
     choice = str(form.get("receiver", ""))
     if not choice:
         return None
-    if choice != CUSTOM:
-        profile = next((p for p in config.scenarios.receivers.profiles if p.key == choice), None)
-        if profile is None:
-            raise FormProblem("That saved person does not exist.")
-        return profile
-    pools = config.scenarios.receivers
+    if choice == CUSTOM:
+        return _described_receiver(form, config.scenarios.receivers)
+    profile = next((p for p in config.scenarios.receivers.profiles if p.key == choice), None)
+    if profile is None:
+        raise FormProblem("That saved person does not exist.")
+    return profile
+
+
+def _described_receiver(form: Any, pools: Any) -> ReceiverProfile:
+    """A receiver made from the r_* fields of the form."""
     values = {key: _clean(form.get(f"r_{key}", "")) for key, _, _ in DETAIL_FIELDS}
     gender = str(form.get("r_gender", ""))
     if gender not in pools.genders:
@@ -297,33 +317,41 @@ def _sse(name: str, html: str, event_id: int) -> str:
     return f"id: {event_id}\nevent: {name}\n{data}\n\n"
 
 
+def _unknown_run() -> JSONResponse:
+    return JSONResponse({"detail": "Unknown run."}, status_code=404)
+
+
 @router.get("/studio/{run_id}/events")
 async def studio_events(request: Request, run_id: str) -> Response:
+    """The run's pieces as server-sent events, from the start or after Last-Event-ID."""
     run = BOARD.get(run_id)
     if run is None:
-        return JSONResponse({"detail": "Unknown run."}, status_code=404)
-    last = request.headers.get("last-event-id", "")
-    first = int(last) + 1 if last.isdigit() else 0
-
-    async def stream() -> AsyncIterator[str]:
-        yield "retry: 3000\n\n"
-        sent, quiet = first, 0
-        while True:
-            while sent < len(run.events):
-                name, html = run.events[sent]
-                yield _sse(name, html, sent)
-                sent, quiet = sent + 1, 0
-            if (run.finished and sent >= len(run.events)) or SHUTDOWN.is_set():
-                return
-            if await request.is_disconnected():
-                return  # the call keeps running and is saved; a new page can replay it
-            await asyncio.sleep(0.1)
-            quiet += 1
-            if quiet % 150 == 0:
-                yield ": still running\n\n"
-
+        return _unknown_run()
+    last_id = request.headers.get("last-event-id", "")
+    first = int(last_id) + 1 if last_id.isdigit() else 0
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    return StreamingResponse(stream(), media_type="text/event-stream", headers=headers)
+    return StreamingResponse(
+        _event_stream(request, run, first), media_type="text/event-stream", headers=headers
+    )
+
+
+async def _event_stream(request: Request, run: StudioRun, first: int) -> AsyncIterator[str]:
+    """Yield the run's events from index `first`, then new ones until the run is finished."""
+    yield "retry: 3000\n\n"
+    sent, quiet_ticks = first, 0
+    while True:
+        while sent < len(run.events):
+            name, html = run.events[sent]
+            yield _sse(name, html, sent)
+            sent, quiet_ticks = sent + 1, 0
+        if (run.finished and sent >= len(run.events)) or SHUTDOWN.is_set():
+            return
+        if await request.is_disconnected():
+            return  # the call keeps running and is saved; a new page can replay it
+        await asyncio.sleep(0.1)
+        quiet_ticks += 1
+        if quiet_ticks % 150 == 0:  # about every 15 s, so proxies keep the connection open
+            yield ": still running\n\n"
 
 
 @router.get("/studio/{run_id}/state")
@@ -331,15 +359,16 @@ def studio_state(run_id: str) -> Response:
     """Lets the page tell a lost connection from a run the server no longer knows."""
     run = BOARD.get(run_id)
     if run is None:
-        return JSONResponse({"detail": "Unknown run."}, status_code=404)
+        return _unknown_run()
     return JSONResponse({"finished": run.finished})
 
 
 @router.post("/studio/{run_id}/stop")
 def studio_stop(run_id: str) -> Response:
+    """Ask the run's thread to stop after the step it is working on."""
     run = BOARD.get(run_id)
     if run is None:
-        return JSONResponse({"detail": "Unknown run."}, status_code=404)
+        return _unknown_run()
     run.cancel.set()
     return Response(status_code=204)
 
@@ -350,22 +379,13 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
     try:
         store = Store(db_path)
         config = _config()
-        if demo:
-            agents = live.fake_agents(config, run.spec.call_type, delay=2 * pace)
-            voices = live.SilentVoices() if speak else None
-        else:
-            from data_pipeline.agents import Agents
-            from data_pipeline.tts import Voices
-
-            _sync_wiki(store)
-            agents = Agents(config)
-            voices = Voices() if speak else None
+        agents, voices = _make_agents(config, run.spec.call_type, store, demo, pace, speak)
         capture = live.Capture(agents)
         with dspy.context(callbacks=[capture]):
             for event in live.stream_call(
                 run.spec, store, agents, config, voices, capture, run.cancel
             ):
-                run.push(event.kind, _render_event(run, event))
+                run.push(event.kind, _render_event(event))
                 if event.kind == "verdict":
                     outcome = "finished"
     except Exception as exc:
@@ -374,13 +394,31 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
             "failed", render("partials/studio_failed.html", message=_failure_message(run, exc))
         )
     finally:
-        try:
-            html = render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
-        except Exception:
-            log.exception("studio run %s: could not render the last message", run.id)
-            html = "<p>The run has ended.</p>"
-        run.push("done", html)
+        run.push("done", _done_html(run, outcome))
         run.finished = True  # last: a new run may start from here on
+
+
+def _make_agents(
+    config: Config, call_type: str, store: Store, demo: bool, pace: float, speak: bool
+) -> tuple[Any, Any]:
+    """The agents that write the call, and the voices (None unless the form asked to speak)."""
+    if demo:
+        agents = live.fake_agents(config, call_type, delay=2 * pace)
+        return agents, live.SilentVoices() if speak else None
+    from data_pipeline.agents import Agents
+    from data_pipeline.tts import Voices
+
+    _sync_wiki(store)
+    return Agents(config), Voices() if speak else None
+
+
+def _done_html(run: StudioRun, outcome: str) -> str:
+    """The closing message of a run. A page that fails to render must not keep the run open."""
+    try:
+        return render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
+    except Exception:
+        log.exception("studio run %s: could not render the last message", run.id)
+        return "<p>The run has ended.</p>"
 
 
 def _sync_wiki(store: Store) -> None:
@@ -412,46 +450,67 @@ def _failure_message(run: StudioRun, exc: Exception) -> str:
     )
 
 
-def _render_event(run: StudioRun, event: live.Event) -> str:
-    record, generation = event.record, event.record["generation"]
-    if event.kind == "thinking":
-        return render(
-            "partials/studio_thinking.html",
-            agent=event.agent,
-            n=len(generation["turns"]) + 1,
-        )
-    if event.kind == "plan":
-        briefing = generation["briefing"]
-        return render(
-            "partials/studio_plan.html",
-            plan=briefing["plan"],
-            notes=briefing["notes_used"],
-            reasoning=briefing.get("reasoning", ""),
-            tag=_tag(event.modules, "planner"),
-        )
-    if event.kind == "turn":
-        turn = generation["turns"][event.index]
-        return render(
-            "partials/studio_turn.html",
-            n=event.index + 1,
-            turn=turn,
-            side="left" if turn["speaker"] == "A" else "right",
-            who=dataset.SPEAKER_NAMES[turn["speaker"]],
-            flags=_flags(turn),
-            leaked=_leaked(turn),
-            audio=_audio_url(record["id"], turn),
-            tag=_tag(event.modules, turn["agent"], turn.get("latency_s")),
-        )
-    if event.kind == "ended":  # replaces the "thinking" bubble of a turn that was never written
-        return render(
-            "partials/studio_ended.html",
-            n=event.index + 1,
-            reasons=[dataset.reason_text(r) for r in generation["reasons"]],
-        )
-    judge = generation["judge"]  # None when the call ended early and was not judged
+def _render_event(event: live.Event) -> str:
+    """The HTML piece for one step of the call. The event name is the step's kind."""
+    match event.kind:
+        case "thinking":
+            return _thinking_html(event)
+        case "plan":
+            return _plan_html(event)
+        case "turn":
+            return _turn_html(event)
+        case "ended":  # replaces the "thinking" bubble of a turn that was never written
+            return _ended_html(event)
+        case _:
+            return _verdict_html(event)
+
+
+def _thinking_html(event: live.Event) -> str:
+    turns_so_far = len(event.record["generation"]["turns"])
+    return render("partials/studio_thinking.html", agent=event.agent, n=turns_so_far + 1)
+
+
+def _plan_html(event: live.Event) -> str:
+    briefing = event.record["generation"]["briefing"]
+    return render(
+        "partials/studio_plan.html",
+        plan=briefing["plan"],
+        notes=briefing["notes_used"],
+        reasoning=briefing.get("reasoning", ""),
+        tag=_tag(event.modules, "planner"),
+    )
+
+
+def _turn_html(event: live.Event) -> str:
+    turn = event.record["generation"]["turns"][event.index]
+    return render(
+        "partials/studio_turn.html",
+        n=event.index + 1,
+        turn=turn,
+        side="left" if turn["speaker"] == "A" else "right",
+        who=dataset.SPEAKER_NAMES[turn["speaker"]],
+        flags=dataset.turn_flags(turn),
+        leaked=_leaked(turn),
+        audio=_audio_url(event.record["id"], turn),
+        tag=_tag(event.modules, turn["agent"], turn.get("latency_s")),
+    )
+
+
+def _ended_html(event: live.Event) -> str:
+    reasons = event.record["generation"]["reasons"]
+    return render(
+        "partials/studio_ended.html",
+        n=event.index + 1,
+        reasons=[dataset.reason_text(r) for r in reasons],
+    )
+
+
+def _verdict_html(event: live.Event) -> str:
+    record = event.record
+    generation = record["generation"]
     return render(
         "partials/studio_verdict.html",
-        judge=judge,
+        judge=generation["judge"],  # None when the call ended early and was not judged
         accepted=generation["status"] == "accepted",
         reasons=[dataset.reason_text(r) for r in generation["reasons"]],
         scam_start=record["scam_start_turn"],
@@ -478,20 +537,13 @@ def _tag(modules: list[live.ModuleRun], agent: str, fallback_s: float | None = N
 
 
 def _lm_view(call: live.LmCall) -> dict:
+    """One model call as the template shows it."""
     return {
         "model": call.model,
         "messages": call.messages,
         "answer": call.answer,
         "error": call.error,
     }
-
-
-def _flags(turn: dict) -> list[str]:
-    flags = [dataset.reason_text(p) for p in turn.get("problems", [])]
-    words = [w for w in turn.get("spelling", []) if len(w.strip()) > 1]
-    if words:
-        flags.append(f"Check spelling: {', '.join(words[:3])}")
-    return flags
 
 
 def _leaked(turn: dict) -> str:
@@ -501,4 +553,5 @@ def _leaked(turn: dict) -> str:
 
 
 def _audio_url(record_id: str, turn: dict) -> str | None:
+    """The URL of a turn's audio, if the turn has any (the file is not checked here)."""
     return f"/dataset/audio/{record_id}/{Path(turn['audio']).name}" if turn.get("audio") else None
