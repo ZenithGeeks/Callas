@@ -1,5 +1,6 @@
 import numpy as np
 
+import callas_settings
 from asr_diarization import streaming
 from asr_diarization.streaming import (
     MAX_TURN_S,
@@ -147,9 +148,60 @@ def test_model_loaded_once(monkeypatch):
     monkeypatch.setattr(streaming, "_model", None)
     import types
 
-    fake = types.SimpleNamespace(FastConformerRNNT=lambda device: calls.append(device) or Model())
-    monkeypatch.setitem(__import__("sys").modules, "pythaiasr", fake)
-    LiveTranscriber()
-    LiveTranscriber()
-    assert calls == ["auto"]
+    def asr(model, device):
+        calls.append((model, device))
+        return types.SimpleNamespace(model=Model())
+
+    monkeypatch.setitem(__import__("sys").modules, "pythaiasr", types.SimpleNamespace(ASR=asr))
+    monkeypatch.setenv("ASR_MODEL", "typhoon_asr")
+    callas_settings.get_settings.cache_clear()
+    try:
+        LiveTranscriber()
+        LiveTranscriber()
+    finally:
+        callas_settings.get_settings.cache_clear()
+    assert calls == [("typhoon_asr", "auto")]
+    monkeypatch.setattr(streaming, "_model", None)
+
+
+def test_nemotron_model_streams_through_adapter(monkeypatch):
+    class NemotronStreamingASR:  # stands in for pythaiasr's model; only the name is checked
+        pass
+
+    class Stream:
+        def __init__(self, model, sample_rate):
+            self.fed = []
+
+        def process_chunk(self, chunk):
+            self.fed.append(len(chunk))
+            return "ก"
+
+        def flush(self):
+            return "ข"
+
+        def reset(self):
+            self.fed.clear()
+
+    import sys
+    import types
+
+    monkeypatch.setattr(streaming, "_model", NemotronStreamingASR())
+    monkeypatch.setitem(
+        sys.modules,
+        "pythaiasr.typhoon_nemotron_asr",
+        types.SimpleNamespace(NemotronStreamASR=Stream),
+    )
+    engine = streaming.default_engine_factory()
+    assert engine.feed_chunk(np.zeros(320, dtype=np.float32)) == "ก"
+    assert engine.flush() == "ข"
+    engine.reset()
+    monkeypatch.setattr(streaming, "_model", None)
+
+
+def test_model_that_cannot_stream_is_refused(monkeypatch):
+    import pytest
+
+    monkeypatch.setattr(streaming, "_model", object())
+    with pytest.raises(RuntimeError, match="cannot stream"):
+        streaming.default_engine_factory()
     monkeypatch.setattr(streaming, "_model", None)

@@ -50,19 +50,47 @@ _model_lock = threading.Lock()
 
 
 def _get_model():
-    """Load the pythaiasr ONNX model once and share it across all calls."""
+    """Load the ASR_MODEL pythaiasr ONNX model once and share it across all calls."""
     global _model
     with _model_lock:
         if _model is None:
-            from pythaiasr import FastConformerRNNT  # heavy import, lazy
+            from pythaiasr import ASR  # heavy import, lazy
 
-            _model = FastConformerRNNT(device="auto")
-            log.info("loaded streaming ASR model")
+            from callas_settings import get_settings
+
+            name = get_settings().asr_model
+            _model = ASR(model=name, device="auto").model
+            log.info("loaded streaming ASR model=%s", name)
         return _model
 
 
+class _NemotronEngine:
+    """Engine view of pythaiasr's Nemotron 3.5 stream, which names its feed process_chunk."""
+
+    def __init__(self, model) -> None:
+        from pythaiasr.typhoon_nemotron_asr import NemotronStreamASR
+
+        self._stream = NemotronStreamASR(model, sample_rate=SAMPLE_RATE)
+
+    def feed_chunk(self, chunk: np.ndarray) -> str:
+        return self._stream.process_chunk(chunk)
+
+    def flush(self) -> str:
+        return self._stream.flush()
+
+    def reset(self) -> None:
+        self._stream.reset()
+
+
 def default_engine_factory() -> Engine:
-    return _get_model().create_streaming_session()
+    model = _get_model()
+    if hasattr(model, "create_streaming_session"):  # Typhoon FastConformer
+        return model.create_streaming_session()
+    if type(model).__name__ == "NemotronStreamingASR":
+        return _NemotronEngine(model)
+    raise RuntimeError(
+        f"ASR_MODEL {type(model).__name__} cannot stream. Use typhoon_asr or typhoon_nemotron_asr."
+    )
 
 
 class LiveTranscriber:
