@@ -11,6 +11,9 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from starlette.concurrency import run_in_threadpool
 
+from llm_serving.client import LLMUnavailable
+from orchestrator import ToolCallingUnavailable
+
 from . import views
 from .web import form_error, page, render
 
@@ -30,9 +33,6 @@ async def message_page(request: Request) -> HTMLResponse:
 @router.post("/message/check", response_class=HTMLResponse)
 async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
     """The verdict panel for one message, or a form error."""
-    from llm_serving.client import LLMUnavailable
-    from orchestrator import ToolCallingUnavailable
-
     rt = request.app.state.rt
     text = text.strip()
     if not text:
@@ -50,15 +50,7 @@ async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
         log.exception("message check failed")
         return form_error("Something went wrong while checking the message.", 500)
 
-    try:
-        why, why_error = await run_in_threadpool(rt.explain, text), None
-    except ToolCallingUnavailable:
-        why, why_error = None, "Explanation unavailable: the LLM server does not allow tool calls."
-    except LLMUnavailable as exc:
-        why, why_error = None, f"Explanation unavailable: {exc}"
-    except Exception:
-        log.exception("explain failed")
-        why, why_error = None, "Explanation unavailable: the LLM server did not answer."
+    why, why_error = await _explain(rt, text)
 
     nlp = result["nlp"]
     html = render(
@@ -72,3 +64,19 @@ async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
         timings=result["timings"],
     )
     return HTMLResponse(html)
+
+
+async def _explain(rt, text: str) -> tuple[str | None, str | None]:
+    """The advisory text for the message, as (text, None), or (None, why it is unavailable).
+
+    The verdict is already known when this runs, so a failure here only hides the explanation.
+    """
+    try:
+        return await run_in_threadpool(rt.explain, text), None
+    except ToolCallingUnavailable:
+        return None, "Explanation unavailable: the LLM server does not allow tool calls."
+    except LLMUnavailable as exc:
+        return None, f"Explanation unavailable: {exc}"
+    except Exception:
+        log.exception("explain failed")
+        return None, "Explanation unavailable: the LLM server did not answer."
