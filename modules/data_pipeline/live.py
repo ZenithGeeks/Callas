@@ -229,7 +229,7 @@ def stream_call(
         stream_mode="updates",
     )
     for update in updates:
-        (node,) = update
+        (node,) = update  # stream_mode="updates" gives {node name: its update}, one per step
         record = store.load_call(record.id)  # as the node saved it
         modules = capture.take()
         turns = record.generation.turns

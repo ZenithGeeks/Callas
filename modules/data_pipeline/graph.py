@@ -125,7 +125,7 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     runs again, the state still has the old turns, so a turn is never added twice.
     """
     turns = state["turns"]
-    plan_steps = state["briefing"].plan if state["briefing"] else []
+    plan_steps = state["briefing"].plan if state["briefing"] else []  # a normal call has none
     try:
         turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
     except ContextTooLong as exc:
@@ -145,7 +145,8 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx = runtime.context
     update = {}
-    if state["status"] == "in_progress":  # else a turn already ended the call
+    # Not in progress: a turn ended the call early and already put ended_early() in the state.
+    if state["status"] == "in_progress":
         record = to_record(ctx.record, state)
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
