@@ -24,7 +24,6 @@ import logging
 import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
 from pathlib import Path
 
 from callas_tracing import setup_tracing
@@ -41,6 +40,7 @@ from .wiki import sync as sync_wiki
 
 
 def main(argv: list[str] | None = None) -> int:
+    """The command line. Returns the exit code: 0 done, 1 some calls hit an error, 2 bad input."""
     parser = _build_parser()
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -67,6 +67,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {written} calls to {args.export}")
         return 0
 
+    return _generate(parser, args, config, store)
+
+
+def _generate(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, config: Config, store: Store
+) -> int:
+    """Run the calls --type asks for and print how many were accepted, rejected or failed."""
     try:
         receiver = _chosen_receiver(args, config)
     except (ConfigError, ValueError, OSError) as exc:
@@ -94,7 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     counts = _run_jobs(jobs, args, config, store, receiver)
     if counts is None:
         return 2
+    return _print_counts(config, call_types, counts)
 
+
+def _print_counts(config: Config, call_types: tuple[str, ...], counts: Counter) -> int:
+    """Print one line for each call type. Returns 1 if any call hit an error, else 0."""
     print(f"config {config.name} (hash {config.hash})")
     errors = 0
     for call_type in call_types:
@@ -109,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """The command line options. The module docstring is the help text."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
@@ -179,25 +191,26 @@ def _chosen_receiver(args: argparse.Namespace, config: Config) -> ReceiverProfil
             )
         return profiles[args.receiver]
     if args.receiver_file:
-        import yaml
-
-        data = yaml.safe_load(args.receiver_file.read_text(encoding="utf-8"))
-        profile = ReceiverProfile.model_validate(data)
-        if not profile.key:
-            raise ConfigError(
-                f"{args.receiver_file}: add a key (lowercase and _), e.g. key: aunt_noi"
-            )
-        if profile.key in {p.key for p in config.scenarios.receivers.profiles}:
-            raise ConfigError(
-                f"{args.receiver_file}: key {profile.key!r} is already a profile in "
-                "scenarios.yaml; pick another key, or use --receiver to choose that profile"
-            )
-        if profile.gender not in config.scenarios.receivers.genders:
-            raise ConfigError(
-                f"{args.receiver_file}: gender must be one of {config.scenarios.receivers.genders}"
-            )
-        return profile
+        return _receiver_from_file(args.receiver_file, config)
     return None
+
+
+def _receiver_from_file(path: Path, config: Config) -> ReceiverProfile:
+    """The person described in a YAML file. It needs its own key and a gender the config knows."""
+    import yaml
+
+    profile = ReceiverProfile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    receivers = config.scenarios.receivers
+    if not profile.key:
+        raise ConfigError(f"{path}: add a key (lowercase and _), e.g. key: aunt_noi")
+    if profile.key in {p.key for p in receivers.profiles}:
+        raise ConfigError(
+            f"{path}: key {profile.key!r} is already a profile in "
+            "scenarios.yaml; pick another key, or use --receiver to choose that profile"
+        )
+    if profile.gender not in receivers.genders:
+        raise ConfigError(f"{path}: gender must be one of {receivers.genders}")
+    return profile
 
 
 def _export(store: Store, path: Path, approved_only: bool) -> int:
@@ -224,6 +237,7 @@ def _export(store: Store, path: Path, approved_only: bool) -> int:
 
 
 def _load_checked_config(folder: Path | None) -> Config:
+    """Load the config and check that each agent's fields match the signatures in agents.py."""
     config = load_config(folder)
     for name in SIGNATURES:  # field names must match the code
         configured(name, getattr(config.agents, name))
@@ -236,7 +250,7 @@ def _run_jobs(
     config: Config,
     store: Store,
     receiver: ReceiverProfile | None = None,
-):
+) -> Counter | None:
     """Run every (call type, seed) job. Returns counts of (call type, status), or None if the
     LLM server, the config or Ctrl-C stopped the run."""
     counts: Counter = Counter()
@@ -254,9 +268,9 @@ def _run_jobs(
     try:
         for done, future in enumerate(as_completed(futures), 1):
             call_type, seed = futures[future]
-            call_id_used, status = future.result()
+            finished_id, status = future.result()
             counts[(call_type, status)] += 1
-            print(f"[{done}/{len(todo)}] {call_id_used} {status}", flush=True)
+            print(f"[{done}/{len(todo)}] {finished_id} {status}", flush=True)
     except KeyboardInterrupt:
         # Leaving a `with` block would wait for every queued call; cancel the queue instead.
         # Calls already running finish their current turn; every turn is saved, so a rerun resumes.
@@ -323,13 +337,7 @@ def _run_one(
         if not is_model_error(exc):
             print(f"{wanted_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return wanted_id, "error"
-        record = store.load_call(wanted_id)
-        if record is None:
-            return wanted_id, "error"
-        reasons = [f"llm_error:{type(exc).__name__}"]
-        generation = replace(record.generation, status="rejected", reasons=reasons)
-        store.save_call(replace(record, generation=generation))
-        return wanted_id, "rejected"
+        return wanted_id, "rejected" if store.reject_after_model_error(wanted_id, exc) else "error"
     return record["id"], record["generation"]["status"]
 
 

@@ -57,6 +57,7 @@ class WikiError(ValueError):
 
 
 def _fail(name: str, line: int, message: str) -> WikiError:
+    """A WikiError that starts with `file:line`, the way compilers write it."""
     return WikiError(f"{name}:{line}: {message}")
 
 
@@ -66,66 +67,72 @@ def parse_page(text: str, name: str = "<page>") -> list[dict]:
     Each note has summary, source, published, active, tactics and phrases.
     """
     notes: list[dict] = []
-    current: dict | None = None
-    start = 0  # line of the current note's heading
-    mode = "meta"  # meta | tactics | phrases
-
-    def close() -> None:
-        if current is None:
-            return
-        if not current["tactics"]:
-            raise _fail(name, start, f"note '{current['summary']}' has no tactics")
-        notes.append(current)
+    note: dict | None = None
+    heading_line = 0  # line of the current note's heading
+    section = "meta"  # meta | tactics | phrases
 
     for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
-        if line.startswith("## "):
-            close()
-            summary = line[3:].strip()
-            if not summary:
-                raise _fail(name, number, "note has no summary after '##'")
-            current = {
-                "summary": summary,
-                "source": "",
-                "published": None,
-                "active": True,
-                "tactics": [],
-                "phrases": [],
-            }
-            start, mode = number, "meta"
-            continue
         if line == "##":
             raise _fail(name, number, "note has no summary after '##'")
-        if current is None or not line:
+        if line.startswith("## "):
+            _keep(notes, note, heading_line, name)
+            note, heading_line, section = _new_note(line[3:].strip()), number, "meta"
+        elif note is None or not line:
             continue  # title, intro and blank lines
-        section = _SECTION.match(line)
-        if section:
-            mode = section.group(1).lower()
-            continue
-        bullet = _BULLET.match(raw)
-        if not bullet:
-            raise _fail(name, number, f"expected a '- ' bullet or 'Tactics:'/'Phrases:': {line}")
-        item = bullet.group(1).strip()
-        if mode in ("tactics", "phrases"):
-            current[mode].append(item)
-            continue
-        key = _KEY.match(item)
-        if not key:
-            raise _fail(name, number, f"unknown line before 'Tactics:': {item}")
-        field, value = key.group(1).lower(), key.group(2).strip()
-        if field == "source":
-            current["source"] = value
-        elif field == "published":
-            if value and not _is_date(value):
-                raise _fail(name, number, f"published must be YYYY-MM-DD or empty, got: {value}")
-            current["published"] = value or None
+        elif header := _SECTION.match(line):
+            section = header.group(1).lower()
         else:
-            word = value.lower()
-            if word not in _YES | _NO:
-                raise _fail(name, number, f"active must be yes or no, got: {value}")
-            current["active"] = word in _YES
-    close()
+            _read_bullet(note, section, raw, number, name)
+    _keep(notes, note, heading_line, name)
     return notes
+
+
+def _new_note(summary: str) -> dict:
+    """An empty note under this heading."""
+    return {
+        "summary": summary,
+        "source": "",
+        "published": None,
+        "active": True,
+        "tactics": [],
+        "phrases": [],
+    }
+
+
+def _keep(notes: list[dict], note: dict | None, heading_line: int, name: str) -> None:
+    """Add a finished note to `notes`. A note needs at least one tactic."""
+    if note is None:
+        return
+    if not note["tactics"]:
+        raise _fail(name, heading_line, f"note '{note['summary']}' has no tactics")
+    notes.append(note)
+
+
+def _read_bullet(note: dict, section: str, raw: str, number: int, name: str) -> None:
+    """Put one bullet line in the note: a tactic, a phrase or one of source, published, active."""
+    bullet = _BULLET.match(raw)
+    if not bullet:
+        raise _fail(name, number, f"expected a '- ' bullet or 'Tactics:'/'Phrases:': {raw.strip()}")
+    item = bullet.group(1).strip()
+    if section in ("tactics", "phrases"):
+        note[section].append(item)
+        return
+    key = _KEY.match(item)
+    if not key:
+        raise _fail(name, number, f"unknown line before 'Tactics:': {item}")
+    field, value = key.group(1).lower(), key.group(2).strip()
+    if field == "source":
+        note["source"] = value
+    elif field == "published":
+        if value and not _is_date(value):
+            raise _fail(name, number, f"published must be YYYY-MM-DD or empty, got: {value}")
+        note["published"] = value or None
+    else:
+        word = value.lower()
+        if word not in _YES | _NO:
+            raise _fail(name, number, f"active must be yes or no, got: {value}")
+        note["active"] = word in _YES
 
 
 def _is_date(value: str) -> bool:
@@ -140,6 +147,7 @@ def _is_date(value: str) -> bool:
 
 
 def _one_line(value: str) -> str:
+    """Collapse line breaks and repeated spaces, so a value stays on its page line."""
     return " ".join(value.split())
 
 
@@ -153,6 +161,7 @@ def render_page(title: str, notes: list[dict], intro: str = "") -> str:
 
 
 def _render_note(note: dict) -> str:
+    """One note as the page text that parse_page reads."""
     lines = [
         f"## {_one_line(note['summary'])}",
         f"- source: {_one_line(note.get('source') or '')}".rstrip(),
@@ -169,12 +178,14 @@ def _render_note(note: dict) -> str:
 
 
 def page_path(folder: Path | str, scam_type: str) -> Path:
+    """The file of one scam type's page."""
     if scam_type not in SCAM_TYPES:
         raise ValueError(f"unknown scam type: {scam_type}")
     return Path(folder) / f"{scam_type}.md"
 
 
 def _write(path: Path, text: str) -> None:
+    """Write a page with LF line endings, so a Windows run does not rewrite every line."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as f:
         f.write(text)

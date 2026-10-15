@@ -1,7 +1,7 @@
 """Keep every prompt the simulator sends inside the model's context window.
 
-qwen3.8 on the gateway has a 100K-token window (`context.window_tokens` in agents.yaml). A
-prompt plus the answer (the agent's `lm.max_tokens`) plus a safety margin has to fit in it, so
+The model has a fixed context window (`context.window_tokens` in agents.yaml, 100K by default).
+A prompt plus the answer (the agent's `lm.max_tokens`) plus a safety margin has to fit in it, so
 each agent's prompt budget is
 
     window_tokens - lm.max_tokens - safety_margin_tokens
@@ -30,6 +30,7 @@ KEEP_FIRST_TURNS = 2  # a trimmed conversation always keeps its opening turns
 
 
 def estimate_tokens(text: str) -> int:
+    """The most tokens this text can be, from its UTF-8 size (see BYTES_PER_TOKEN)."""
     return math.ceil(len(text.encode("utf-8")) / BYTES_PER_TOKEN)
 
 
@@ -51,6 +52,7 @@ def prompt_budget(config: Config, agent: str) -> int:
 
 
 def hidden_marker(count: int) -> str:
+    """The line that stands in for the turns that were cut from the middle."""
     noun = "turn" if count == 1 else "turns"
     return f"(... {count} earlier {noun} not shown ...)"
 
@@ -61,6 +63,21 @@ class ContextTooLong(Exception):
     def __init__(self, agent: str, tokens: int, budget: int) -> None:
         super().__init__(f"{agent}: prompt of ~{tokens} tokens exceeds its budget of {budget}")
         self.agent, self.tokens, self.budget = agent, tokens, budget
+
+
+def _most_that_fit(low: int, high: int, fits_at: Callable[[int], bool], default: int) -> int:
+    """The largest n from low to high for which fits_at(n) is true, by binary search.
+
+    fits_at must be true up to some n and false after it (a longer prompt only gets bigger).
+    `default` is returned when no n fits."""
+    best = default
+    while low <= high:
+        mid = (low + high) // 2
+        if fits_at(mid):
+            best, low = mid, mid + 1
+        else:
+            high = mid - 1
+    return best
 
 
 def trim_turns(lines: Sequence[str], fits: Callable[[str], bool]) -> tuple[str, int]:
@@ -82,15 +99,9 @@ def trim_turns(lines: Sequence[str], fits: Callable[[str], bool]) -> tuple[str, 
         hidden = len(lines) - KEEP_FIRST_TURNS - newest
         return "\n".join([*head, hidden_marker(hidden), *tail]), hidden
 
-    low, high = 1, len(lines) - KEEP_FIRST_TURNS - 1  # always keep at least the newest turn
-    best = low
-    while low <= high:  # more newest turns means a longer prompt, so binary search
-        mid = (low + high) // 2
-        if fits(build(mid)[0]):
-            best, low = mid, mid + 1
-        else:
-            high = mid - 1
-    return build(best)
+    # always keep at least the newest turn; more newest turns means a longer prompt
+    most_newest = len(lines) - KEEP_FIRST_TURNS - 1
+    return build(_most_that_fit(1, most_newest, lambda n: fits(build(n)[0]), default=1))
 
 
 def trim_notes(notes: Sequence[dict], fits: Callable[[Sequence[dict]], bool]) -> list[dict]:
@@ -107,12 +118,4 @@ def cut_article(article: str, fits: Callable[[str], bool], upper: int | None = N
         article = article[:upper]
     if fits(article):
         return article
-    low, high = 0, len(article) - 1
-    best = 0
-    while low <= high:
-        mid = (low + high) // 2
-        if fits(article[:mid]):
-            best, low = mid, mid + 1
-        else:
-            high = mid - 1
-    return article[:best]
+    return article[: _most_that_fit(0, len(article) - 1, lambda n: fits(article[:n]), default=0)]

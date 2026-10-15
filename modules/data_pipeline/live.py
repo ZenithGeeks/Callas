@@ -2,7 +2,8 @@
 
 `stream_call` does what `simulate.run_call` does, but drives the same LangGraph graph with
 `graph.stream(stream_mode="updates")` and yields an Event for every step the browser should
-show: "thinking" before an agent starts, then "plan", "turn" or "verdict" with the saved record.
+show: "thinking" before an agent starts, then "plan", "turn", "ended" (the call stopped early)
+or "verdict" with the saved record.
 The call is saved by the graph nodes exactly as in a command line run.
 
 `Capture` is a DSPy callback. It records, for every agent call, which module ran, which model,
@@ -20,11 +21,11 @@ import wave
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 from dspy.utils import DummyLM
 from dspy.utils.callback import BaseCallback
+from langgraph.runtime import Runtime
 
 from .agents import SIGNATURES, Agents
 from .config import Config, ReceiverProfile, Scenario
@@ -45,7 +46,7 @@ from .store import Store
 __all__ = ["CallSpec", "Capture", "Event", "ModuleRun", "fake_agents", "stream_call"]
 
 
-# ---- what the DSPy callbacks collect ---------------------------------------------------------
+# what the DSPy callbacks collect
 
 
 @dataclass
@@ -148,7 +149,7 @@ def _answer_text(outputs: Any) -> str:
     return "\n".join(p for p in parts if p)
 
 
-# ---- one call, step by step ------------------------------------------------------------------
+# one call, step by step
 
 
 class CallConflict(ValueError):
@@ -192,40 +193,21 @@ def stream_call(
 ) -> Iterator[Event]:
     """Run (or resume) the call and yield what happens. Stops early when `cancel` is set; the
     call stays in the store as unfinished and a command line run can resume it."""
-    call = sample_config(spec.call_type, spec.seed, config, spec.receiver)
-    if spec.scenario is not None:
-        call = replace(call, scenario=spec.scenario)
-    record = _open_record(store, call, config, agents, spec.receiver)
-    if record.generation.status != "in_progress":
-        raise CallConflict(f"{record.id} is already finished")
-    call, name = _resume_overrides(spec, call, record.generation)
-    # the overrides stay with the stored call
-    stored_call = {**record.generation.call, "receiver_name": name}
-    record = replace(record, generation=replace(record.generation, call=stored_call))
-    filler = SlotFiller(call, config.details)
-    if name:
-        filler.values["RECEIVER_NAME"] = name
-    context = SimContext(agents, config, call, store, voices, filler, record)
-    caller = "scam_caller" if call.label_scam else "legit_caller"
-
-    def whose_turn(record: CallRecord) -> Event:
-        step = next_speaker(initial_state(record), SimpleNamespace(context=context))
-        agent = {"caller": caller, "receiver": "receiver", "finish": "judge"}[step]
-        return Event("thinking", agent, record.to_dict())
-
+    context = _open_context(spec, store, agents, config, voices)
+    record = context.record
     for index, turn in enumerate(record.generation.turns):  # a resumed call: show what is there
         yield Event("turn", turn.agent, record.to_dict(), index)
     if record.label_scam and record.generation.briefing is None:
         pending = Event("thinking", "planner", record.to_dict())
     else:
-        pending = whose_turn(record)
+        pending = _thinking(record, context)
     yield pending
     written = len(record.generation.turns)
 
     updates = CALL_GRAPH.stream(
         initial_state(record),
         context=context,
-        config={"recursion_limit": call.max_turns + 5},
+        config={"recursion_limit": context.call.max_turns + 5},
         stream_mode="updates",
     )
     for update in updates:
@@ -248,8 +230,36 @@ def stream_call(
             yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, modules)
         if cancel is not None and cancel.is_set():
             return
-        pending = whose_turn(record)
+        pending = _thinking(record, context)
         yield pending
+
+
+def _open_context(
+    spec: CallSpec, store: Store, agents: Agents, config: Config, voices: Any
+) -> SimContext:
+    """The context the graph runs with: the stored call, or a new one with the form's choices."""
+    call = sample_config(spec.call_type, spec.seed, config, spec.receiver)
+    if spec.scenario is not None:
+        call = replace(call, scenario=spec.scenario)
+    record = _open_record(store, call, config, agents, spec.receiver)
+    if record.generation.status != "in_progress":
+        raise CallConflict(f"{record.id} is already finished")
+    call, name = _resume_overrides(spec, call, record.generation)
+    # the overrides stay with the stored call
+    stored_call = {**record.generation.call, "receiver_name": name}
+    record = replace(record, generation=replace(record.generation, call=stored_call))
+    filler = SlotFiller(call, config.details)
+    if name:
+        filler.values["RECEIVER_NAME"] = name
+    return SimContext(agents, config, call, store, voices, filler, record)
+
+
+def _thinking(record: CallRecord, context: SimContext) -> Event:
+    """The "thinking" event for the agent that speaks next (the judge when the call is over)."""
+    step = next_speaker(initial_state(record), Runtime(context=context))
+    caller = "scam_caller" if context.call.label_scam else "legit_caller"
+    agent = {"caller": caller, "receiver": "receiver", "finish": "judge"}[step]
+    return Event("thinking", agent, record.to_dict())
 
 
 def _resume_overrides(
@@ -279,17 +289,11 @@ def _resume_overrides(
 def mark_model_error(store: Store, record_id: str, exc: BaseException) -> None:
     """Same as the command line run: a model error that survived the retries rejects the call
     (llm_error:...). Any other error leaves the call unfinished so it can be resumed."""
-    if not is_model_error(exc):
-        return
-    record = store.load_call(record_id)
-    if record is None or record.generation.status != "in_progress":
-        return
-    reasons = [f"llm_error:{type(exc).__name__}"]
-    generation = replace(record.generation, status="rejected", reasons=reasons)
-    store.save_call(replace(record, generation=generation))
+    if is_model_error(exc):
+        store.reject_after_model_error(record_id, exc)
 
 
-# ---- demo mode: a scripted LM and silent voices ----------------------------------------------
+# demo mode: a scripted LM and silent voices
 
 FAKE_MODEL = "scripted-demo"
 
@@ -332,23 +336,27 @@ class ScriptedLM(DummyLM):
 
 def fake_agents(config: Config, call_type: str, delay: float = 0.0) -> Agents:
     """Real DSPy programs (instructions from the config) on scripted LMs. The same lines repeat
-    if the call is long. Asking starts on the caller's second turn."""
-    scam = call_type != "benign"
-    caller_answers = (
-        [
+    if the call is long. Asking starts on the caller's third turn (scam_start_turn 2)."""
+    answers = _scripted_answers(scam=call_type != "benign")
+    lms = {name: ScriptedLM(answers[name], delay) for name in SIGNATURES}
+    return Agents(config, lms=lms)
+
+
+def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
+    """The answers each agent gives in turn, as the fields of its signature plus `reasoning`."""
+    if scam:
+        caller_answers = [
             dict(reasoning=f"step {i + 1} of the plan", line=line, asks_now=asks, end_call=False)
             for i, (line, asks) in enumerate(_SCAM_LINES)
         ]
-        if scam
-        else [
+    else:
+        caller_answers = [
             dict(reasoning="keep it short and friendly", line=line, end_call=False)
             for line in _LEGIT_LINES
         ]
-    )
-    reply_lines = _REPLIES if scam else _LEGIT_REPLIES
     receiver_answers = [
         dict(reasoning="answer like this person would", line=line, end_call=False)
-        for line in reply_lines
+        for line in (_REPLIES if scam else _LEGIT_REPLIES)
     ]
     judge = dict(
         reasoning="read the whole call against the intended type",
@@ -360,24 +368,22 @@ def fake_agents(config: Config, call_type: str, delay: float = 0.0) -> Agents:
         issues="none",
     )
     plan = dict(reasoning="a short plan that builds up to the ask", plan=_PLAN)
-    answers = {
+    extractor = dict(reasoning="-", relevant=False, summary="", tactics=[], phrases=[])
+    return {
         "scam_caller": caller_answers,
         "legit_caller": caller_answers,
         "receiver": receiver_answers,
         "planner": [plan],
         "judge": [judge],
-        "pattern_extractor": [
-            dict(reasoning="-", relevant=False, summary="", tactics=[], phrases=[])
-        ],
+        "pattern_extractor": [extractor],
     }
-    lms = {name: ScriptedLM(answers[name], delay) for name in SIGNATURES}
-    return Agents(config, lms=lms)
 
 
 class SilentVoices:
     """Stands in for tts.Voices in demo mode: writes a quiet WAV about as long as the line."""
 
     def speak(self, text: str, voice: str, path: Path) -> float:
+        """Write the quiet WAV to `path` and return its length in seconds."""
         seconds = max(0.5, round(len(text) * 0.07, 2))
         path.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(path), "wb") as wav:
@@ -390,7 +396,6 @@ class SilentVoices:
 
 def next_free_seed(call_type: str, taken_ids: set[str], receiver: ReceiverProfile | None) -> int:
     """The smallest seed whose call id is not in the store yet."""
-    for seed in itertools.count():
-        if call_id(call_type, seed, receiver) not in taken_ids:
-            return seed
-    raise AssertionError("unreachable")
+    return next(
+        seed for seed in itertools.count() if call_id(call_type, seed, receiver) not in taken_ids
+    )

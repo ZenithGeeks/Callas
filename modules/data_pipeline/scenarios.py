@@ -1,6 +1,6 @@
 """Sample what one simulated call is about, from a seed, before any LLM call.
 
-The scenarios, receivers and pacing numbers live in config/scenarios.yaml. The label of a call
+The scenarios, receivers and call lengths live in config/scenarios.yaml. The label of a call
 comes from here and never from the model: a scam call is generated from a scam scenario of one
 of the 5 spec types, a normal call from a legit scenario. The receiver is chosen the same way for
 both, so how they react says nothing about the label.
@@ -39,13 +39,16 @@ class CallConfig:
 
     @property
     def label_scam(self) -> bool:
+        """Whether this is a scam call. Decided by the call type, never by a model."""
         return self.call_type != BENIGN
 
     @property
     def label_type(self) -> str | None:
+        """The scam type of a scam call, None for a normal call."""
         return self.call_type if self.label_scam else None
 
     def to_dict(self) -> dict:
+        """The call as plain JSON-ready dicts, as stored in generation.call."""
         data = asdict(self)
         data["scenario"] = self.scenario.model_dump()
         data["receiver"] = self.receiver.model_dump()
@@ -69,6 +72,8 @@ def sample_config(
     slow = call_type in calls.slow_types
     reveal = rng.choice(calls.reveal_turn_slow if slow else calls.reveal_turn_fast)
     high = calls.max_turns[1]
+    # The keyword arguments below draw from rng in the order written. Do not reorder them: the
+    # order fixes every call for a seed.
     return CallConfig(
         call_type=call_type,
         seed=seed,

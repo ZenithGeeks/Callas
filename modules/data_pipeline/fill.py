@@ -83,6 +83,8 @@ BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means 
 
 
 class SlotFiller:
+    """The made-up values of one call, one for each slot, and `fill` to put them in a line."""
+
     def __init__(self, call: CallConfig, details: DetailsFile) -> None:
         rng = random.Random(f"fill:{call.call_type}:{call.seed}")
         caller = rng.choice(details.names[call.caller_gender])
@@ -95,7 +97,8 @@ class SlotFiller:
             org = rng.choice(details.made_up_orgs)
         money = details.money
         amount = rng.choice(money.big if call.call_type in money.big_types else money.small)
-        # The order of rng draws below fixes each value for a given seed; do not reorder.
+        # The order of every rng draw in this method, above and below, fixes each value for a
+        # given seed; do not reorder.
         self.values = {
             "CALLER_NAME": caller,
             "RECEIVER_NAME": receiver,
@@ -147,14 +150,20 @@ class SlotFiller:
             )
             text_len += len(value)
         pieces.append(raw[raw_pos:])
-        if _LOOSE_DIGITS.search(SLOT_RE.sub("|", raw)):  # "|" keeps digits next to a slot apart
-            problems.append("number_without_slot")
         text = "".join(pieces)
-        if "{" in text or "}" in text:  # {otp}, {OTP2}, {{OTP}}: a slot that did not fill
-            problems.append("stray_brace")
-        if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
-            problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
-        return text, spans, problems
+        return text, spans, problems + _line_problems(raw, text)
+
+
+def _line_problems(raw: str, text: str) -> list[str]:
+    """What is wrong with the line itself, as the model wrote it (`raw`) and as filled (`text`)."""
+    problems = []
+    if _LOOSE_DIGITS.search(SLOT_RE.sub("|", raw)):  # "|" keeps digits next to a slot apart
+        problems.append("number_without_slot")
+    if "{" in text or "}" in text:  # {otp}, {OTP2}, {{OTP}}: a slot that did not fill
+        problems.append("stray_brace")
+    if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
+        problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
+    return problems
 
 
 def receiver_leaks(raw: str) -> list[str]:
@@ -168,7 +177,7 @@ def receiver_leaks(raw: str) -> list[str]:
     return labels
 
 
-# ---- made-up values --------------------------------------------------------------------------
+# made-up values
 
 
 def _phone(rng: random.Random) -> str:
