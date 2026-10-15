@@ -6,10 +6,10 @@ Turn graph:
                                           |
                                           +--otherwise--> escalate -> END
 
-`speak` is left out when no speaker is injected. The safety rules sit in
-`route_after_decide` and `reply`, further down; they are explained in the safety rules (README, "Where the safety rules live"). Per-call dependencies
-come through the runtime context (`TurnContext`), passed as `context=` on every invoke or
-stream. The graphs hold no call data.
+`speak` is left out when no speaker is injected. The safety rules sit in `route_after_decide`
+and `reply`, further down; the README explains them ("Where the safety rules live").
+Per-call dependencies come through the runtime context (`TurnContext`), passed as `context=`
+on every invoke or stream. The graphs hold no call data.
 """
 
 from __future__ import annotations
