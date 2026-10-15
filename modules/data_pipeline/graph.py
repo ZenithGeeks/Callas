@@ -5,6 +5,10 @@
 Read this file first. records.py has the call record and its parts, turns.py writes a turn,
 finish.py checks the finished call, audio.py speaks it, and simulate.run_call loads the call
 from the store and runs this graph.
+
+`plan` is the node that writes the Briefing; the steps it holds are `Briefing.plan`, called
+`plan_steps` where a turn reads them. `call` is the CallConfig (scenarios.py), `record` the
+stored CallRecord.
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
 from .finish import Ending, ended_early, finish_call
-from .records import Briefing, CallRecord, Status, Turn
+from .records import Briefing, CallRecord, GenerationStatus, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
@@ -38,7 +42,7 @@ class CallState(TypedDict):
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
-    status: Status
+    status: GenerationStatus
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
 
 
