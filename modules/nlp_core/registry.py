@@ -1,7 +1,7 @@
 """Registry of pluggable nlp-core parts: NER, scam classifier, summarizer.
 
-    register("classifier", "wangchanberta", lambda: WangchanbertaClassifier(...))
-    # then set NLP_CLASSIFIER=wangchanberta in .env
+    register("classifier", "phayathaibert", lambda: PhayaThaiBertClassifier(...))
+    # then set NLP_CLASSIFIER=phayathaibert in .env
 
 Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"): the
 process environment first, read at each `get()`, then .env. Each (kind, name) instance is

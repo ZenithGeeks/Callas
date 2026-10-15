@@ -10,12 +10,16 @@ Browser [icon: monitor, color: gray] {
   Check a message page [icon: message-square]
   Simulate a call page [icon: upload]
   Live call page [icon: mic, label: "Live call page (mic in, verdicts and reply out)"]
+  Dataset page [icon: check-square, label: "/dataset: review simulated calls"]
+  Studio page [icon: edit, label: "/studio: write a simulated call live"]
 }
 
 Web backend [icon: server, color: blue, label: "Web backend (FastAPI, Jinja, HTMX)"] {
   Message route [icon: send, label: "POST /message/check"]
   Call route [icon: file-audio, label: "POST /call/simulate + SSE events"]
   Live socket [icon: radio, label: "WS /ws/live"]
+  Dataset routes [icon: list, label: "GET /dataset + POST review"]
+  Studio routes [icon: play, label: "POST /studio/start + SSE events"]
 }
 
 Orchestrator [icon: git-branch, color: purple, label: "Orchestrator (LangGraph)"] {
@@ -29,13 +33,14 @@ Orchestrator [icon: git-branch, color: purple, label: "Orchestrator (LangGraph)"
 Speech [icon: headphones, color: teal, label: "Speech (pythaiasr)"] {
   Streaming ASR [icon: mic, label: "Typhoon ASR streaming + silence VAD"]
   File ASR [icon: file-audio, label: "Typhoon ASR offline"]
-  Speaker split [icon: users, label: "Speaker split (pyannote segmentation ONNX)"]
+  Speaker split [icon: users, label: "Speaker split (Nemotron-3 diarization ONNX by default, DIARIZER)"]
 }
 
-NLP core [icon: cpu, color: orange, label: "nlp-core slots (WangchanBERTa plugs in here)"] {
+NLP core [icon: cpu, color: orange, label: "nlp-core slots (PhayaThaiBERT classifier, not connected yet)"] {
   NER slot [icon: tag, label: "NER (rules today)"]
   Classifier slot [icon: shield, label: "Scam check (LLM today)"]
   Summarizer slot [icon: align-left, label: "Summary (LLM today)"]
+  PhayaThaiBERT [icon: archive, color: gray, label: "PhayaThaiBERT classifier (notebook, no edge yet)"]
 }
 
 Voice agent [icon: shield, color: red, label: "Voice agent"] {
@@ -43,6 +48,12 @@ Voice agent [icon: shield, color: red, label: "Voice agent"] {
   Redact [icon: eye-off, label: "Mask call details before the LLM"]
   Safe reply [icon: lock, label: "safe_reply(): leak rules, else template"]
   Voice [icon: volume-2, label: "PyThaiTTS + FastThaiG2P"]
+}
+
+Data pipeline [icon: database, color: yellow, label: "data_pipeline (call simulator)"] {
+  Simulator graph [icon: git-merge, label: "Simulator graph: plan, caller, receiver, finish"]
+  Call store [icon: database, label: "SQLite store (calls, turns, pattern_notes)"]
+  Notebook export [icon: file-text, label: "CSV export for the PhayaThaiBERT notebook"]
 }
 
 LLM serving [icon: box, color: green] {
@@ -78,6 +89,15 @@ Turn graph > Decide rules: NLP result
 Decide rules > Redact: normal only
 Redact > Safe reply: masked context
 Safe reply > Voice: checked text
+
+// Dataset review and simulator
+Dataset page > Dataset routes: approve or reject
+Studio page > Studio routes: start, stop
+Dataset routes > Call store: review status
+Studio routes > Simulator graph
+Simulator graph > Call store: every turn saved
+Call store > Notebook export: approved calls only
+Simulator graph > vLLM server: DSPy agents
 
 // LLM use
 Classifier slot > LLM client

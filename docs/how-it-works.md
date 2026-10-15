@@ -52,7 +52,7 @@ The LLM never decides whether to warn or to reply. Step 5 is plain `if` rules. W
 
 **Why it matters.** Every later step reads text. If the ASR writes `โอนเงนิ` instead of `โอนเงิน`, the later steps see a different word. Step 3 cleans the text a little, and there is an optional spelling fixer (see step 3).
 
-**Which model.** The default is `typhoon_asr`. `pythaiasr` 2.3 adds the Typhoon Nemotron streaming models. Set `ASR_MODEL=typhoon_nemotron_asr` to try one on uploaded recordings. Live calls still load the default model.
+**Which model.** The default is `typhoon_asr`. `pythaiasr` 2.3 adds the Typhoon Nemotron streaming models. Set `ASR_MODEL=typhoon_nemotron_asr` to try one. The setting applies to uploaded recordings and to live calls. Live calls need a streaming model, so only `typhoon_asr` and `typhoon_nemotron_asr` work there.
 
 **Live calls work differently.** The microphone sends small chunks of audio. We have to decide where one turn ends and the next starts:
 
@@ -72,7 +72,9 @@ A person who pauses to think can go quiet for more than 0.8 s. So the agent wait
 
 **What happens.** The audio is cut into pieces, and each piece gets a speaker name. Names are `A`, `B`, `C` and so on, in the order people first speak.
 
-**Technique.** Speaker diarization, with the Nemotron-3 model (default) or Pyannote. It answers "who spoke when". It does not know who the people are.
+**Technique.** Speaker diarization, with the Nemotron-3 model (the default, `DIARIZER=nemotron`) or pyannote segmentation (`DIARIZER=pyannote_segmentation`). It answers "who spoke when". It does not know who the people are.
+
+**Live calls skip this step.** `pythaiasr` has no streaming speaker split, so every live turn is labelled `Caller`.
 
 **Why it matters.** "Send me the money" means something different from the caller than from the person who got the call. The scam check reads `A: ... B: ...` so it knows who is asking and who is refusing.
 
@@ -90,7 +92,7 @@ ASR:   สวัสดี   ครับ        (three spaces)
 Clean: สวัสดี ครับ
 ```
 
-**Spelling fixer (off by default).** `AUTOCORRECT=pythainlp` fixes Thai words that are not in the dictionary. It skips digits, English, URLs, names and words after a title like `คุณ`. It can still pick a wrong word: `โอนเงนิ` becomes `ถอนเงิน` ("withdraw" for "transfer"), and a new unknown word costs about 0.4 s. On 247 clean turns from the test set it changed nothing, but that set has no real ASR mistakes. Do not turn it on until it is checked on real recordings.
+**Spelling fixer (off by default).** `AUTOCORRECT=pythainlp` fixes Thai words that are not in the dictionary. It skips digits, English, URLs, names and words after a title like `คุณ`. It can still pick a wrong word: `โอนเงนิ` becomes `ถอนเงิน` ("withdraw" for "transfer"), and a new unknown word costs about 0.4 s. On 247 clean turns from the test set it changed nothing. On 187 real ASR mistakes (Typhoon ASR, simulated calls) it fixed none and changed 3 turns, all still wrong. See [`autocorrect.md`](eval/autocorrect.md). Leave it off.
 
 **Call memory.** Every turn goes into a `CallState`. It lives in RAM only and is deleted when the call ends.
 
@@ -121,7 +123,7 @@ Turn 3 → MONEY  "1,500 บาท"
 
 **Why it matters.** These are the exact things a safe reply must never repeat. The entity list is also what the redaction step uses to hide them (step 6).
 
-**Honest limit.** The rules find no names and no organisations. A trained NER model (WangchanBERTa) is planned. Until then the reply safety check blocks name words such as `คุณ` instead (step 7).
+**Honest limit.** The rules find no names and no organisations. No trained NER model exists yet. Until one does, the reply safety check blocks name words such as `คุณ` instead (step 7).
 
 ### 4b. Summary (LLM)
 
@@ -144,7 +146,7 @@ Turn 3 → MONEY  "1,500 บาท"
 | `phishing_otp` | Asks for an OTP, a password or account data, or sends a fake link |
 | `lottery` | Says you won a prize, but you must pay first |
 
-**Technique.** Zero-shot text classification with a prompt. We plan to replace it with a fine-tuned WangchanBERTa model behind the same function, so nothing else has to change.
+**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) is trained but not connected to the pipeline. Only `scripts/eval_autocorrect.py` loads it. When it is connected it plugs in behind the same function (`NLP_CLASSIFIER`), so nothing else has to change.
 
 For our example, turn 3 should get `fake_authority`.
 
@@ -222,7 +224,7 @@ After:  ต้องจ่ายค่าธรรมเนียม [MONEY] โ
 | 3 | A: "Pay 1,500 baht to account ... tell me the OTP ..." | Entities found: MONEY, BANK_ACCOUNT, OTP. The scam check reads all 3 turns and should say `fake_authority`. Any scam label makes `decide()` escalate. No reply is written. The user sees a warning and the summary. |
 | 4+ | Anything | The call stays marked as a scam. No automatic reply. |
 
-A slower scam, such as a romance scam over ten turns, never has one turn that is obviously bad. It needs the memory. That is the case we measure ("turns until escalation, memory on and off").
+A slower scam, such as a romance scam over ten turns, never has one turn that is obviously bad. It needs the memory. That is the case we plan to measure ("turns until escalation, memory on and off"). No script for it exists yet.
 
 ## Where each NLP technique is used
 
@@ -230,13 +232,13 @@ A slower scam, such as a romance scam over ten turns, never has one turn that is
 |---|---|---|
 | Speech recognition | 1 | Typhoon ASR (`pythaiasr`) |
 | Voice activity detection | 1 (live) | Energy threshold per 20 ms frame |
-| Speaker diarization | 2 | Nemotron-3, or Pyannote |
+| Speaker diarization | 2 | Nemotron-3 (default), or pyannote segmentation |
 | Text normalization | 3 | PyThaiNLP `normalize` + Unicode NFC |
 | Spelling correction (optional) | 3 | PyThaiNLP `spell.correct` |
 | Word tokenization | 3, 7 | PyThaiNLP `newmm` |
 | Entity extraction | 4a | Regular expressions |
 | Summarization | 4b | Prompted LLM (Qwen on vLLM) |
-| Text classification | 4c | Prompted LLM, WangchanBERTa planned |
+| Text classification | 4c | Prompted LLM (PhayaThaiBERT trained, not connected) |
 | Redaction | 6 | Rules + the entity list |
 | Spell check | 7 | PyThaiNLP dictionary |
 | Text to speech | 8 | PyThaiTTS |
@@ -257,3 +259,5 @@ A slower scam, such as a romance scam over ten turns, never has one turn that is
 | 3, 5, 6, 7, 8 | `modules/tts_voice_agent/` (`memory.py`, `decision.py`, `redact.py`, `leak.py`, `spelling.py`, `speech.py`) and `modules/nlp_core/text.py` (text cleanup) |
 | 4 | `modules/nlp_core/` and the prompts in `modules/llm_serving/prompts/` |
 | The graph that joins them | `modules/orchestrator/graph.py` |
+
+To see which graph node or LLM call was slow, run with `TRACING=phoenix`. Traces go to a Phoenix server on the same machine, and call text is hidden unless `TRACE_CALL_TEXT` is on. See the [README](../README.md#tracing).
