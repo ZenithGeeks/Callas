@@ -97,20 +97,44 @@ class JudgeLeak(dspy.Signature):
     )
 
 
-def _timed_call(name: str, context: str, fn):
-    t0 = time.perf_counter()
+def _run_program(
+    name: str, program: dspy.Module, lm: Any, context: str, **inputs: str
+) -> dspy.Prediction:
+    """Run a DSPy program on `lm`, turn connection errors into LLMUnavailable, log the timing.
+
+    `context` is only measured for the log line. It is also the call_context input.
+    """
+    started = time.perf_counter()
     try:
-        return fn()
-    except _UNAVAILABLE as exc:
-        raise LLMUnavailable(f"cannot reach LLM server for {name}: {type(exc).__name__}") from exc
+        with dspy.context(lm=lm):
+            return program(call_context=context, **inputs)
+    except _UNAVAILABLE as error:
+        raise LLMUnavailable(
+            f"cannot reach LLM server for {name}: {type(error).__name__}"
+        ) from error
     finally:
         # lengths and timings only, never call text or reply text
         log.info(
             "dspy call=%s context_chars=%d latency_s=%.3f",
             name,
             len(context),
-            time.perf_counter() - t0,
+            time.perf_counter() - started,
         )
+
+
+def _load_reply_program(compiled_path: Path | None) -> dspy.Module:
+    """Build the reply program, with the optimizer's demos when the compiled file loads."""
+    program = dspy.ChainOfThought(WriteReply)
+    path = compiled_path or COMPILED_REPLY
+    if not path.exists():
+        return program
+    try:
+        program.load(str(path))
+    except Exception as error:  # a broken optimizer file must not stop the call guard
+        log.warning(
+            "could not load %s (%s), using uncompiled program", path.name, type(error).__name__
+        )
+    return program
 
 
 class DSPyReplyWriter:
@@ -123,19 +147,7 @@ class DSPyReplyWriter:
         compiled_path: Path | None = None,
     ) -> None:
         self._lm = lm
-        if program is None:
-            program = dspy.ChainOfThought(WriteReply)
-            path = compiled_path or COMPILED_REPLY
-            if path.exists():
-                try:
-                    program.load(str(path))
-                except Exception as exc:  # a broken optimizer file must not stop the call guard
-                    log.warning(
-                        "could not load %s (%s), using uncompiled program",
-                        path.name,
-                        type(exc).__name__,
-                    )
-        self.program = program
+        self.program = program if program is not None else _load_reply_program(compiled_path)
 
     @property
     def lm(self):
@@ -147,12 +159,8 @@ class DSPyReplyWriter:
     def write(self, context: str, result: Any = None) -> str:
         # `result` is accepted for the writer interface; the verdict is fixed because the
         # reply is only ever written for calls the decision step judged benign.
-        def run():
-            with dspy.context(lm=self.lm):
-                return self.program(call_context=context, verdict="benign")
-
-        pred = _timed_call("reply", context, run)
-        return (getattr(pred, "reply", "") or "").strip()  # reasoning is dropped here
+        prediction = _run_program("reply", self.program, self.lm, context, verdict="benign")
+        return (getattr(prediction, "reply", "") or "").strip()  # reasoning is dropped here
 
 
 class DSPyLeakJudge:
@@ -172,15 +180,11 @@ class DSPyLeakJudge:
         return self._lm
 
     def blocks(self, reply: str, context: str) -> bool:
-        def run():
-            with dspy.context(lm=self.lm):
-                return self.program(reply=reply, call_context=context)
-
         try:
-            pred = _timed_call("judge", context, run)
+            prediction = _run_program("judge", self.program, self.lm, context, reply=reply)
         except LLMUnavailable:
             raise
         except Exception as exc:  # unparsable output, server error: block
             log.warning("leak judge failed (%s), blocking", type(exc).__name__)
             return True
-        return getattr(pred, "leaks", True) is not False
+        return getattr(prediction, "leaks", True) is not False
