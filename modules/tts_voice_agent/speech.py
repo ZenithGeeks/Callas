@@ -11,12 +11,15 @@ from .leak import leak_reasons
 
 
 class Speaker:
+    """Reads a reply aloud. Voice settings default to the TTS_* settings."""
+
     def __init__(self, pretrained: str | None = None, speaker: str | None = None) -> None:
         self._pretrained = pretrained
         self._speaker = speaker
         self._tts = None
 
     def _settings(self) -> tuple[str, str]:
+        """(pretrained model, speaker): the constructor values, else the app settings."""
         if self._pretrained and self._speaker:
             return self._pretrained, self._speaker
         from callas_settings import get_settings

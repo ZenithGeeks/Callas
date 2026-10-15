@@ -95,4 +95,5 @@ def leak_reasons(
 
 
 def leaks_sensitive(text: str, entities_seen: Iterable[Entity] = ()) -> bool:
+    """True if `text` fails any leak check."""
     return bool(leak_reasons(text, entities_seen))

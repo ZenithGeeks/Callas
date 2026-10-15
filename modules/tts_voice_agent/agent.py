@@ -28,6 +28,7 @@ class TurnOutcome:
 def on_turn(
     state: CallState, turn: Turn, analyze: Callable[[str], NLPResult], llm: LLM
 ) -> TurnOutcome:
+    """Handle one turn: remember it, analyze the call, decide, and write a reply if benign."""
     turn = clean_turn(turn)
     state.add(turn)
     result = analyze(state.context())
