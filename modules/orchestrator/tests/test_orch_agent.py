@@ -57,3 +57,22 @@ def test_server_rejecting_tools_raises_clear_error():
 
     with pytest.raises(ToolCallingUnavailable, match="enable-auto-tool-choice"):
         explain("x", agent=Rejecting())
+
+
+def test_agent_sends_system_prompt_and_user_text_to_model(fakes):
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    from orchestrator.agents import ANALYST_PROMPT
+
+    seen = []
+
+    class Recording(ScriptedChat):
+        def _generate(self, messages, *args, **kwargs):
+            seen.append(messages)
+            return super()._generate(messages, *args, **kwargs)
+
+    agent = build_analyst_agent(Recording(messages=iter([AIMessage(content="ok")])))
+    assert explain("hello there", agent=agent) == "ok"
+    sent = seen[0]
+    assert isinstance(sent[0], SystemMessage) and sent[0].content == ANALYST_PROMPT
+    assert isinstance(sent[-1], HumanMessage) and sent[-1].content == "hello there"
