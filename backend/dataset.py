@@ -21,8 +21,8 @@ from data_pipeline.store import Store
 from . import views
 
 DEFAULT_DB = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "calls.db"
-ID_RE = re.compile(r"^[a-z_]+_\d{5}$")
-TURN_AUDIO_RE = re.compile(r"^\d{2}_[AB]\.wav$")
+ID_RE = re.compile(r"[a-z_]+_\d{5}")
+TURN_AUDIO_RE = re.compile(r"\d{2}_[AB]\.wav")
 REVIEW_STATES = ("pending", "approved", "rejected")
 MAX_NOTE_CHARS = 500
 
@@ -52,9 +52,14 @@ def _store_at(path: str) -> Store:
     return Store(path)
 
 
-def store() -> Store:
-    """The store for the configured database file (one per path, shared across requests)."""
-    return _store_at(str(db_path()))
+def store() -> Store | None:
+    """The store for the configured database file (one per path, shared across requests).
+
+    None when the file does not exist: opening a Store would create it and its folders, and a
+    page view must not do that.
+    """
+    path = db_path()
+    return _store_at(str(path)) if path.is_file() else None
 
 
 def reason_text(code: str) -> str:
@@ -67,31 +72,39 @@ def reason_text(code: str) -> str:
 
 def load(db: Store, record_id: str) -> dict | None:
     """The call record, or None if the id is malformed or unknown."""
-    if not ID_RE.match(record_id):
+    if not ID_RE.fullmatch(record_id):
         return None
     return db.load(record_id)
 
 
 def audio_file(db: Store, record_id: str, name: str | None = None) -> Path | None:
     """The joined call (name None) or one turn's WAV, if it exists."""
-    if not ID_RE.match(record_id):
+    if not ID_RE.fullmatch(record_id):
         return None
     if name is None:
         path = db.folder / "audio" / f"{record_id}.wav"
-    elif TURN_AUDIO_RE.match(name):
+    elif TURN_AUDIO_RE.fullmatch(name):
         path = db.folder / "audio" / record_id / name
     else:
         return None
     return path if path.is_file() else None
 
 
-def save_review(db: Store, record_id: str, status: str, note: str) -> dict | None:
-    """Set the review and return the updated record, or None if the call is unknown."""
+def save_review(db: Store, record_id: str, status: str, note: str | None) -> dict | None:
+    """Set the review and return the updated record, or None if the call is unknown.
+
+    note None means "leave the note as it is"; Undo sends no note so it cannot wipe one.
+    """
     if status not in REVIEW_STATES:
         raise ValueError(f"review status must be one of {REVIEW_STATES}")
-    if not ID_RE.match(record_id) or not db.set_review(
-        record_id, status, note.strip()[:MAX_NOTE_CHARS]
-    ):
+    if not ID_RE.fullmatch(record_id):
+        return None
+    if note is None:
+        record = db.load(record_id)
+        if record is None:
+            return None
+        note = (record.get("review") or {}).get("note", "")
+    if not db.set_review(record_id, status, note.strip()[:MAX_NOTE_CHARS]):
         return None
     return db.load(record_id)
 
@@ -168,6 +181,12 @@ class Listing:
     approved: int = 0
     rejected: int = 0
     total: int = 0  # of the chosen type
+
+
+def empty_listing(view: str = DEFAULT_VIEW) -> Listing:
+    """What the page shows when there is no database yet."""
+    view = view if view in VIEWS else DEFAULT_VIEW
+    return Listing(rows=[], view=view, counts=dict.fromkeys(VIEWS, 0))
 
 
 def listing(db: Store, call_type: str = "", view: str = DEFAULT_VIEW) -> Listing:

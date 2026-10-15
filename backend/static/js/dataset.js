@@ -31,6 +31,12 @@
     });
   }
 
+  // The id of the call shown in the right column, or "".
+  function openCallId() {
+    var c = document.querySelector("#dataset-call [data-call]");
+    return c ? c.dataset.call : "";
+  }
+
   // ---- one turn's audio -----------------------------------------------------------------
   var turnAudio = new Audio();
   var turnBtn = null; // the mini play button whose turn is loaded
@@ -41,8 +47,11 @@
     stopTurn();
     turnBtn = btn;
     turnAudio.src = btn.dataset.playSrc;
-    turnAudio.play();
     setPressed(btn, true);
+    // play() rejects when the file is gone or the browser blocks it; undo the pressed state.
+    turnAudio.play().catch(function () {
+      if (turnBtn === btn) stopTurn();
+    });
   }
 
   function stopTurn() {
@@ -55,6 +64,7 @@
 
   // ---- whole-call audio -----------------------------------------------------------------
   var speakingRow = null; // transcript row highlighted for the current playback time
+  var boundAudio = new WeakSet(); // not a data attribute: a restored history page keeps attributes but not listeners
 
   function callAudio() {
     return document.querySelector("[data-call-audio]");
@@ -106,12 +116,15 @@
     btn.querySelector("[data-when-playing]").hidden = !on;
   }
 
-  // Runs for each newly swapped-in call; the dataset flag stops a second binding.
+  // Runs for each newly swapped-in or restored call.
   function bindCallAudio() {
     var a = callAudio();
-    speakingRow = null;
-    if (!a || a.dataset.bound) return;
-    a.dataset.bound = "1";
+    clearSpeakingRow();
+    document.querySelectorAll("[data-speaking]").forEach(function (r) {
+      r.removeAttribute("data-speaking");
+    });
+    if (!a || boundAudio.has(a)) return;
+    boundAudio.add(a);
     a.addEventListener("timeupdate", function () { followPlayback(a); });
     a.addEventListener("play", function () { showCallPlaying(true); });
     a.addEventListener("pause", function () { showCallPlaying(false); });
@@ -121,6 +134,10 @@
     });
   }
 
+  function playCall(a) {
+    a.play().catch(function () { showCallPlaying(false); });
+  }
+
   // With seekTo (seconds): play from there. Without: toggle play and pause.
   function toggleCall(seekTo) {
     var a = callAudio();
@@ -128,9 +145,9 @@
     stopTurn();
     if (seekTo != null) {
       a.currentTime = seekTo;
-      a.play();
+      playCall(a);
     } else if (a.paused) {
-      a.play();
+      playCall(a);
     } else {
       a.pause();
     }
@@ -160,17 +177,25 @@
     }
   }
 
+  // Keys are matched by position (e.code), so they work on a Thai keyboard layout too.
   document.addEventListener("keydown", function (e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
     var target = e.target;
+    // Enter in the note would submit the form through its first button, which is Approve.
+    if (e.key === "Enter" && target.id === "note") {
+      e.preventDefault();
+      return;
+    }
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     if (target.closest("input, textarea, select, [contenteditable]")) return;
-    var key = e.key.toLowerCase();
-    if (key === "j") moveSelection(1);
-    else if (key === "k") moveSelection(-1);
-    else if (key === "a" || key === "r") {
-      var btn = document.querySelector('#review-bar [data-key="' + key + '"]');
+    var code = e.code;
+    if (code === "KeyJ") moveSelection(1);
+    else if (code === "KeyK") moveSelection(-1);
+    else if (code === "KeyA" || code === "KeyR") {
+      var btn = document.querySelector(
+        '#review-bar [data-key="' + code.slice(3).toLowerCase() + '"]'
+      );
       if (btn) btn.click();
-    } else if (key === " " && !target.closest("button, a, summary")) {
+    } else if (code === "Space" && !target.closest("button, a, summary")) {
       e.preventDefault();
       toggleCall(null);
     }
@@ -202,9 +227,19 @@
     }
   });
 
-  // ---- after a decision: toast, then the next call --------------------------------------
-  var reviewSubmitted = false; // set when the decision form is sent, read once the bar is swapped
+  // ---- after a decision: announcement, toast, then the next call ------------------------
+  var nextRowId = ""; // the row after the open one, noted before the request moves or removes it
+  var undoId = ""; // the call whose Undo request is in flight
   var toastTimer = null;
+  var hideTimer = null;
+
+  function announce(text) {
+    var live = document.getElementById("review-live");
+    if (!live) return;
+    live.textContent = "";
+    // Clearing first makes a repeated message read out again.
+    setTimeout(function () { live.textContent = text; }, 50);
+  }
 
   function showToast(text, id) {
     var toast = document.getElementById("toast");
@@ -214,49 +249,136 @@
     toast.hidden = false;
     toast.classList.remove("is-out");
     clearTimeout(toastTimer);
+    clearTimeout(hideTimer); // the previous toast's hide must not close this one
     toastTimer = setTimeout(function () {
       toast.classList.add("is-out");
-      setTimeout(function () { toast.hidden = true; }, 250); // lets the fade-out finish
+      hideTimer = setTimeout(function () { toast.hidden = true; }, 250); // lets the fade-out finish
     }, 6000);
   }
 
-  // Loads a call into the right column the same way a queue click does.
+  function hideToast() {
+    var toast = document.getElementById("toast");
+    clearTimeout(toastTimer);
+    clearTimeout(hideTimer);
+    if (toast) toast.hidden = true;
+  }
+
+  // Loads a call into the right column the same way a queue click does; htmx pushes the URL.
   function openCall(id) {
-    htmx.ajax("GET", "/dataset/call/" + id, { target: "#dataset-call", swap: "innerHTML" });
-    history.pushState({}, "", "/dataset?id=" + encodeURIComponent(id));
+    var q = encodeURIComponent(id);
+    htmx.ajax("GET", "/dataset/call/" + q, {
+      target: "#dataset-call",
+      swap: "innerHTML show:#dataset-call:top",
+      push: "/dataset?id=" + q,
+    });
     markCurrentRow(id);
   }
 
-  // Undo: set the call back to pending, then reopen it.
+  function isReviewRequest(detail) {
+    return /\/dataset\/call\/[^/]+\/review$/.test((detail.pathInfo || {}).requestPath || "");
+  }
+
+  // The form is replaced by the swap, so htmx reports afterRequest on an ancestor; the form
+  // itself is still in requestConfig.
+  function isReviewForm(detail) {
+    var src = detail.requestConfig && detail.requestConfig.elt;
+    return !!(src && src.matches && src.matches("[data-review-form]"));
+  }
+
+  // Undo: set the call back to pending (the server keeps its note), then reopen it. The toast
+  // stays until the request succeeds.
   document.addEventListener("click", function (e) {
-    if (!e.target.closest("[data-toast-undo]")) return;
+    var btn = e.target.closest("[data-toast-undo]");
+    if (!btn) return;
     var toast = document.getElementById("toast");
-    var id = toast.dataset.id;
     var type = document.getElementById("f-type");
     var view = document.getElementById("f-view");
-    toast.hidden = true;
+    undoId = toast.dataset.id;
+    btn.disabled = true;
+    htmx.ajax("POST", "/dataset/call/" + encodeURIComponent(undoId) + "/review", {
+      values: {
+        status: "pending",
+        keep_note: "1",
+        type: type ? type.value : "",
+        view: view ? view.value : "",
+      },
+      swap: "none",
+    });
+  });
+
+  function finishUndo(ok) {
+    var id = undoId;
+    undoId = "";
+    var btn = document.querySelector("[data-toast-undo]");
+    if (btn) btn.disabled = false;
+    if (!ok) {
+      showToast("Could not undo. Try again.", id);
+      return;
+    }
+    hideToast();
+    announce("Review cleared");
+    // The call may have left the list when it was decided; a fresh queue puts it back.
+    var type = document.getElementById("f-type");
+    var view = document.getElementById("f-view");
     htmx
-      .ajax("POST", "/dataset/call/" + id + "/review", {
-        values: { status: "pending", type: type ? type.value : "", view: view ? view.value : "" },
-        swap: "none",
+      .ajax("GET", "/dataset", {
+        target: "#queue",
+        swap: "innerHTML",
+        values: { type: type ? type.value : "", view: view ? view.value : "" },
       })
       .then(function () { openCall(id); });
-  });
+  }
+
+  function finishReview(ok) {
+    var next = nextRowId;
+    nextRowId = "";
+    if (!ok) {
+      announce("Could not save the review. Try again.");
+      return;
+    }
+    var bar = document.getElementById("review-bar");
+    if (!bar || bar.dataset.review === "pending") return; // Undo from the bar: stay on this call
+    var word = bar.dataset.review === "approved" ? "Approved" : "Rejected";
+    announce(word + " " + bar.dataset.name);
+    if (!autoNextEnabled()) return;
+    showToast(word + " " + bar.dataset.name, bar.dataset.id);
+    var row = next && document.querySelector('[data-row="' + next + '"]');
+    if (row) {
+      row.click();
+      row.scrollIntoView({ block: "nearest" });
+    }
+  }
 
   document.addEventListener("htmx:beforeRequest", function (e) {
-    if (e.detail.elt.matches && e.detail.elt.matches("[data-review-form]")) reviewSubmitted = true;
+    if (!isReviewRequest(e.detail) || !isReviewForm(e.detail)) return;
+    var bar = document.getElementById("review-bar");
+    var rows = queueRows();
+    var i = rows.findIndex(function (r) { return bar && r.dataset.row === bar.dataset.id; });
+    nextRowId = rows[i + 1] ? rows[i + 1].dataset.row : "";
   });
 
-  document.addEventListener("htmx:afterSettle", function () {
+  document.addEventListener("htmx:afterRequest", function (e) {
+    if (!isReviewRequest(e.detail)) return;
+    if (isReviewForm(e.detail)) finishReview(e.detail.successful);
+    else if (undoId) finishUndo(e.detail.successful);
+  });
+
+  // A request that got no answer at all: clear what it left behind.
+  function requestFailed(e) {
+    if (!isReviewRequest(e.detail)) return;
+    if (isReviewForm(e.detail)) finishReview(false);
+    else if (undoId) finishUndo(false);
+  }
+  document.addEventListener("htmx:sendError", requestFailed);
+  document.addEventListener("htmx:timeout", requestFailed);
+
+  document.addEventListener("htmx:afterSettle", function (e) {
     syncAutoNextBox();
-    if (!reviewSubmitted) return;
-    reviewSubmitted = false;
-    var bar = document.getElementById("review-bar");
-    if (!bar || bar.dataset.review === "pending") return; // Undo: stay on this call
-    if (!autoNextEnabled()) return;
-    var word = bar.dataset.review === "approved" ? "Approved" : "Rejected";
-    showToast(word + " " + bar.dataset.name, bar.dataset.id);
-    moveSelection(1);
+    // A new call: keyboard and screen reader users land on its heading.
+    if (e.detail.target && e.detail.target.id === "dataset-call") {
+      var h = document.getElementById("call-h");
+      if (h) h.focus({ preventScroll: true });
+    }
   });
 
   // ---- htmx swaps and page load ---------------------------------------------------------
@@ -266,7 +388,21 @@
       stopCall();
     }
   });
-  document.addEventListener("htmx:afterSwap", bindCallAudio);
+  document.addEventListener("htmx:afterSwap", function (e) {
+    bindCallAudio();
+    // A new queue (filter or tab) has no current row until it is told which call is open.
+    if (e.detail.target && e.detail.target.id === "queue") markCurrentRow(openCallId());
+  });
+  // Leaving a page must not leave its audio playing.
+  document.addEventListener("htmx:beforeHistorySave", function () {
+    stopTurn();
+    stopCall();
+  });
+  document.addEventListener("htmx:historyRestore", function () {
+    bindCallAudio();
+    syncAutoNextBox();
+    markCurrentRow(openCallId());
+  });
   document.addEventListener("DOMContentLoaded", function () {
     bindCallAudio();
     syncAutoNextBox();

@@ -46,6 +46,11 @@
 </li>
 {%- endmacro %}
 
+{# Removes a queue entry out-of-band. #}
+{% macro row_gone(r) %}
+<li id="row-{{ r.id }}" hx-swap-oob="delete"></li>
+{%- endmacro %}
+
 {# "7 of 18 reviewed" with a two-part meter: approved (green) then rejected (brick).
    `listing` is a dataset.Listing. #}
 {% macro progress(listing, oob=False) %}

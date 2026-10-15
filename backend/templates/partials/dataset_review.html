@@ -17,7 +17,7 @@
         hx-include="#f-type, #f-view"
         hx-disabled-elt="find button"
         data-review-form>
-    <p class="review-state" aria-live="polite">
+    <p class="review-state">
       {{ ds.review_mark(st) }}
       <span>
         {% if st == 'approved' %}<strong>Approved.</strong> It goes into the dataset.
@@ -31,10 +31,10 @@
            placeholder="Note (optional): what is wrong, or what to keep"
            value="{{ rv.note or '' }}" lang="th" autocomplete="off">
     <div class="review-actions">
-      <button type="submit" name="status" value="approved" class="btn btn-primary" data-key="a"
-              {% if st == 'approved' %}aria-pressed="true"{% endif %}>{{ ui.check_icon("h-[13px] w-[15px]") }}Approve<kbd class="kbd-in">A</kbd></button>
-      <button type="submit" name="status" value="rejected" class="btn" data-key="r"
-              {% if st == 'rejected' %}aria-pressed="true"{% endif %}>{{ ds.x_icon("h-[13px] w-[13px]") }}Reject<kbd class="kbd-in">R</kbd></button>
+      <button type="submit" name="status" value="approved" class="btn btn-primary" data-key="a" aria-keyshortcuts="A"
+              {% if st == 'approved' %}aria-pressed="true"{% endif %}>{{ ui.check_icon("h-[13px] w-[15px]") }}Approve<kbd class="kbd-in" aria-hidden="true">A</kbd></button>
+      <button type="submit" name="status" value="rejected" class="btn" data-key="r" aria-keyshortcuts="R"
+              {% if st == 'rejected' %}aria-pressed="true"{% endif %}>{{ ds.x_icon("h-[13px] w-[13px]") }}Reject<kbd class="kbd-in" aria-hidden="true">R</kbd></button>
       {% if st in ('approved', 'rejected') %}
       <button type="submit" name="status" value="pending" class="btn-link">Undo</button>
       {% endif %}
@@ -46,7 +46,8 @@
   </div>
 </section>
 {% if oob %}
-{{ ds.row(d.row, selected=True, oob=True) }}
+{# A call that no longer belongs to the view (approved while viewing "To review") leaves the list. #}
+{% if in_view %}{{ ds.row(d.row, selected=True, oob=True) }}{% else %}{{ ds.row_gone(d.row) }}{% endif %}
 {{ ds.progress(listing, oob=True) }}
 {{ ds.view_tabs(listing, views, listing_type, oob=True) }}
 {% endif %}

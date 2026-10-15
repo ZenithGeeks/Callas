@@ -20,6 +20,7 @@ import threading  # noqa: E402
 import time  # noqa: E402
 from collections.abc import AsyncIterator  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
+from urllib.parse import urlsplit  # noqa: E402
 
 from fastapi import FastAPI, Form, Request, UploadFile, WebSocket  # noqa: E402
 from fastapi.responses import (  # noqa: E402
@@ -365,19 +366,32 @@ def _known_type(value: str) -> str:
     return value if value in dataset.CALL_TYPE_NAMES else ""
 
 
+def _from_this_site(request: Request) -> bool:
+    """True for a request our own page made with htmx. The app has no login, so a form on
+    another site must not be able to post a review: browsers add Origin to cross-site posts,
+    and a plain form cannot set HX-Request."""
+    if request.headers.get("HX-Request") != "true":
+        return False
+    origin = request.headers.get("origin")
+    return origin is None or urlsplit(origin).netloc == request.headers.get("host")
+
+
+# These handlers are plain `def` on purpose: SQLite calls block (busy_timeout is 30 s), and
+# FastAPI runs a plain def in its threadpool instead of on the event loop.
 @app.get("/dataset", response_class=HTMLResponse)
-async def dataset_page(
+def dataset_page(
     request: Request, type: str = "", view: str = dataset.DEFAULT_VIEW, id: str = ""
 ) -> HTMLResponse:
     db = dataset.store()
     call_type = _known_type(type)
-    listing = dataset.listing(db, call_type, view)
+    listing = dataset.listing(db, call_type, view) if db else dataset.empty_listing(view)
     ctx = dict(
         listing=listing,
         call_type=call_type,
         views=dataset.VIEWS,
         type_names=dataset.CALL_TYPE_NAMES,
-        folder=db.path,
+        folder=dataset.db_path(),
+        missing=db is None,
         selected=id,
     )
     # The type filter and view tabs swap only the queue.
@@ -385,16 +399,16 @@ async def dataset_page(
         return HTMLResponse(render("partials/dataset_queue.html", **ctx))
     # Full page: open the requested call, else the first one in the queue.
     open_id = id or (listing.rows[0].id if listing.rows else "")
-    record = dataset.load(db, open_id) if open_id else None
+    record = dataset.load(db, open_id) if db and open_id else None
     ctx["selected"] = record["id"] if record else ""
     ctx["d"] = dataset.detail(db, record) if record else None
     return page(request, "dataset.html", "dataset", **ctx)
 
 
 @app.get("/dataset/call/{record_id}", response_class=HTMLResponse)
-async def dataset_call(request: Request, record_id: str) -> Response:
+def dataset_call(request: Request, record_id: str) -> Response:
     db = dataset.store()
-    record = dataset.load(db, record_id)
+    record = dataset.load(db, record_id) if db else None
     if record is None:
         return HTMLResponse("Call not found.", status_code=404)
     if request.headers.get("HX-Request") != "true":
@@ -403,17 +417,24 @@ async def dataset_call(request: Request, record_id: str) -> Response:
 
 
 @app.post("/dataset/call/{record_id}/review", response_class=HTMLResponse)
-async def dataset_review(
+def dataset_review(
+    request: Request,
     record_id: str,
     status: str = Form(...),
     note: str = Form(""),
+    keep_note: str = Form(""),
     type: str = Form(""),
     view: str = Form(dataset.DEFAULT_VIEW),
 ) -> HTMLResponse:
+    if not _from_this_site(request):
+        return HTMLResponse("Not allowed.", status_code=403)
     db = dataset.store()
     if status not in dataset.REVIEW_STATES:
         return HTMLResponse("Unknown review status.", status_code=422)
-    record = dataset.save_review(db, record_id, status, note)
+    # FastAPI reads an empty field as missing, so "no note sent" needs its own flag. Only the
+    # toast's Undo sets it; the bar's own form always sends the note box, empty or not.
+    keep = status == "pending" and bool(keep_note)
+    record = dataset.save_review(db, record_id, status, None if keep else note) if db else None
     if record is None:
         return HTMLResponse("Call not found.", status_code=404)
     # The review bar, plus the queue row, progress line and view counts, swapped out-of-band.
@@ -428,14 +449,16 @@ async def dataset_review(
             listing=progress,
             listing_type=shown_type,
             views=dataset.VIEWS,
+            in_view=any(r.id == record["id"] for r in progress.rows),
         )
     )
 
 
 @app.get("/dataset/audio/{record_id}")
 @app.get("/dataset/audio/{record_id}/{name}")
-async def dataset_audio(record_id: str, name: str | None = None) -> Response:
-    path = dataset.audio_file(dataset.store(), record_id, name)
+def dataset_audio(record_id: str, name: str | None = None) -> Response:
+    db = dataset.store()
+    path = dataset.audio_file(db, record_id, name) if db else None
     if path is None:
         return Response(status_code=404)
     return FileResponse(path, media_type="audio/wav")

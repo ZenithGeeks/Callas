@@ -1,8 +1,11 @@
+import re
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+from backend import dataset
 from data_pipeline.store import Store
 
 HX = {"HX-Request": "true"}
@@ -117,7 +120,9 @@ def test_filters_return_the_queue_only(client, db_path):
 
 def test_review_is_saved_and_list_row_updates(client, db_path):
     r = client.post(
-        "/dataset/call/phishing_otp_00001/review", data={"status": "approved", "note": "ดี"}
+        "/dataset/call/phishing_otp_00001/review",
+        data={"status": "approved", "note": "ดี", "view": "all"},
+        headers=HX,
     )
     assert r.status_code == 200
     saved = Store(db_path).load("phishing_otp_00001")
@@ -129,26 +134,73 @@ def test_review_is_saved_and_list_row_updates(client, db_path):
     assert "1 approved · 0 rejected" in r.text
     assert 'data-review="approved"' in r.text
 
-    undo = client.post("/dataset/call/phishing_otp_00001/review", data={"status": "pending"})
+    undo = client.post(
+        "/dataset/call/phishing_otp_00001/review",
+        data={"status": "pending", "note": ""},
+        headers=HX,
+    )
     assert undo.status_code == 200
     saved = Store(db_path).load("phishing_otp_00001")
     assert saved["review"] == {"status": "pending", "note": "", "reviewed_at": None}
 
 
+def test_undo_without_a_note_keeps_the_stored_one(client, db_path):
+    url = "/dataset/call/phishing_otp_00001/review"
+    client.post(url, data={"status": "approved", "note": "keep me"}, headers=HX)
+    # The toast's Undo sends no note, only the flag.
+    client.post(url, data={"status": "pending", "keep_note": "1"}, headers=HX)
+    review = Store(db_path).load("phishing_otp_00001")["review"]
+    assert review["status"] == "pending" and review["note"] == "keep me"
+    assert review["reviewed_at"] is None
+    # The flag does nothing for a real decision, and the bar's own Undo sends its note box.
+    client.post(url, data={"status": "approved", "note": "", "keep_note": "1"}, headers=HX)
+    assert Store(db_path).load("phishing_otp_00001")["review"]["note"] == ""
+
+
+def test_review_from_a_plain_form_post_is_refused(client, db_path):
+    url = "/dataset/call/phishing_otp_00001/review"
+    r = client.post(url, data={"status": "approved"})
+    assert r.status_code == 403
+    assert Store(db_path).load("phishing_otp_00001")["review"]["status"] == "pending"
+
+
+def test_review_from_another_origin_is_refused(client, db_path):
+    url = "/dataset/call/phishing_otp_00001/review"
+    for origin in ("http://evil.example", "null", "http://testserver:9999"):
+        r = client.post(url, data={"status": "approved"}, headers={**HX, "Origin": origin})
+        assert r.status_code == 403, origin
+    assert Store(db_path).load("phishing_otp_00001")["review"]["status"] == "pending"
+    same = client.post(
+        url, data={"status": "approved"}, headers={**HX, "Origin": "http://testserver"}
+    )
+    assert same.status_code == 200
+
+
+def test_review_that_leaves_the_view_removes_its_row(client, db_path):
+    url = "/dataset/call/phishing_otp_00001/review"
+    gone = client.post(url, data={"status": "approved", "view": "todo"}, headers=HX)
+    assert 'id="row-phishing_otp_00001" hx-swap-oob="delete"' in gone.text
+    kept = client.post(url, data={"status": "approved", "view": "all"}, headers=HX)
+    assert 'id="row-phishing_otp_00001" hx-swap-oob="outerHTML"' in kept.text
+    assert 'hx-swap-oob="delete"' not in kept.text
+
+
 def test_progress_follows_the_type_sent_with_the_review(client, db_path):
     r = client.post(
-        "/dataset/call/phishing_otp_00001/review", data={"status": "rejected", "type": "benign"}
+        "/dataset/call/phishing_otp_00001/review",
+        data={"status": "rejected", "type": "benign"},
+        headers=HX,
     )
     assert "of 1 reviewed" in r.text and "0 approved · 0 rejected" in r.text
 
 
 def test_review_rejects_bad_input(client, db_path):
     url = "/dataset/call/phishing_otp_00001/review"
-    assert client.post(url, data={"status": "maybe"}).status_code == 422
-    assert (
-        client.post("/dataset/call/nope_00001/review", data={"status": "approved"}).status_code
-        == 404
+    assert client.post(url, data={"status": "maybe"}, headers=HX).status_code == 422
+    missing = client.post(
+        "/dataset/call/nope_00001/review", data={"status": "approved"}, headers=HX
     )
+    assert missing.status_code == 404
 
 
 @pytest.mark.parametrize(
@@ -175,3 +227,108 @@ def test_empty_folder_explains_how_to_generate(client, tmp_path, monkeypatch):
     monkeypatch.setenv("CALLAS_DATASET_DB", str(tmp_path / "none" / "calls.db"))
     html = client.get("/dataset").text
     assert "No call to review" in html and "python -m data_pipeline.synthesize" in html
+    assert "No database at <code" in html and "CALLAS_DATASET_DB" in html
+    assert "CALLAS_DATASET_DIR" not in html and "JSON" not in html
+
+
+def test_missing_database_is_not_created_by_any_get(client, tmp_path, monkeypatch):
+    folder = tmp_path / "none"
+    monkeypatch.setenv("CALLAS_DATASET_DB", str(folder / "calls.db"))
+    for url in (
+        "/dataset",
+        "/dataset?view=all&id=phishing_otp_00001",
+        "/dataset/call/phishing_otp_00001",
+        "/dataset/audio/phishing_otp_00001",
+    ):
+        client.get(url, headers={**HX, "HX-Target": "queue"})
+    post = client.post(
+        "/dataset/call/phishing_otp_00001/review", data={"status": "approved"}, headers=HX
+    )
+    assert post.status_code == 404
+    assert not folder.exists()
+
+
+def test_bogus_view_type_and_id_do_not_break_the_page(client, db_path):
+    r = client.get("/dataset?view=nonsense&type=nonsense")
+    assert r.status_code == 200
+    assert '>To review<span class="view-count">1</span>' in r.text  # fell back to defaults
+    assert 'data-call="phishing_otp_00001"' in r.text
+    r = client.get("/dataset?id=phishing_otp_09999")
+    assert r.status_code == 200 and "No call to review" in r.text
+    r = client.get("/dataset?id=../etc/passwd")
+    assert r.status_code == 200 and "No call to review" in r.text
+    assert client.get("/dataset/call/phishing_otp_09999", headers=HX).status_code == 404
+
+
+class AnythingGoes:
+    """A store that knows every id, on a disk where every file exists. Only the guards in
+    dataset.load and dataset.audio_file are left to say no."""
+
+    def __init__(self, folder):
+        self.folder = folder
+
+    def load(self, record_id):
+        return {"id": record_id}
+
+
+@pytest.fixture
+def everything_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    return AnythingGoes(tmp_path)
+
+
+BAD_IDS = ["../x", "..\\x", "phishing_otp_00001\n", "..", "", "phishing_otp_00001/../x"]
+BAD_NAMES = ["../x", "..\\x", "00_A.wav\n", "../../phishing_otp_00001.wav", "0_A.wav", ""]
+
+
+@pytest.mark.parametrize("bad", BAD_IDS)
+def test_load_and_audio_file_reject_bad_ids(everything_exists, bad):
+    assert dataset.load(everything_exists, bad) is None
+    assert dataset.audio_file(everything_exists, bad) is None
+    assert dataset.audio_file(everything_exists, bad, "00_A.wav") is None
+
+
+@pytest.mark.parametrize("name", BAD_NAMES)
+def test_audio_file_rejects_bad_names(everything_exists, name):
+    assert dataset.audio_file(everything_exists, "phishing_otp_00001", name) is None
+
+
+def test_guards_let_good_ids_and_names_through(everything_exists):
+    assert dataset.load(everything_exists, "phishing_otp_00001") == {"id": "phishing_otp_00001"}
+    assert dataset.audio_file(everything_exists, "phishing_otp_00001") is not None
+    assert dataset.audio_file(everything_exists, "phishing_otp_00001", "00_A.wav") is not None
+
+
+def test_audio_file_finds_real_files(db_path):
+    db = Store(db_path)
+    assert dataset.audio_file(db, "phishing_otp_00001", "00_A.wav").is_file()
+    assert dataset.audio_file(db, "phishing_otp_00001").is_file()
+    assert dataset.load(db, "phishing_otp_00001")["id"] == "phishing_otp_00001"
+
+
+def test_save_review_rejects_a_trailing_newline_id(db_path):
+    db = Store(db_path)
+    assert dataset.save_review(db, "phishing_otp_00001\n", "approved", "") is None
+
+
+def test_text_from_the_database_is_escaped(client, db_path):
+    rec = record("scam_00003")
+    evil = "<script>alert(1)</script>"
+    rec["generation"]["turns"][0]["text"] = f"<b>{evil}</b>"
+    rec["generation"]["turns"][0]["reasoning"] = f"<img src=x onerror={evil}>"
+    rec["review"]["note"] = '"><svg onload=alert(2)>'
+    Store(db_path).save(rec)
+    html = client.get("/dataset?id=scam_00003").text
+    assert "<script>alert(1)" not in html and "<img src=x" not in html
+    assert "<svg onload" not in html and '"><svg' not in html
+    assert "&lt;script&gt;alert(1)" in html and "&lt;img src=x" in html
+    assert "&gt;&lt;svg onload" in html
+
+
+@pytest.mark.parametrize("path", ["/message", "/call", "/live", "/dataset"])
+def test_static_references_are_versioned_paths(client, db_path, path):
+    html = client.get(path).text
+    refs = re.findall(r'(?:src|href)="([^"]*static/[^"]*)"', html)
+    assert refs, path
+    for ref in refs:
+        assert ref.startswith("/static/") and "?v=" in ref, (path, ref)
