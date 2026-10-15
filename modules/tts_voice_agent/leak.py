@@ -20,10 +20,14 @@ _ZERO_WIDTH = dict.fromkeys([*range(0x200B, 0x200E), 0xFEFF, 0x2060])
 # Anything that is not a Thai or Latin letter may separate spoken digits ("แปด, หนึ่ง / สอง").
 _SEP = r"[^ก-๛a-z]*"
 _THAI_ALT = "|".join(sorted(THAI_NUMBER_WORDS, key=len, reverse=True))
-_THAI_RUN = re.compile(rf"(?:{_THAI_ALT})(?:{_SEP}(?:{_THAI_ALT})){{{MIN_DIGIT_WORD_RUN - 1},}}")
+SPOKEN_THAI_RUN = re.compile(
+    rf"(?:{_THAI_ALT})(?:{_SEP}(?:{_THAI_ALT})){{{MIN_DIGIT_WORD_RUN - 1},}}"
+)
 _EN_ALT = "|".join(ENGLISH_DIGIT_WORDS)
-_EN_RUN = re.compile(rf"\b(?:{_EN_ALT})\b(?:{_SEP}\b(?:{_EN_ALT})\b){{{MIN_DIGIT_WORD_RUN - 1},}}")
-_URL_EMAIL = re.compile(
+SPOKEN_ENGLISH_RUN = re.compile(
+    rf"\b(?:{_EN_ALT})\b(?:{_SEP}\b(?:{_EN_ALT})\b){{{MIN_DIGIT_WORD_RUN - 1},}}"
+)
+URL_OR_EMAIL = re.compile(
     r"https?\s*:|www\s*\.|\S\s*@\s*\S|"
     r"[a-z0-9-]+\s*\.\s*(?:com|net|org|co|th|io|me|ly|xyz|info|app|link|biz|cc|in)\b"
 )
@@ -35,7 +39,7 @@ _NAME_WORDS = ("คุณ", "นาย", "นาง", "ชื่อ", "พี่
 _ORG_WORDS = ("ธนาคาร", "ตำรวจ", "ศาล", "ไปรษณีย์", "ขนส่ง", "กรม", "บริษัท")
 _LATIN_WORD = re.compile(r"[a-z]{2,}")
 _DIGIT_RUN = re.compile(r"\d+")
-_STRIP_FOR_COMPARE = re.compile(r"[\s\-.]+")
+STRIP_FOR_COMPARE = re.compile(r"[\s\-.]+")
 
 
 def normalize(text: str) -> str:
@@ -44,8 +48,8 @@ def normalize(text: str) -> str:
     return "".join(c for c in text if unicodedata.category(c) != "Cf")
 
 
-def _compact(text: str) -> str:
-    return _STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
+def compact_text(text: str) -> str:
+    return STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
 
 
 def leak_reasons(
@@ -58,14 +62,18 @@ def leak_reasons(
     """
     norm = normalize(text)
     low = norm.lower()
-    compact = _compact(text)
+    compact = compact_text(text)
     reasons: list[str] = []
     allowed = set(allowed_numbers)
     if any(run not in allowed for run in _DIGIT_RUN.findall(norm)):
         reasons.append("digit")
-    if _THAI_RUN.search(low) or _THAI_RUN.search(compact) or _EN_RUN.search(low):
+    if (
+        SPOKEN_THAI_RUN.search(low)
+        or SPOKEN_THAI_RUN.search(compact)
+        or SPOKEN_ENGLISH_RUN.search(low)
+    ):
         reasons.append("digit_word_run")
-    if _URL_EMAIL.search(low) or _URL_EMAIL.search(compact):
+    if URL_OR_EMAIL.search(low) or URL_OR_EMAIL.search(compact):
         reasons.append("url_or_email")
     for word in _KEYWORDS:
         if word in compact:
@@ -80,7 +88,7 @@ def leak_reasons(
     if _LATIN_WORD.search(low):
         reasons.append("latin_word")
     for ent in entities_seen:
-        needle = _compact(ent.text)
+        needle = compact_text(ent.text)
         if len(needle) >= 2 and needle in compact:
             reasons.append(f"entity:{ent.label}")
     return reasons

@@ -33,14 +33,14 @@ class Speaker:
         return self._tts
 
     @staticmethod
-    def _check(text: str) -> None:
+    def _refuse_leaky_text(text: str) -> None:
         # Defense in depth: replies are already checked, but never speak a number or secret.
         if leak_reasons(text, [], fact_numbers()):
             raise ValueError("refusing to synthesize text that fails the leak check")
 
     def synthesize(self, text: str, out_path: str) -> str:
         """Write a WAV file and return its path."""
-        self._check(text)
+        self._refuse_leaky_text(text)
         tts = self._load()
         _, speaker = self._settings()
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,7 @@ class Speaker:
 
     def synthesize_bytes(self, text: str) -> bytes:
         """Return WAV bytes."""
-        self._check(text)
+        self._refuse_leaky_text(text)
         fd, path = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
         try:

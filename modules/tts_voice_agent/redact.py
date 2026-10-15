@@ -18,7 +18,14 @@ from collections.abc import Iterable
 
 from nlp_core.types import Entity
 
-from .leak import _EN_RUN, _STRIP_FOR_COMPARE, _THAI_RUN, _URL_EMAIL, leak_reasons, normalize
+from .leak import (
+    SPOKEN_ENGLISH_RUN,
+    SPOKEN_THAI_RUN,
+    STRIP_FOR_COMPARE,
+    URL_OR_EMAIL,
+    leak_reasons,
+    normalize,
+)
 
 NUMBER = "[NUMBER]"
 LINK = "[LINK]"
@@ -39,7 +46,7 @@ def _view(text: str, compact: bool) -> tuple[str, list[int]]:
     for i, ch in enumerate(text):
         piece = normalize(ch).lower()
         if compact:
-            piece = _STRIP_FOR_COMPARE.sub("", piece)
+            piece = STRIP_FOR_COMPARE.sub("", piece)
         for c in piece:
             chars.append(c)
             origin.append(i)
@@ -71,9 +78,9 @@ def _is_token_char(ch: str) -> bool:
 def _entity_spans(text: str, entities: Iterable[Entity]) -> list[Span]:
     view, origin = _view(text, compact=True)
     spans: list[Span] = []
-    ordered = sorted(entities, key=lambda e: len(_compact_entity(e.text)), reverse=True)
+    ordered = sorted(entities, key=lambda e: len(compact_text(e.text)), reverse=True)
     for ent in ordered:  # longest first, so a short name inside a long one cannot split it
-        needle = _compact_entity(ent.text)
+        needle = compact_text(ent.text)
         if len(needle) < 2:  # same floor as the leak check
             continue
         pos = view.find(needle)
@@ -83,8 +90,8 @@ def _entity_spans(text: str, entities: Iterable[Entity]) -> list[Span]:
     return spans
 
 
-def _compact_entity(text: str) -> str:
-    return _STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
+def compact_text(text: str) -> str:
+    return STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
 
 
 def _has_digit(ch: str) -> bool:
@@ -140,12 +147,12 @@ def _one_pass(text: str, entities: list[Entity]) -> str:
     text = _apply(text, _digit_spans(text))
     spoken: list[Span] = []
     for compact in (False, True):
-        spoken += _regex_spans(text, _THAI_RUN, NUMBER, compact)
-        spoken += _regex_spans(text, _EN_RUN, NUMBER, compact)
+        spoken += _regex_spans(text, SPOKEN_THAI_RUN, NUMBER, compact)
+        spoken += _regex_spans(text, SPOKEN_ENGLISH_RUN, NUMBER, compact)
     text = _apply(text, spoken)
     links: list[Span] = []
     for compact in (False, True):
-        links += _regex_spans(text, _URL_EMAIL, LINK, compact, expand=True)
+        links += _regex_spans(text, URL_OR_EMAIL, LINK, compact, expand=True)
     return _apply(text, links)
 
 
