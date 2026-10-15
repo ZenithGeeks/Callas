@@ -32,6 +32,7 @@ def pick_voices(
 
 
 def _read_mono16k(path: Path) -> np.ndarray:
+    """A 16-bit WAV as 16 kHz mono samples, resampled when the file has another rate."""
     with wave.open(str(path)) as wav:
         rate, channels, width = wav.getframerate(), wav.getnchannels(), wav.getsampwidth()
         raw = wav.readframes(wav.getnframes())
@@ -49,6 +50,7 @@ def _read_mono16k(path: Path) -> np.ndarray:
 
 
 def _write(path: Path, pcm: np.ndarray) -> None:
+    """Write 16 kHz mono samples as a WAV file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
@@ -65,6 +67,7 @@ class Voices:
         self._lock = threading.Lock()
 
     def speak(self, text: str, voice: str, path: Path) -> float:
+        """Say `text` in `voice`, write it to `path` and return its length in seconds."""
         with self._lock:  # the wrapper writes temp files and is not documented as thread-safe
             if self._tts is None:
                 from pythaitts import TTS
@@ -80,14 +83,14 @@ class Voices:
 def join_call(turn_paths: list[Path], out: Path, gap_s: float) -> list[tuple[float, float]]:
     """Join turn WAVs with gap_s of silence between; return (start, end) seconds of each turn."""
     gap = np.zeros(int(gap_s * SAMPLE_RATE), dtype="<i2")
-    parts, times, now = [], [], 0.0
+    parts, times, position_s = [], [], 0.0
     for i, turn_path in enumerate(turn_paths):
         if i:
             parts.append(gap)
-            now += gap_s
+            position_s += gap_s
         pcm = _read_mono16k(turn_path)
         parts.append(pcm)
-        times.append((round(now, 3), round(now + len(pcm) / SAMPLE_RATE, 3)))
-        now += len(pcm) / SAMPLE_RATE
+        times.append((round(position_s, 3), round(position_s + len(pcm) / SAMPLE_RATE, 3)))
+        position_s += len(pcm) / SAMPLE_RATE
     _write(out, np.concatenate(parts) if parts else np.zeros(0, dtype="<i2"))
     return times

@@ -20,6 +20,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -101,6 +102,30 @@ CREATE TABLE IF NOT EXISTS pattern_notes (
 CREATE INDEX IF NOT EXISTS notes_by_type ON pattern_notes (scam_type, active);
 """
 
+# The values come from _call_values, in this order. On a conflict the review columns and
+# created_at are left alone (see Store.save).
+_UPSERT_CALL = """
+INSERT INTO calls (
+    id, call_type, seed, label_scam, label_type, status, reasons,
+    config_name, config_hash, models, call, voices, briefing, judge,
+    scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
+    speech_style,
+    reference_summary, audio_path,
+    review_status, review_note, reviewed_at, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    status = excluded.status, reasons = excluded.reasons,
+    models = excluded.models, briefing = excluded.briefing,
+    judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
+    scam_start_from = excluded.scam_start_from,
+    receiver_leaked = excluded.receiver_leaked,
+    first_leak_turn = excluded.first_leak_turn,
+    speech_style = excluded.speech_style,
+    reference_summary = excluded.reference_summary,
+    audio_path = excluded.audio_path, updated_at = excluded.updated_at
+"""
+
 _TURN_COLUMNS = (
     "speaker",
     "agent",
@@ -148,6 +173,7 @@ def _add_missing_columns(db: sqlite3.Connection) -> None:
 
 
 def now() -> str:
+    """The current UTC time as an ISO string, to the second."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
@@ -167,9 +193,10 @@ class Store:
                 (str(SCHEMA_VERSION),),
             )
 
-    # ---- connections ----------------------------------------------------------------------
+    # connections
 
     def _conn(self) -> sqlite3.Connection:
+        """This thread's connection, opened on first use."""
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = sqlite3.connect(self.path, timeout=30)
@@ -185,12 +212,13 @@ class Store:
         return self._conn()
 
     def close(self) -> None:
+        """Close this thread's connection. Other threads keep theirs."""
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()
             self._local.conn = None
 
-    # ---- calls ----------------------------------------------------------------------------
+    # calls
 
     def save(self, record: dict) -> None:
         """Write a whole call record (call row and all its turns) in one transaction.
@@ -198,62 +226,11 @@ class Store:
         A new call gets the record's review block, but saving an existing call never changes
         its review: a generator that saves a stale record must not undo a human's decision.
         Use set_review to change it."""
-        gen, review = record["generation"], record.get("review", {})
+        turns = record["generation"]["turns"]
         timed = record.get("speaker_turns") or []
-        stamp = now()
         with self._tx() as db:
-            db.execute(
-                """
-                INSERT INTO calls (
-                    id, call_type, seed, label_scam, label_type, status, reasons,
-                    config_name, config_hash, models, call, voices, briefing, judge,
-                    scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
-                    speech_style,
-                    reference_summary, audio_path,
-                    review_status, review_note, reviewed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?)
-                ON CONFLICT (id) DO UPDATE SET
-                    status = excluded.status, reasons = excluded.reasons,
-                    models = excluded.models, briefing = excluded.briefing,
-                    judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
-                    scam_start_from = excluded.scam_start_from,
-                    receiver_leaked = excluded.receiver_leaked,
-                    first_leak_turn = excluded.first_leak_turn,
-                    speech_style = excluded.speech_style,
-                    reference_summary = excluded.reference_summary,
-                    audio_path = excluded.audio_path, updated_at = excluded.updated_at
-                """,
-                (
-                    record["id"],
-                    record.get("label_type") or "benign",
-                    gen["call"]["seed"],
-                    int(bool(record["label_scam"])),
-                    record.get("label_type"),
-                    gen["status"],
-                    json.dumps(gen.get("reasons", []), ensure_ascii=False),
-                    gen.get("config_name", ""),
-                    gen.get("config_hash", ""),
-                    json.dumps(gen.get("models", {}), ensure_ascii=False),
-                    json.dumps(gen["call"], ensure_ascii=False),
-                    json.dumps(gen.get("voices", {}), ensure_ascii=False),
-                    _dump_or_none(gen.get("briefing")),
-                    _dump_or_none(gen.get("judge")),
-                    record.get("scam_start_turn"),
-                    gen.get("scam_start_from"),
-                    json.dumps(gen.get("receiver_leaked", []), ensure_ascii=False),
-                    gen.get("first_leak_turn"),
-                    gen.get("speech_style", ""),
-                    record.get("reference_summary", ""),
-                    record.get("audio_path"),
-                    review.get("status", "pending"),
-                    review.get("note", ""),
-                    review.get("reviewed_at"),
-                    gen.get("created_at") or stamp,
-                    stamp,
-                ),
-            )
-            for i, turn in enumerate(gen["turns"]):
+            db.execute(_UPSERT_CALL, _call_values(record, now()))
+            for i, turn in enumerate(turns):
                 timing = timed[i] if i < len(timed) else {}
                 values = [_turn_value(turn, c) for c in _TURN_COLUMNS]
                 db.execute(
@@ -266,8 +243,7 @@ class Store:
                 )
             # A rerun of the same call can only grow, but keep the table exact anyway.
             db.execute(
-                "DELETE FROM turns WHERE call_id = ? AND idx >= ?",
-                (record["id"], len(gen["turns"])),
+                "DELETE FROM turns WHERE call_id = ? AND idx >= ?", (record["id"], len(turns))
             )
 
     def load(self, call_id: str) -> dict | None:
@@ -279,7 +255,7 @@ class Store:
         turns = db.execute(
             "SELECT * FROM turns WHERE call_id = ? ORDER BY idx", (call_id,)
         ).fetchall()
-        return _record(row, turns)
+        return _record_from_rows(row, turns)
 
     def load_call(self, call_id: str) -> CallRecord | None:
         """The call as a CallRecord, or None."""
@@ -296,6 +272,7 @@ class Store:
             yield CallRecord.from_dict(record)
 
     def exists(self, call_id: str) -> bool:
+        """Whether a call with this id is stored."""
         return (
             self._conn().execute("SELECT 1 FROM calls WHERE id = ?", (call_id,)).fetchone()
             is not None
@@ -328,6 +305,7 @@ class Store:
         )
 
     def set_review(self, call_id: str, status: str, note: str) -> bool:
+        """Record a human review (pending, approved or rejected). False if there is no such call."""
         reviewed_at = None if status == "pending" else now()
         with self._tx() as db:
             cur = db.execute(
@@ -337,11 +315,25 @@ class Store:
             )
         return cur.rowcount == 1
 
+    def reject_after_model_error(self, call_id: str, exc: BaseException) -> bool:
+        """Mark an unfinished call `rejected` with the reason `llm_error:<error name>`.
+
+        Used when a model error survived the retries. Returns False, and changes nothing, when
+        there is no such call or it is already finished."""
+        record = self.load_call(call_id)
+        if record is None or record.generation.status != "in_progress":
+            return False
+        reasons = [f"llm_error:{type(exc).__name__}"]
+        generation = replace(record.generation, status="rejected", reasons=reasons)
+        self.save_call(replace(record, generation=generation))
+        return True
+
     def delete(self, call_id: str) -> None:
+        """Delete a call and, through the foreign key, its turns."""
         with self._tx() as db:
             db.execute("DELETE FROM calls WHERE id = ?", (call_id,))
 
-    # ---- pattern notes --------------------------------------------------------------------
+    # pattern notes
 
     def add_note(
         self,
@@ -352,6 +344,7 @@ class Store:
         source: str = "",
         published: str | None = None,
     ) -> int:
+        """Store one pattern note and return its id."""
         with self._tx() as db:
             cur = db.execute(
                 """INSERT INTO pattern_notes
@@ -432,18 +425,54 @@ class Store:
         return int(row[0]), int(row[1])
 
     def set_note_active(self, note_id: int, active: bool) -> None:
+        """Turn a note on or off for the planner. The note stays in the store."""
         with self._tx() as db:
             db.execute("UPDATE pattern_notes SET active = ? WHERE id = ?", (int(active), note_id))
 
 
-# ---- row <-> record -----------------------------------------------------------------------
+# row <-> record
+
+
+def _call_values(record: dict, stamp: str) -> tuple:
+    """The values of the calls row for this record, in the order of _UPSERT_CALL."""
+    generation, review = record["generation"], record.get("review", {})
+    return (
+        record["id"],
+        record.get("label_type") or "benign",
+        generation["call"]["seed"],
+        int(bool(record["label_scam"])),
+        record.get("label_type"),
+        generation["status"],
+        json.dumps(generation.get("reasons", []), ensure_ascii=False),
+        generation.get("config_name", ""),
+        generation.get("config_hash", ""),
+        json.dumps(generation.get("models", {}), ensure_ascii=False),
+        json.dumps(generation["call"], ensure_ascii=False),
+        json.dumps(generation.get("voices", {}), ensure_ascii=False),
+        _dump_or_none(generation.get("briefing")),
+        _dump_or_none(generation.get("judge")),
+        record.get("scam_start_turn"),
+        generation.get("scam_start_from"),
+        json.dumps(generation.get("receiver_leaked", []), ensure_ascii=False),
+        generation.get("first_leak_turn"),
+        generation.get("speech_style", ""),
+        record.get("reference_summary", ""),
+        record.get("audio_path"),
+        review.get("status", "pending"),
+        review.get("note", ""),
+        review.get("reviewed_at"),
+        generation.get("created_at") or stamp,
+        stamp,
+    )
 
 
 def _dump_or_none(value: Any) -> str | None:
+    """JSON text for a column that may be NULL."""
     return None if value is None else json.dumps(value, ensure_ascii=False)
 
 
 def _turn_value(turn: dict, column: str) -> Any:
+    """The turn's value for one turns column, in the form the column stores."""
     value = turn.get(column)
     if column in _JSON_TURN_FIELDS:
         return json.dumps(value or [], ensure_ascii=False)
@@ -454,7 +483,8 @@ def _turn_value(turn: dict, column: str) -> Any:
     return value
 
 
-def _turn(row: sqlite3.Row) -> dict:
+def _turn_from_row(row: sqlite3.Row) -> dict:
+    """A turns row as the turn dict of a record."""
     turn = {c: row[c] for c in _TURN_COLUMNS}
     for c in _JSON_TURN_FIELDS:
         turn[c] = json.loads(turn[c])
@@ -463,7 +493,7 @@ def _turn(row: sqlite3.Row) -> dict:
     return turn
 
 
-def _text(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
+def _dialogue(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
     """The spec's `text` ("A: ...\\nB: ...") and entity spans shifted into it."""
     parts, spans, offset = [], [], 0
     for t in turns:
@@ -477,8 +507,9 @@ def _text(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
     return "\n".join(parts), spans
 
 
-def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
-    text, entities = _text(turns)
+def _record_from_rows(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
+    """A calls row and its turns rows as the call record the web pages and the export read."""
+    text, entities = _dialogue(turns)
     return {
         "id": row["id"],
         "channel": "call",
@@ -505,7 +536,7 @@ def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
             "call": json.loads(row["call"]),
             "voices": json.loads(row["voices"]),
             "briefing": json.loads(row["briefing"]) if row["briefing"] else None,
-            "turns": [_turn(t) for t in turns],
+            "turns": [_turn_from_row(t) for t in turns],
             "receiver_leaked": json.loads(row["receiver_leaked"]),
             "first_leak_turn": row["first_leak_turn"],
             "speech_style": row["speech_style"],
