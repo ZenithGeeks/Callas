@@ -1,4 +1,4 @@
-"""Tool-calling sub-agents on the vLLM server (OpenAI-compatible).
+"""Tool-calling analyst agent on the vLLM server (OpenAI-compatible).
 
 The only LLM endpoint used is `settings.vllm_base_url`. Call text never goes anywhere else.
 
@@ -65,7 +65,8 @@ def build_analyst_agent(model=None):
     return create_agent(model, TOOLS, system_prompt=ANALYST_PROMPT)
 
 
-def _text(content) -> str:
+def _content_text(content) -> str:
+    """Text of a message whose content is a string or a list of text blocks."""
     if isinstance(content, str):
         return content
     return "".join(
@@ -82,4 +83,4 @@ def explain(text: str, agent=None) -> str:
         if "tool" in str(exc).lower():
             raise ToolCallingUnavailable(TOOL_HINT) from exc
         raise
-    return _text(out["messages"][-1].content).strip()
+    return _content_text(out["messages"][-1].content).strip()

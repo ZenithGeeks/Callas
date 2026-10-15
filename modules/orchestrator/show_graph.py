@@ -20,10 +20,12 @@ class _SilentSpeaker:
     """Stand-in so the optional speak node is part of the drawn turn graph."""
 
     def synthesize_bytes(self, text: str) -> bytes:
+        """Return no audio."""
         return b""
 
 
 def mermaid() -> str:
+    """Markdown text with the turn graph (speaker present) and the message graph as Mermaid."""
     rt = Runtime(llm=FakeLLM(), speaker=_SilentSpeaker())
     turn = build_turn_graph(rt).get_graph().draw_mermaid()
     message = build_message_graph(rt).get_graph().draw_mermaid()

@@ -27,6 +27,8 @@ def to_jsonable(obj: Any) -> Any:
 
 
 class CallSessions:
+    """Start, run and end calls. Owns the two compiled graphs; call memory is `runtime.states`."""
+
     def __init__(self, runtime: Runtime) -> None:
         self.runtime = runtime
         self._turn_graph = build_turn_graph(runtime)
@@ -37,25 +39,29 @@ class CallSessions:
         return self.runtime.states
 
     def start(self, call_id: str | None = None) -> str:
+        """Open a call with empty memory and return its id (a new one if none is given)."""
         call_id = call_id or uuid.uuid4().hex
         if call_id in self._states:
             raise ValueError(f"call {call_id!r} already started")
         self._states[call_id] = CallState()
         return call_id
 
-    def _input(self, call_id: str, turn: Turn) -> dict:
+    def _turn_input(self, call_id: str, turn: Turn) -> dict:
+        """The turn graph's starting state. Fails early for a call that was never started."""
         if call_id not in self._states:
             raise KeyError(f"unknown call {call_id!r}; call start() first")
         return {"call_id": call_id, "turn": turn, "timings": {}}
 
     def on_turn(self, call_id: str, turn: Turn) -> dict:
         """Run one turn through the graph and return the final state dict."""
-        return self._turn_graph.invoke(self._input(call_id, turn), context=self.runtime.context())
+        return self._turn_graph.invoke(
+            self._turn_input(call_id, turn), context=self.runtime.context()
+        )
 
     def stream_turn(self, call_id: str, turn: Turn) -> Iterator[dict]:
         """Yield {"node": name, "update": {...}} as each node finishes."""
         for chunk in self._turn_graph.stream(
-            self._input(call_id, turn), context=self.runtime.context(), stream_mode="updates"
+            self._turn_input(call_id, turn), context=self.runtime.context(), stream_mode="updates"
         ):
             for node, update in chunk.items():
                 yield {"node": node, "update": update}
