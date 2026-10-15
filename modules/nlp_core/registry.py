@@ -3,8 +3,9 @@
     register("classifier", "wangchanberta", lambda: WangchanbertaClassifier(...))
     # then set NLP_CLASSIFIER=wangchanberta in .env
 
-Defaults come from env vars NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"),
-read at the time of each `get()`. Each (kind, name) instance is built once and cached.
+Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"): the
+process environment first, read at each `get()`, then .env. Each (kind, name) instance is
+built once and cached.
 """
 
 from __future__ import annotations
@@ -53,7 +54,10 @@ def available(kind: str) -> list[str]:
 
 def default_name(kind: str) -> str:
     _check_kind(kind)
-    return os.environ.get(ENV_VARS[kind], "").strip() or DEFAULT_NAMES[kind]
+    from callas_settings import get_settings
+
+    from_env = os.environ.get(ENV_VARS[kind], "").strip()
+    return from_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
 
 
 def get(kind: str, name: str | None = None) -> Any:

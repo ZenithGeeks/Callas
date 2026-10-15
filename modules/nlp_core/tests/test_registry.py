@@ -1,5 +1,6 @@
 import pytest
 
+import callas_settings
 from llm_serving.fake import FakeLLM
 from nlp_core import registry
 from nlp_core.registry import LLMClassifier, LLMSummarizer, RulesNER
@@ -11,6 +12,10 @@ def clean_registry(monkeypatch):
     saved_i = dict(registry._INSTANCES)
     for var in registry.ENV_VARS.values():
         monkeypatch.delenv(var, raising=False)
+    # ignore the developer's own .env
+    monkeypatch.setattr(
+        callas_settings, "get_settings", lambda: callas_settings.Settings(_env_file=None)
+    )
     yield
     registry._FACTORIES.clear()
     registry._FACTORIES.update(saved_f)
@@ -33,6 +38,23 @@ def test_env_override(monkeypatch):
     monkeypatch.setenv("NLP_CLASSIFIER", "mine")
     assert isinstance(registry.get("classifier"), Mine)
     assert isinstance(registry.get("classifier", "llm"), LLMClassifier)  # explicit name wins
+
+
+def test_dotenv_is_read_and_the_process_environment_wins(monkeypatch, tmp_path):
+    class Mine:
+        def predict(self, text):
+            return False, None, 0.5
+
+    registry.register("classifier", "mine", Mine)
+    env_file = tmp_path / ".env"
+    env_file.write_text("NLP_CLASSIFIER=mine" + chr(10), encoding="utf-8")
+    monkeypatch.setattr(
+        callas_settings, "get_settings", lambda: callas_settings.Settings(_env_file=env_file)
+    )
+    assert registry.default_name("classifier") == "mine"
+    assert isinstance(registry.get("classifier"), Mine)
+    monkeypatch.setenv("NLP_CLASSIFIER", "llm")
+    assert registry.default_name("classifier") == "llm"
 
 
 def test_unknown_name_lists_available(monkeypatch):
