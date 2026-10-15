@@ -1,0 +1,167 @@
+# What each agent in a simulated call is told, and how it runs.
+#
+# Edit the text freely. Do not add, remove or rename keys under `fields`: the simulator code
+# reads those fields by name, and the loader rejects a config that changes them.
+# Slots ({PHONE}, {URL}, ...) are filled with made-up values after each line; see details.yaml.
+#
+# lm: model (empty = VLLM_MODEL in .env), temperature, max_tokens. max_tokens must cover the
+# chain-of-thought reasoning as well as the answer.
+
+# Shared by both callers. YAML anchors (&name / *name) reuse the same text below.
+slot_rule: &slot_rule >-
+  Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
+  directions, no speaker name. Never write a real number, account, code, link or name: write
+  the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
+  {MONEY}). These are the only slots: for any other detail (an address, another person's name)
+  stay vague instead of inventing a slot. Do not repeat a line already said.
+
+speakers:
+  caller_tag: ผู้โทร
+  receiver_tag: ผู้รับ
+  empty_call: (สายเพิ่งต่อติด ยังไม่มีใครพูด)
+  voice:
+    male: "male: say ผม and ครับ"
+    female: "female: say ดิฉัน or ฉัน and ค่ะ / คะ"
+
+scam_caller:
+  instructions: >-
+    You play a phone scammer in a training simulation for a scam-detection system. Stay in
+    character and sound like a real caller, not like a villain: real scammers are polite,
+    confident and specific. Never say you are a scammer.
+  fields:
+    role: who you claim to be
+    voice: your gender and the pronoun and polite particle to use
+    org: organisation you claim to be from (write it as {ORG})
+    goal: what you want the receiver to do by the end of the call
+    tactics: how you get there
+    receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
+    pacing: where you are in the call and what you may do now
+    plan: >-
+      your plan for this call, one step per turn, written before the call from recent reports
+      of real scams of this type; follow it, but react to what the receiver actually says
+    conversation: the call so far, in Thai
+    line: *slot_rule
+    asks_now: >-
+      true if this line asks for money, a transfer, an OTP or code, card, bank or ID details,
+      an app install or a link visit, gives a number or link for the receiver to use, or
+      threatens the receiver to make them comply
+    end_call: true if you hang up after this line
+  # {turn} = this turn (from 1), {turns} = the caller's last possible turn
+  pacing:
+    before: "This is your turn {turn} in a call of at most {turns} turns. Do not ask for anything yet: set up the situation and build trust."
+    start: "This is your turn {turn} in a call of at most {turns} turns. Now start moving the receiver toward your goal."
+    push: "This is your turn {turn} in a call of at most {turns} turns. Keep pushing toward your goal, adapting to what the receiver said."
+    last: "This is your turn {turn} in a call of at most {turns} turns. The call is almost over: make your ask now, clearly."
+  lm: {temperature: 0.0, max_tokens: 1000}
+
+legit_caller:
+  instructions: >-
+    You play an ordinary, honest caller in a Thai phone call. Be natural and brief, the way
+    real staff, couriers or relatives talk.
+  fields:
+    role: who you are
+    voice: your gender and the pronoun and polite particle to use
+    org: your organisation (write it as {ORG}), or empty
+    goal: why you are calling
+    manner: how you handle the call
+    receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
+    conversation: the call so far, in Thai
+    line: *slot_rule
+    end_call: true if you hang up after this line
+  lm: {temperature: 0.0, max_tokens: 1000}
+
+receiver:
+  instructions: >-
+    You are a Thai person who just answered a phone call from someone you do not know. You do
+    not know why they called. Stay in the persona: your age, job, education, where you live,
+    who you live with, how you use your phone and what you know about scams decide what you
+    understand, what you agree to and how you talk. Speak casual spoken Thai. Your name is
+    {RECEIVER_NAME}: write it as that slot if you say it. If you read out a code from an SMS
+    write {OTP}; never write any other number.
+  fields:
+    persona: who you are, as a JSON object; every field matters
+    voice: your gender and the pronoun and polite particle to use
+    stage: where you are in the call
+    conversation: the call so far, in Thai
+    line: your next line, 1-2 short sentences, spoken Thai only
+    end_call: true if you hang up after this line
+  # Without this most receivers hung up on their first line, before the caller said why they
+  # called, and those calls show nothing.
+  stay_on_line: 2
+  stage:
+    stay: "Your turn {turn}. Like most people, you stay on the line for the first few exchanges to hear what this is about; do not hang up yet."
+    free: "Your turn {turn}. React as you normally would."
+  lm: {temperature: 0.0, max_tokens: 1000}
+
+# Runs once before each scam call. Turns the scenario and the newest pattern notes for its
+# scam type (see patterns.py; the team adds notes from news reports) into a step-by-step plan
+# the scam caller reads on every turn. With no notes it plans from the scenario alone.
+planner:
+  instructions: >-
+    Plan a phone scam call for a training simulation of a scam-detection system. Use the
+    pattern notes from recent real cases when there are any: copy their order of steps and
+    pressure tactics, not their details. One step per caller turn. Do not ask for anything
+    before the reveal turn. Never include real names, numbers or links; use slots like {MONEY}.
+  fields:
+    scam_type: the kind of scam this call is
+    role: who the caller claims to be
+    goal: what the caller wants by the end of the call
+    tactics: how the scenario says the caller gets there
+    pattern_notes: notes from recent real cases of this scam type, newest first
+    turns: how many turns the caller has, and the first turn it may ask for something
+    plan: one short step per caller turn, in English, in order
+  notes_limit: 6
+  lm: {temperature: 0.0, max_tokens: 1200}
+
+# Used by `python -m data_pipeline.patterns add`: reads one article and writes a pattern note.
+pattern_extractor:
+  instructions: >-
+    Read a Thai news report or police warning about a phone scam and write down how the scam
+    works, so a training simulator can imitate the pattern. Describe tactics only: leave out
+    names of victims or suspects, phone numbers, account numbers and links.
+  fields:
+    scam_type: the scam type this note is for
+    article: article text, Thai or English
+    relevant: true only if the article describes a phone or chat scam of this type
+    summary: "2-3 sentences in English: who they pose as and what they want"
+    tactics: 3-6 short steps or pressure tactics, in the order the scammer uses them
+    phrases: up to 5 short Thai phrases scammers say, any detail replaced by a slot like {MONEY}
+  lm: {temperature: 0.0, max_tokens: 1500}
+
+judge:
+  instructions: >-
+    Check a simulated Thai phone call before it goes into a scam-detection dataset. Judge the
+    transcript alone, as a careful Thai reader would. Be strict: a call that does not clearly
+    show what it is meant to show must be rejected.
+  fields:
+    intended: what this call is meant to be
+    transcript: "numbered speaker turns, [n] speaker: text"
+    label_holds: true only if the transcript on its own clearly shows the intended kind of call
+    scam_start_turn: >-
+      number of the first turn where the scam shows (an ask for money, codes, details, an app
+      or a link, or a threat); -1 if there is none
+    natural_thai: >-
+      1-5: how much the flow and wording sound like a real Thai phone call (5 = real, 1 =
+      machine text). Ignore spelling: it is checked separately.
+    giveaway: >-
+      true if the text names the label outright in a way a real call would not: narration, or
+      the caller admitting it is a scam
+    summary: 1-2 sentence Thai summary of what happened in the call
+    issues: short English note of problems, or 'none'
+  intended:
+    fake_authority: a scam call where the caller pretends to be police, a government office or a public utility
+    romance: a scam call from an online love interest who wants money
+    investment: a scam call selling a fake investment with unrealistic returns
+    phishing_otp: a scam call that tries to get an OTP, card details, or a visit to a fake link
+    lottery: a scam call that says the receiver won a prize but must pay a fee first
+    benign: a normal, legitimate phone call (not a scam)
+  # The judge reads the whole call; give it room for reasoning and the summary.
+  lm: {temperature: 0.0, max_tokens: 1600}
+
+# Text to speech for each turn (VachanaTTS2 through PyThaiTTS). Caller and receiver always get
+# different voices, so each gender needs at least two.
+tts:
+  voices:
+    male: [th_m_1, th_m_2]
+    female: [th_f_1, th_f_2]
+  gap_s: 0.45  # silence between turns in the joined call audio

@@ -1,0 +1,81 @@
+# Made-up values that fill the slots the agents write ({PHONE}, {URL}, ...).
+#
+# Each call draws its own values from its seed and keeps them for the whole call. Phone numbers,
+# account numbers and OTPs are random digits (see fill.py); links are built from the words
+# below, so no real number or link from the model's memory reaches the data.
+#
+#   names         first names by gender, for {CALLER_NAME} and {RECEIVER_NAME}
+#   banks         {ORG} when a scenario's org is "ธนาคาร"
+#   made_up_orgs  {ORG} when a scenario's org is "*"
+#   urls          {URL} = https://<word>-<word><2 digits>.<tld>
+#   money         {MONEY} in baht; big_types use the big amounts
+
+names:
+  male:
+  - สมชาย
+  - วิชัย
+  - ประเสริฐ
+  - อนันต์
+  - ธนพล
+  - ณัฐวุฒิ
+  - เกียรติศักดิ์
+  - ชัยวัฒน์
+  - สุรเชษฐ์
+  - ปิยะพงษ์
+  female:
+  - สมศรี
+  - มาลี
+  - สุภาพร
+  - กัญญา
+  - พิมพ์ชนก
+  - ศิริพร
+  - อรุณี
+  - จันทร์เพ็ญ
+  - วราภรณ์
+  - นภัสสร
+banks:
+- ธนาคารกสิกรไทย
+- ธนาคารไทยพาณิชย์
+- ธนาคารกรุงเทพ
+- ธนาคารกรุงไทย
+- ธนาคารกรุงศรีอยุธยา
+- ธนาคารออมสิน
+- ธนาคารทหารไทยธนชาต
+made_up_orgs:
+- บริษัท เอเชียโกลด์ เทรดดิ้ง
+- สยามพลัส อินเวสต์
+- ไทยเอ็กซ์เพรส โลจิสติกส์
+- โกลบอลวิน กรุ๊ป
+- ทรัพย์ทวี แคปปิตอล
+urls:
+  words:
+  - secure
+  - refund
+  - gift
+  - verify
+  - promo
+  - service
+  - update
+  - member
+  tlds:
+  - com
+  - net
+  - online
+  - xyz
+  - co
+money:
+  big_types:
+  - fake_authority
+  - investment
+  - romance
+  big:
+  - 15000
+  - 30000
+  - 49500
+  - 85000
+  - 120000
+  small:
+  - 350
+  - 1290
+  - 2500
+  - 9900
