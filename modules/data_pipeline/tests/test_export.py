@@ -377,6 +377,8 @@ def test_columns_and_tags(tmp_path):
         "group_hint",
         "scam_start_turn",
         "call_id",
+        "receiver_leaked",
+        "first_leak_turn",
     ]
     assert set(frame["source"]) == {"simulated"}
     first = frame["dialogue"].iat[0]
@@ -625,23 +627,30 @@ def test_without_a_generated_file_the_notebook_writes_the_committed_processed_fi
 
 
 def test_leak_columns_are_exported_when_the_store_has_them(tmp_path):
-    db = build_store(tmp_path, make_call("phishing_otp_00000"), make_call("benign_00000", "benign"))
-    con = sqlite3.connect(db)
-    con.execute("ALTER TABLE calls ADD COLUMN receiver_leaked INTEGER")
-    con.execute("ALTER TABLE calls ADD COLUMN first_leak_turn INTEGER")
-    con.execute("UPDATE calls SET receiver_leaked = 1, first_leak_turn = 3 WHERE id LIKE 'phish%'")
-    con.execute("UPDATE calls SET receiver_leaked = 0 WHERE id LIKE 'benign%'")
-    con.commit()
-    con.close()
+    """A store made by the current Store, which has the leak columns, with leaks saved in it."""
+    leaky = make_call("phishing_otp_00000")
+    leaky["generation"]["receiver_leaked"] = ["PHONE", "BANK_ACCOUNT"]
+    leaky["generation"]["first_leak_turn"] = 3
+    db = build_store(tmp_path, leaky, make_call("benign_00000", "benign"))
     frame = read(run_export(db, tmp_path)[0]).set_index("call_id")
-    assert frame.loc["phishing_otp_00000", "receiver_leaked"] == "1"
+    assert json.loads(frame.loc["phishing_otp_00000", "receiver_leaked"]) == [
+        "PHONE",
+        "BANK_ACCOUNT",
+    ]
     assert frame.loc["phishing_otp_00000", "first_leak_turn"] == "3"
-    assert frame.loc["benign_00000", "receiver_leaked"] == "0"
+    assert frame.loc["benign_00000", "receiver_leaked"] == "[]"
     assert frame.loc["benign_00000", "first_leak_turn"] == ""
 
 
 def test_a_store_without_leak_columns_exports_without_them(tmp_path):
-    out, written, _ = run_export(build_store(tmp_path, make_call()), tmp_path)
+    """A store from before the leak columns existed."""
+    db = build_store(tmp_path, make_call())
+    con = sqlite3.connect(db)
+    con.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
+    con.execute("ALTER TABLE calls DROP COLUMN first_leak_turn")
+    con.commit()
+    con.close()
+    out, written, _ = run_export(db, tmp_path)
     assert written == 1
     assert not {"receiver_leaked", "first_leak_turn"} & set(read(out).columns)
 
