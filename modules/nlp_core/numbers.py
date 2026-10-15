@@ -10,13 +10,17 @@ what it is, so the rule follows that. Everything that is not a number below is l
    groups or run everything together, so spaces between digit words are dropped
    ("หนึ่งห้าแปด ห้า" is 1585) and only ขีด/ลบ becomes "-". At least MIN_DIGITS (4) digit
    words in a row, or groups joined by ขีด/ลบ with 6 digits or more in all. "สองคน",
-   "สามสี่วัน" and "ห้าลบสอง" stay.
+   "สามสี่วัน" and "ห้าลบสอง" stay. Known trade-off: a run of 4 or more digit words converts even
+   before a counter ("สองสามสี่ห้าวัน" becomes "2345 วัน"); an extra entity is safer than a
+   missed phone number.
 2. Money is read with place value (สิบ ร้อย พัน หมื่น แสน ล้าน, ยี่สิบ, สิบเอ็ด): it is
    converted when a unit follows (บาท, ดอลลาร์, ...) or a money word comes right before it
-   (เงิน โอน ยอด ค่า ราคา จำนวน). "โอนหนึ่งร้อยห้าสิบแปดบาท" is "โอน 158 บาท". A single
-   digit word before a unit ("ห้าบาท") converts too. When the ASR drops พัน/หมื่น ("สี่สิบเก้า
-   ห้าร้อยบาท", "หนึ่ง สองร้อยเก้าสิบบาท") two pieces split by a space become thousands plus
-   hundreds (49500, 1290).
+   (เงิน โอน ยอด ค่า ราคา จำนวน) and no counter follows (คน ปี วัน เดือน ครั้ง ชั้น ตัว ชิ้น ข้อ
+   ที่: "จำนวนสามสิบคน" stays). "โอนหนึ่งร้อยห้าสิบแปดบาท" is "โอน 158 บาท". A bare multiplier
+   counts as 1 ("ล้านบาท", "สามร้อยสิบบาท" = 310). A single digit word before a unit ("ห้าบาท")
+   converts too, but เอ็ด alone does not. Two numbers split by a space ("สอง สามร้อยบาท")
+   are never merged: that would invent an amount, so the pair stays words. A range written
+   with a hyphen ("ห้าสิบ-หกสิบบาท") converts neither half.
 3. A place-value number with no money context stays words: "สามสิบคน", "สิบวัน", "ร้อยละห้า".
    The one exception is a code: after รหัส / OTP / โค้ด a place-value value of 1000 or more
    converts, as an ASR may read an OTP like a number.
@@ -50,6 +54,7 @@ _UNITS = ("บาท", "ดอลลาร์", "เหรียญ", "หยว
 _ALT = "|".join(sorted((*THAI_NUMBER_WORDS, *_DASH), key=len, reverse=True))
 _WORD = re.compile(_ALT)
 _UNIT_AFTER = re.compile(rf"\s*(?:{'|'.join(_UNITS)})")
+_COUNTER_AFTER = re.compile(r"\s*(?:คน|ปี|วัน|เดือน|ครั้ง|ชั้น|ตัว|ชิ้น|ข้อ|ที่)")
 _MONEY_BEFORE = re.compile(r"(?:เงิน|โอน|ยอด|ค่า|ราคา|จำนวน)\s*$")
 _CODE_BEFORE = re.compile(r"(?:otp|โอทีพี|รหัส|โค้ด|code)[^\d]{0,15}$", re.I)
 _EN_ALT = "|".join(ENGLISH_DIGIT_WORDS)
@@ -63,8 +68,8 @@ def _place_value(words: list[str]) -> int | None:
     if "ล้าน" in words:
         i = len(words) - 1 - words[::-1].index("ล้าน")
         head, tail = words[:i], words[i + 1 :]
-        millions = _place_value(head) if len(head) > 1 else _digit_or_none(head)
-        rest = _place_value(tail) if tail else 0
+        millions = _place_value(head) or _digit_or_none(head) if head else 1  # "ล้านบาท" = 1 ล้าน
+        rest = (_place_value(tail) or _digit_or_none(tail)) if tail else 0
         if millions is None or rest is None or rest >= 1_000_000:
             return None
         return millions * 1_000_000 + rest
@@ -80,7 +85,7 @@ def _place_value(words: list[str]) -> int | None:
             pending = _DIGITS[w]
         else:
             m = _MULT[w]
-            if m >= last or (pending is None and i and words[i - 1] not in _DIGITS):
+            if m >= last:
                 return None
             total += (1 if pending is None else pending) * m
             pending, last = None, m
@@ -123,25 +128,15 @@ def _read_run(words: list[str], before: str, after: str) -> str | None:
     kind, text = parsed[0]  # type: ignore[misc]
     if kind == "digits":
         if _UNIT_AFTER.match(after) and len(words) == 1:
-            return text
+            return None if words[0] == "เอ็ด" else text  # เอ็ด is 1 only after สิบ or in a run
         return text if len(words) >= MIN_DIGITS else None
-    if _UNIT_AFTER.match(after) or _MONEY_BEFORE.search(before):
+    if _UNIT_AFTER.match(after):
+        return text
+    if _COUNTER_AFTER.match(after):  # "จำนวนสามสิบคน" is a head count, not money
+        return None
+    if _MONEY_BEFORE.search(before):
         return text
     return text if int(text) >= 1000 and _CODE_BEFORE.search(before) else None
-
-
-def _split_gap_amount(words: list[str], gaps: list[bool]) -> str | None:
-    """'สี่สิบเก้า ห้าร้อย' (49 and 500, พัน dropped by the ASR) before a unit: 49500."""
-    if gaps.count(True) != 1:
-        return None
-    cut = gaps.index(True) + 1
-    a = _place_value(words[:cut])
-    if a is None:
-        a = _digit_or_none(words[:cut])
-    b = _place_value(words[cut:])
-    if a is None or b is None or not (1 <= a < 100 and 100 <= b < 1000) or "ร้อย" not in words[cut:]:
-        return None
-    return str(a * 1000 + b)
 
 
 def _thai_edits(text: str) -> list[tuple[int, int, str]]:
@@ -178,9 +173,12 @@ def _thai_edits(text: str) -> list[tuple[int, int, str]]:
         start, end = run[0].start(), run[-1].end()
         before, after = text[:start], text[end:]
         out = _read_run(words, before, after)
-        if out is None and _UNIT_AFTER.match(after):
-            gaps = [run[k].end() != run[k + 1].start() for k in range(len(run) - 1)]
-            out = _split_gap_amount(words, gaps)
+        # a range such as "ห้าสิบ-หกสิบบาท": both halves convert or neither; only a long digit
+        # run keeps converting next to a hyphen
+        long_digits = len(words) >= MIN_DIGITS and all(w in _DIGITS or w in _DASH for w in words)
+        hyphen = before.rstrip().endswith("-") or after.lstrip().startswith("-")
+        if out is not None and hyphen and not long_digits:
+            out = None
         if out is not None:
             pad_l = " " if before and not before[-1].isspace() else ""
             pad_r = " " if after and not after[0].isspace() else ""

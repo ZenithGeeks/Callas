@@ -24,7 +24,10 @@ def default_summarize(text: str) -> str:
 
 
 def clean_turn(turn: Turn) -> Turn:
-    """The turn with clean text (normalized, maybe corrected); raw keeps the original ASR text."""
+    """The turn with clean text: normalized, spoken numbers as digits, maybe corrected.
+
+    raw keeps the original ASR text.
+    """
     from nlp_core.numbers import spoken_numbers_to_digits
     from nlp_core.text import autocorrect_text, normalize_text
 

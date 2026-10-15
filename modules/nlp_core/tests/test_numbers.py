@@ -3,6 +3,7 @@ import pytest
 from asr_diarization.types import Turn
 from nlp_core.entities import extract_entities
 from nlp_core.numbers import spoken_numbers_to_digits
+from tts_voice_agent.leak import leak_reasons
 from tts_voice_agent.memory import clean_turn
 
 # (spoken, expected)
@@ -36,8 +37,16 @@ CONVERTED = [
     ("จ่ายยี่สิบเอ็ดบาท", "จ่าย 21 บาท"),
     ("สองล้านห้าแสนบาท", "2500000 บาท"),
     ("สี่หมื่นเก้าพันห้าร้อยบาท", "49500 บาท"),
-    ("ภาษีสี่สิบเก้า ห้าร้อยบาท ถึงจะส่งได้", "ภาษี 49500 บาท ถึงจะส่งได้"),  # พัน dropped by ASR
-    ("ต้องโอน หนึ่ง สองร้อยเก้าสิบบาท เข้าบัญชี", "ต้องโอน 1290 บาท เข้าบัญชี"),
+    # a bare multiplier counts as 1
+    ("ล้านบาท", "1000000 บาท"),
+    ("สิบล้านบาท", "10000000 บาท"),
+    ("ร้อยล้านบาท", "100000000 บาท"),
+    ("หมื่นล้านบาท", "10000000000 บาท"),
+    ("เงินสิบล้าน", "เงิน 10000000"),
+    ("หนึ่งล้านหนึ่งบาท", "1000001 บาท"),
+    ("หนึ่งร้อยสิบเอ็ดบาท", "111 บาท"),
+    ("สามร้อยสิบบาท", "310 บาท"),
+    ("ร้อยสิบเอ็ดบาท", "111 บาท"),
     ("ค่าธรรมเนียมห้าบาท", "ค่าธรรมเนียม 5 บาท"),
     ("ยอดค้างชำระสามหมื่นห้าพัน", "ยอดค้างชำระสามหมื่นห้าพัน"),  # money word is not right before
     ("ยอดสามหมื่นห้าพัน", "ยอด 35000"),
@@ -66,6 +75,24 @@ UNCHANGED = [
     "สองร้อยลบสามสิบ",
     "เก้าอี้ห้าตัว",
     "ซื้อของห้าหกเจ็ดแปดเก้าอี้ให้เขา",  # a long run that ends inside the word เก้าอี้
+    # two numbers split by a space are never merged into one amount
+    "ผมมีลูกสอง สามร้อยบาท",
+    "มีคนสามสิบ ห้าร้อยบาท",
+    "โอนยี่สิบ สามร้อยบาท",
+    "ภาษีสี่สิบเก้า ห้าร้อยบาท ถึงจะส่งได้",
+    # a money word before a head count or a year
+    "จำนวนสามสิบคน",
+    "โอนเงินสามสิบห้าคน",
+    "ค่าสองร้อยคน",
+    "ค่าสองพันห้าร้อยหกสิบเจ็ดปี",
+    "ยอดสิบวัน",
+    "ราคาสองร้อยชิ้น",
+    # a range written with a hyphen converts neither half
+    "ห้าสิบ-หกสิบบาท",
+    "โอนห้าสิบ - หกสิบบาท",
+    "สอง-สามบาท",
+    # เอ็ด is 1 only after สิบ or in a digit run
+    "เอ็ดบาท",
     "I have one or two things",
     "สวัสดีครับ ผมโทรมาจากธนาคาร",
 ]
@@ -81,8 +108,14 @@ def test_ordinary_words_stay(text):
     assert spoken_numbers_to_digits(text) == text
 
 
-def test_the_table_is_big_enough():
-    assert len(CONVERTED) >= 20 and len(UNCHANGED) >= 8
+def test_a_long_digit_run_still_converts_before_a_counter():
+    # known trade-off, see the module docstring: an extra entity is safer than a missed one
+    assert spoken_numbers_to_digits("สองสามสี่ห้าวัน") == "2345 วัน"
+
+
+def test_replies_with_number_words_are_still_blocked_by_the_leak_check():
+    for reply in ("หนึ่งสองสามสี่", "ห้าพันบาท", "one two three four"):
+        assert leak_reasons(reply), reply
 
 
 def _found(text):
@@ -108,7 +141,7 @@ def test_ner_finds_phone_otp_and_money_from_words():
     assert ("OTP", "517841") in _found("รหัสโอทีพีคือ ห้า หนึ่ง เจ็ด แปด สี่ หนึ่ง")
     assert ("OTP", "517841") in _found("รหัสคือห้าแสนหนึ่งหมื่นเจ็ดพันแปดร้อยสี่สิบเอ็ดค่ะ")
     assert ("MONEY", "50000บาท") in _found("โอนห้าหมื่นบาท")
-    assert ("MONEY", "49500บาท") in _found("ภาษีสี่สิบเก้า ห้าร้อยบาท")
+    assert ("MONEY", "49500บาท") in _found("ภาษีสี่หมื่นเก้าพันห้าร้อยบาท")
 
 
 def test_clean_turn_converts_and_keeps_the_asr_text():
