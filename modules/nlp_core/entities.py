@@ -44,35 +44,49 @@ _URL_TRAIL = ".,;:!?)]}"
 _PRIORITY = {"BANK_ACCOUNT": 4, "OTP": 3, "PHONE": 2, "URL": 2, "MONEY": 1}
 
 
+Span = tuple[int, int, str]  # start, end, label
+
+
 def extract_entities(text: str) -> list[Entity]:
+    """Find phone numbers, bank accounts, OTPs, URLs and money amounts in Thai text."""
     ascii_text = text.translate(_THAI_DIGITS)
-    candidates: list[tuple[int, int, str]] = []
-
-    for m in _URL.finditer(ascii_text):
-        end = m.end()
-        while end > m.start() and ascii_text[end - 1] in _URL_TRAIL:
-            end -= 1
-        candidates.append((m.start(), end, "URL"))
-    for m in _PHONE.finditer(ascii_text):
-        candidates.append((m.start(), m.end(), "PHONE"))
-    for m in _BANK_DASHED.finditer(ascii_text):
-        candidates.append((m.start(), m.end(), "BANK_ACCOUNT"))
-    for m in _BANK_PLAIN.finditer(ascii_text):
-        before = ascii_text[max(0, m.start() - 30) : m.start()]
-        if _BANK_CONTEXT.search(before):
-            candidates.append((m.start(), m.end(), "BANK_ACCOUNT"))
-    for m in _OTP.finditer(ascii_text):
-        candidates.append((m.start(1), m.end(1), "OTP"))
-    for m in _MONEY.finditer(ascii_text):
-        candidates.append((m.start(), m.end(), "MONEY"))
-
-    candidates.sort(key=lambda c: (-(c[1] - c[0]), -_PRIORITY[c[2]], c[0]))
-    chosen: list[tuple[int, int, str]] = []
-    for start, end, label in candidates:
-        if all(end <= other_start or start >= other_end for other_start, other_end, _ in chosen):
-            chosen.append((start, end, label))
-    chosen.sort()
     return [
         Entity(text=text[start:end], label=label, start=start, end=end)
-        for start, end, label in chosen
+        for start, end, label in _drop_overlaps(_find_spans(ascii_text))
     ]
+
+
+def _find_spans(ascii_text: str) -> list[Span]:
+    """Every regex match, with the label of the pattern that found it."""
+    spans: list[Span] = []
+    for match in _URL.finditer(ascii_text):
+        end = match.end()
+        while end > match.start() and ascii_text[end - 1] in _URL_TRAIL:
+            end -= 1
+        spans.append((match.start(), end, "URL"))
+    for match in _PHONE.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "PHONE"))
+    for match in _BANK_DASHED.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "BANK_ACCOUNT"))
+    for match in _BANK_PLAIN.finditer(ascii_text):
+        # a bare run of digits is an account only when a bank word comes just before it
+        before = ascii_text[max(0, match.start() - 30) : match.start()]
+        if _BANK_CONTEXT.search(before):
+            spans.append((match.start(), match.end(), "BANK_ACCOUNT"))
+    for match in _OTP.finditer(ascii_text):
+        spans.append((match.start(1), match.end(1), "OTP"))
+    for match in _MONEY.finditer(ascii_text):
+        spans.append((match.start(), match.end(), "MONEY"))
+    return spans
+
+
+def _drop_overlaps(spans: list[Span]) -> list[Span]:
+    """Keep the longest span, then the higher-priority label, and drop what overlaps it."""
+    strongest_first = sorted(
+        spans, key=lambda span: (-(span[1] - span[0]), -_PRIORITY[span[2]], span[0])
+    )
+    kept: list[Span] = []
+    for start, end, label in strongest_first:
+        if all(end <= kept_start or start >= kept_end for kept_start, kept_end, _ in kept):
+            kept.append((start, end, label))
+    return sorted(kept)

@@ -61,21 +61,20 @@ def default_name(kind: str) -> str:
 
 
 def get(kind: str, name: str | None = None) -> Any:
+    """Return the part registered under `name`, or the default for `kind`. Built once."""
     _check_kind(kind)
     name = name or default_name(kind)
     with _LOCK:
-        if (kind, name) not in _INSTANCES:
-            factory = _FACTORIES[kind].get(name)
-            if factory is None:
-                raise KeyError(
-                    f"no {kind} named {name!r}; available: {available(kind)}. "
-                    f"Register it with nlp_core.registry.register({kind!r}, {name!r}, factory)."
-                )
-            _INSTANCES[(kind, name)] = factory()
+        if (kind, name) in _INSTANCES:
+            return _INSTANCES[(kind, name)]
+        factory = _FACTORIES[kind].get(name)
+        if factory is None:
+            raise KeyError(
+                f"no {kind} named {name!r}; available: {available(kind)}. "
+                f"Register it with nlp_core.registry.register({kind!r}, {name!r}, factory)."
+            )
+        _INSTANCES[(kind, name)] = factory()
         return _INSTANCES[(kind, name)]
-
-
-# ---- built-in parts --------------------------------------------------------------------
 
 
 class RulesNER:
@@ -85,11 +84,8 @@ class RulesNER:
         return extract_entities(text)
 
 
-class LLMClassifier:
-    """Scam label from the vLLM "classify" job.
-
-    Unknown or unparseable answers map to (True, None, 0.0): never treated as safe.
-    """
+class _LLMPart:
+    """Base for the parts that call the LLM. The default client is built on first use."""
 
     def __init__(self, llm: LLM | None = None) -> None:
         self._llm = llm
@@ -101,6 +97,13 @@ class LLMClassifier:
 
             self._llm = LLMClient()
         return self._llm
+
+
+class LLMClassifier(_LLMPart):
+    """Scam label from the vLLM "classify" job.
+
+    Unknown or unparseable answers map to (True, None, 0.0): never treated as safe.
+    """
 
     def predict(self, text: str) -> tuple[bool, str | None, float]:
         label = parse_label(self.llm.complete("classify", text))
@@ -111,19 +114,8 @@ class LLMClassifier:
         return True, None, 0.0
 
 
-class LLMSummarizer:
+class LLMSummarizer(_LLMPart):
     """Summary from the vLLM "summary" job."""
-
-    def __init__(self, llm: LLM | None = None) -> None:
-        self._llm = llm
-
-    @property
-    def llm(self) -> LLM:
-        if self._llm is None:
-            from llm_serving.client import LLMClient
-
-            self._llm = LLMClient()
-        return self._llm
 
     def summarize(self, text: str) -> str:
         return self.llm.complete("summary", text).strip()

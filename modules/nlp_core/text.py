@@ -12,13 +12,14 @@ from functools import cache, lru_cache
 
 from pythainlp.util import normalize as thai_normalize
 
+_TITLES = frozenset({"คุณ", "นาย", "นาง", "นางสาว", "พี่", "น้อง", "ดร", "ผู้กอง", "จ่า"})
 # Thai letters, vowels and tone marks only: no digits (Thai or Arabic), Latin, URLs, symbols
 # or the repeat mark ๆ (U+0E46).
-_TITLES = frozenset({"คุณ", "นาย", "นาง", "นางสาว", "พี่", "น้อง", "ดร", "ผู้กอง", "จ่า"})
 _THAI_WORD = re.compile("[ก-ฺเ-ๅ็-๎]+")
 
 
 def normalize_text(text: str) -> str:
+    """NFC, PyThaiNLP normalize (fixes doubled tone marks) and single spaces between words."""
     text = unicodedata.normalize("NFC", text).replace("。", " ")
     return " ".join(thai_normalize(text).split())
 
@@ -64,30 +65,36 @@ def autocorrect_text(text: str, mode: str | None = None) -> str:
         return text
     from pythainlp.tokenize import word_tokenize
 
-    words, names = _dictionary(), _names()
     tokens = word_tokenize(text, engine="newmm", keep_whitespace=True)
-    out: list[str] = []
+    return "".join(_correct_tokens(tokens))
+
+
+def _correct_tokens(tokens: list[str]) -> list[str]:
+    """Replace each unknown Thai token (with its Thai neighbours) by its best spelling."""
+    words, names = _dictionary(), _names()
+    corrected: list[str] = []
     i = 0
     while i < len(tokens):
         token = tokens[i]
         # a name the lists do not know is cut into several pieces after its title
-        after_title = any(t in _TITLES for t in out[-4:])
-        unknown = token not in words and token not in names
-        if _THAI_WORD.fullmatch(token) and unknown and not after_title:
-            # A misspelled word is cut into pieces ("ขอบ" "ค" "นุ"), so correct the unknown
-            # piece together with the Thai pieces next to it.
-            before = out.pop() if out and _THAI_WORD.fullmatch(out[-1]) else ""
-            nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
-            after = nxt if _THAI_WORD.fullmatch(nxt) else ""
-            candidate = before + token + after
-            fixed = _fix_word(candidate)
-            if fixed == candidate:
-                out.extend(t for t in (before, token) if t)
-                i += 1
-            else:
-                out.append(fixed)
-                i += 2 if after else 1
+        after_title = any(t in _TITLES for t in corrected[-4:])
+        is_unknown_word = _THAI_WORD.fullmatch(token) and token not in words and token not in names
+        if not is_unknown_word or after_title:
+            corrected.append(token)
+            i += 1
             continue
-        out.append(token)
-        i += 1
-    return "".join(out)
+
+        # A misspelled word is cut into pieces ("ขอบ" "ค" "นุ"), so correct the unknown
+        # piece together with the Thai pieces next to it.
+        before = corrected.pop() if corrected and _THAI_WORD.fullmatch(corrected[-1]) else ""
+        next_token = tokens[i + 1] if i + 1 < len(tokens) else ""
+        after = next_token if _THAI_WORD.fullmatch(next_token) else ""
+        candidate = before + token + after
+        fixed = _fix_word(candidate)
+        if fixed == candidate:
+            corrected.extend(piece for piece in (before, token) if piece)
+            i += 1
+        else:
+            corrected.append(fixed)
+            i += 2 if after else 1
+    return corrected
