@@ -16,8 +16,11 @@ import asyncio
 import logging
 import re
 import threading
+import time
+import unicodedata
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -27,6 +30,7 @@ import dspy
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from data_pipeline import live
 from data_pipeline.config import BENIGN, CALL_TYPES, Config, ConfigError, ReceiverProfile
@@ -37,7 +41,22 @@ from llm_serving.client import LLMUnavailable
 from . import dataset
 
 log = logging.getLogger("callas.studio")
-router = APIRouter()
+SHUTDOWN = threading.Event()  # set when the app stops, so open event streams end
+
+
+@asynccontextmanager
+async def _lifespan(app: Any) -> AsyncIterator[None]:
+    """Runs with the app's own lifespan (include_router merges it)."""
+    SHUTDOWN.clear()
+    try:
+        yield
+    finally:
+        SHUTDOWN.set()
+        for run in BOARD.all():
+            run.cancel.set()  # a running call stops after its step; it stays saved and resumable
+
+
+router = APIRouter(lifespan=_lifespan)
 
 RUN_ID_RE = re.compile(r"[0-9a-f]{12}")
 KEPT_RUNS = 5
@@ -76,6 +95,7 @@ class StudioRun:
     title: str
     events: list[tuple[str, str]] = field(default_factory=list)  # (event name, HTML)
     finished: bool = False
+    started: float = field(default_factory=time.monotonic)
     cancel: threading.Event = field(default_factory=threading.Event)
 
     def push(self, name: str, html: str) -> None:
@@ -94,8 +114,10 @@ class Board:
         with self._lock:
             if (busy := self.running()) is not None:
                 raise FormProblem(
-                    f"A call is already being written ({busy.title}). "
-                    "Wait for it to finish, or press Stop on it.",
+                    f"A call is already being written: {busy.title}, running for "
+                    f"{_elapsed(time.monotonic() - busy.started)}. Wait for it to finish, or "
+                    "press Stop on it. Stop works between steps, so a model call that is stuck "
+                    "keeps the run going until the model server times out.",
                     status=409,
                 )
             run = make(uuid.uuid4().hex[:12])
@@ -103,6 +125,9 @@ class Board:
             for old in list(self._runs)[:-KEPT_RUNS]:
                 del self._runs[old]
             return run
+
+    def all(self) -> list[StudioRun]:
+        return list(self._runs.values())
 
     def running(self) -> StudioRun | None:
         return next((r for r in self._runs.values() if not r.finished), None)
@@ -112,6 +137,11 @@ class Board:
 
 
 BOARD = Board()
+
+
+def _elapsed(seconds: float) -> str:
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes} min {secs} s" if minutes else f"{secs} s"
 
 
 # ---- helpers shared with main.py (imported late: main imports this module) --------------------
@@ -186,10 +216,10 @@ def parse_form(form: Any, config: Config, taken_ids: set[str]) -> live.CallSpec:
         if scenario is None:
             raise FormProblem("That scenario does not belong to this kind of call.")
     receiver = _parse_receiver(form, config)
-    name = str(form.get("receiver_name", "")).strip()[:MAX_TEXT]
+    name = _clean(form.get("receiver_name", ""))
     seed_text = str(form.get("seed", "")).strip()
     if seed_text:
-        if not seed_text.isdigit() or int(seed_text) > MAX_SEED:
+        if not (seed_text.isascii() and seed_text.isdigit()) or int(seed_text) > MAX_SEED:
             raise FormProblem(f"The seed is a whole number from 0 to {MAX_SEED}, or empty.")
         seed = int(seed_text)
         spec = live.CallSpec(call_type, seed, scenario, receiver, name)
@@ -203,6 +233,15 @@ def parse_form(form: Any, config: Config, taken_ids: set[str]) -> live.CallSpec:
     return live.CallSpec(call_type, seed, scenario, receiver, name)
 
 
+def _clean(value: Any) -> str:
+    """One line of text for a prompt: control and format characters are dropped, any run of
+    white space (including line breaks) becomes one space. Thai letters are kept."""
+    text = "".join(
+        c for c in str(value) if unicodedata.category(c) not in ("Cc", "Cf") or c.isspace()
+    )
+    return " ".join(text.split())[:MAX_TEXT]
+
+
 def _parse_receiver(form: Any, config: Config) -> ReceiverProfile | None:
     choice = str(form.get("receiver", ""))
     if not choice:
@@ -213,7 +252,7 @@ def _parse_receiver(form: Any, config: Config) -> ReceiverProfile | None:
             raise FormProblem("That saved person does not exist.")
         return profile
     pools = config.scenarios.receivers
-    values = {key: str(form.get(f"r_{key}", "")).strip()[:MAX_TEXT] for key, _, _ in DETAIL_FIELDS}
+    values = {key: _clean(form.get(f"r_{key}", "")) for key, _, _ in DETAIL_FIELDS}
     gender = str(form.get("r_gender", ""))
     if gender not in pools.genders:
         raise FormProblem(f"Gender is one of: {', '.join(pools.genders)}.")
@@ -228,23 +267,27 @@ def _parse_receiver(form: Any, config: Config) -> ReceiverProfile | None:
 
 
 def _taken_ids() -> set[str]:
+    """Calls that cannot be started again: the finished ones. An unfinished call (a stopped
+    run) can be resumed with the same seed; the store checks that the receiver matches."""
     db = dataset.store()
-    return {row["id"] for row in db.summaries()} if db else set()
+    return {r["id"] for r in db.summaries() if r["status"] != "in_progress"} if db else set()
 
 
 @router.post("/studio/start", response_class=HTMLResponse)
 async def studio_start(request: Request) -> Response:
-    main = _main()
-    form = await request.form()
+    form = await request.form()  # the store and the templates are used in a worker thread
+    return await run_in_threadpool(_begin, form, _demo(request), request.app.state.pace)
+
+
+def _begin(form: Any, demo: bool, pace: float) -> Response:
     try:
         spec = parse_form(form, _config(), _taken_ids())
         run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
     except FormProblem as problem:
-        return main.form_error(str(problem), problem.status)
-    demo = _demo(request)
+        return _main().form_error(str(problem), problem.status)
     threading.Thread(
         target=_work,
-        args=(run, demo, request.app.state.pace, bool(form.get("speak")), dataset.db_path()),
+        args=(run, demo, pace, bool(form.get("speak")), dataset.db_path()),
         name=f"studio-{run.id}",
         daemon=True,
     ).start()
@@ -291,7 +334,7 @@ async def studio_events(request: Request, run_id: str) -> Response:
                 name, html = run.events[sent]
                 yield _sse(name, html, sent)
                 sent, quiet = sent + 1, 0
-            if run.finished and sent >= len(run.events):
+            if (run.finished and sent >= len(run.events)) or SHUTDOWN.is_set():
                 return
             if await request.is_disconnected():
                 return  # the call keeps running and is saved; a new page can replay it
@@ -302,6 +345,15 @@ async def studio_events(request: Request, run_id: str) -> Response:
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(stream(), media_type="text/event-stream", headers=headers)
+
+
+@router.get("/studio/{run_id}/state")
+def studio_state(run_id: str) -> Response:
+    """Lets the page tell a lost connection from a run the server no longer knows."""
+    run = BOARD.get(run_id)
+    if run is None:
+        return JSONResponse({"detail": "Unknown run."}, status_code=404)
+    return JSONResponse({"finished": run.finished})
 
 
 @router.post("/studio/{run_id}/stop")
@@ -344,7 +396,12 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
         outcome = "failed"
         run.push("failed", _render("partials/studio_failed.html", message=_explain(run, exc)))
     finally:
-        run.push("done", _render("partials/studio_done.html", run=_run_view(run), outcome=outcome))
+        try:
+            html = _render("partials/studio_done.html", run=_run_view(run), outcome=outcome)
+        except Exception:
+            log.exception("studio run %s: could not render the last message", run.id)
+            html = "<p>The run has ended.</p>"
+        run.push("done", html)
         run.finished = True  # last: a new run may start from here on
 
 
@@ -364,7 +421,7 @@ def _explain(run: StudioRun, exc: Exception) -> str:
         return f"{exc}. The call is saved as far as it got; start it again with the same seed."
     if isinstance(exc, ConfigError):
         return f"Config problem: {exc}"
-    if isinstance(exc, ValueError) and "already finished" in str(exc):
+    if isinstance(exc, live.CallConflict):
         return str(exc)
     log.exception("studio run %s failed", run.id)
     try:

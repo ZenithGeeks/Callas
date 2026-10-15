@@ -26,6 +26,17 @@ Demo-only knobs: `CALLAS_FAKE_DELAY` (seconds between streamed turns, default 0.
 - `/call` simulate a call from a recording. `POST /call/simulate` returns the result shell;
   `GET /call/{run_id}/events` is a server-sent event stream.
 - `/live` live microphone call over `WS /ws/live`.
+- `/studio` make a simulated call and watch it written live (see below).
+
+### Studio
+
+`POST /studio/start` runs the simulator graph in a background thread and `GET /studio/{run}/events`
+streams its steps as server-sent events. The call is saved to the dataset store
+(`CALLAS_DATASET_DB`) like a command line run. One run at a time per server. Closing the tab does
+not stop it. Stop works between steps: a model call that is stuck holds the run until the model
+server times out. A stopped call stays unfinished and starts again from where it stopped when you
+Start with the same seed (use the same scenario and name, or leave them empty). Demo mode
+(`CALLAS_FAKE=1`) uses scripted agents on a scripted LM.
 
 ### How the simulated call updates
 

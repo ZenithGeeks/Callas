@@ -44,6 +44,22 @@
     setBusy(false);
   }
 
+  function gone(root, status) {
+    end(root, status, "<p>The server no longer has this run, probably because it was restarted. Start the call again. If it was saved, it is on the Dataset page.</p>");
+  }
+
+  // The stream closed for good: ask the server whether the run still exists.
+  function lost(root, status) {
+    fetch(root.dataset.state)
+      .then(function (r) {
+        if (r.status === 404) return gone(root, status);
+        end(root, status, "<p>The connection to the server was lost. The call keeps running there and is saved. Reload this page to watch it.</p>");
+      })
+      .catch(function () {
+        end(root, status, "<p>Cannot reach the server. A call that was running there is saved as far as it got. Reload this page when the server is back.</p>");
+      });
+  }
+
   function connect(root) {
     if (source) source.close();
     var thread = root.querySelector("#studio-thread");
@@ -68,7 +84,7 @@
     });
     source.onerror = function () {
       if (source && source.readyState === EventSource.CLOSED) {
-        end(root, status, "<p>The connection to the server was lost. The call keeps running there and is saved; reload this page to watch it.</p>");
+        lost(root, status);
       } else {
         status.textContent = "Reconnecting…";
       }
@@ -77,7 +93,15 @@
       stop.addEventListener("click", function () {
         stop.disabled = true;
         status.textContent = "Stopping after the step in progress…";
-        fetch(root.dataset.stop, { method: "POST" });
+        fetch(root.dataset.stop, { method: "POST" })
+          .then(function (r) {
+            if (r.status === 404) return gone(root, status);
+            if (!r.ok) throw new Error("HTTP " + r.status);
+          })
+          .catch(function () {
+            stop.disabled = false;
+            status.textContent = "Could not stop the call. Check the connection and try again.";
+          });
       });
     }
     var heading = root.querySelector("#run-h");

@@ -142,6 +142,10 @@ def _answer_text(outputs: Any) -> str:
 # ---- one call, step by step ------------------------------------------------------------------
 
 
+class CallConflict(ValueError):
+    """The call cannot be run: it is finished, or it was started with other settings."""
+
+
 @dataclass
 class CallSpec:
     """What the studio form asks for."""
@@ -183,12 +187,12 @@ def stream_call(
     record = _open_record(store, call, config, agents, spec.receiver)
     generation = record["generation"]
     if generation["status"] != "in_progress":
-        raise ValueError(f"{record['id']} is already finished")
-    if spec.receiver_name:
-        generation["call"]["receiver_name"] = spec.receiver_name
+        raise CallConflict(f"{record['id']} is already finished")
+    call, name = _resume_overrides(spec, call, generation)
+    generation["call"]["receiver_name"] = name  # the overrides stay with the stored call
     filler = SlotFiller(call, config.details)
-    if spec.receiver_name:
-        filler.values["RECEIVER_NAME"] = spec.receiver_name
+    if name:
+        filler.values["RECEIVER_NAME"] = name
     context = SimContext(agents, config, call, store, voices, filler)
     caller = "scam_caller" if call.label_scam else "legit_caller"
 
@@ -224,6 +228,28 @@ def stream_call(
         if cancel is not None and cancel.is_set():
             return
         yield whose_turn(record)
+
+
+def _resume_overrides(spec: CallSpec, call: Any, generation: dict) -> tuple[Any, str]:
+    """The call and the receiver name to use. A call with no turns yet takes what the form asked
+    for. A call being resumed keeps the scenario and name it was started with: the form may leave
+    them empty but may not ask for others, because the turns already written used the old ones."""
+    stored = generation["call"]
+    if not generation["turns"] and generation["briefing"] is None:
+        return call, spec.receiver_name
+    scenario = Scenario.model_validate(stored["scenario"])
+    name = stored.get("receiver_name", "")
+    if spec.scenario is not None and spec.scenario.key != scenario.key:
+        raise CallConflict(
+            f"{spec.record_id} was started with scenario {scenario.key}. Resume it with that "
+            "scenario or none, or pick another seed."
+        )
+    if spec.receiver_name and spec.receiver_name != name:
+        raise CallConflict(
+            f"{spec.record_id} was started with another receiver name. Resume it with that "
+            "name or none, or pick another seed."
+        )
+    return replace(call, scenario=scenario), name
 
 
 def node_agent(record: dict, index: int) -> str:

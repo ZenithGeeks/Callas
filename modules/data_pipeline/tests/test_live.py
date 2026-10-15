@@ -7,6 +7,7 @@ from dspy.utils import DummyLM
 from data_pipeline import live
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import load_config
+from data_pipeline.scenarios import sample_config
 from data_pipeline.store import Store
 
 CONFIG = load_config()
@@ -177,3 +178,29 @@ def test_a_model_error_rejects_the_call_like_the_command_line(tmp_path):
     record = store.load("romance_00000")
     assert record["generation"]["status"] == "rejected"
     assert record["generation"]["reasons"] == ["llm_error:RateLimitError"]
+
+
+def test_a_resumed_call_keeps_its_scenario_and_name_and_refuses_others(tmp_path):
+    sampled = sample_config("romance", 3, CONFIG).scenario  # what an empty form would pick
+    second = sampled
+    first = next(s for s in CONFIG.scenarios.scams["romance"] if s.key != sampled.key)
+    cancel = threading.Event()
+    spec = live.CallSpec("romance", 3, first, None, "สมหญิง")
+    store, _ = collect(spec, tmp_path, cancel)
+    stored = store.load("romance_00003")["generation"]["call"]
+    assert stored["scenario"]["key"] == first.key and stored["receiver_name"] == "สมหญิง"
+    with pytest.raises(live.CallConflict, match="scenario"):
+        collect(live.CallSpec("romance", 3, second), tmp_path)
+    with pytest.raises(live.CallConflict, match="name"):
+        collect(live.CallSpec("romance", 3, None, None, "อื่น"), tmp_path)
+    store, events = collect(live.CallSpec("romance", 3), tmp_path)  # empty form: keeps both
+    prompts = " ".join(
+        m["content"] for e in events for md in e.modules for c in md.lm_calls for m in c.messages
+    )
+    assert (
+        first.goal in prompts and sampled.goal not in prompts
+    )  # the callers used the stored scenario
+    record = store.load("romance_00003")
+    assert record["generation"]["status"] == "accepted"
+    assert record["generation"]["call"]["scenario"]["key"] == first.key
+    assert "สมหญิง" in record["text"]

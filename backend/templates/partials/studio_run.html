@@ -1,6 +1,6 @@
 {# The live call area, sent in answer to Start. studio.js opens the event stream.
    Expects `run` (a dict from studio._run_view) and `demo`. #}
-<section aria-labelledby="run-h" data-studio-run data-events="/studio/{{ run.id }}/events" data-stop="/studio/{{ run.id }}/stop">
+<section aria-labelledby="run-h" data-studio-run data-events="/studio/{{ run.id }}/events" data-stop="/studio/{{ run.id }}/stop" data-state="/studio/{{ run.id }}/state">
   <header class="flex flex-wrap items-start gap-x-6 gap-y-3">
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-3">
@@ -14,8 +14,9 @@
       <p class="mt-2 text-[15px] text-muted">Answered by {{ run.receiver_name }}.</p>
       {% endif %}
     </div>
-    <button type="button" class="btn" data-stop-run>Stop</button>
+    <button type="button" class="btn" data-stop-run aria-describedby="stop-help">Stop</button>
   </header>
+  <p id="stop-help" class="mt-3 text-[14px] text-muted">Stop works between steps. If the model server is slow, the call waits for it until it times out.</p>
   {% if demo %}<p class="mt-3 text-[14px] text-muted">Demo mode: scripted agents, no language model.</p>{% endif %}
   <div class="chat mt-6">
     <ol id="studio-thread" class="chat-thread" role="log" aria-label="The call so far"></ol>
