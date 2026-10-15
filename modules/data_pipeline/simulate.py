@@ -1,97 +1,72 @@
 """Act out one call turn by turn and keep it in the SQLite store.
 
-The call runs as a LangGraph graph (build_graph; the README has the drawing):
-
-    START -> plan -> caller <-> receiver -> finish -> END
-
-`plan` writes the scam caller's plan (scam calls only), `caller` and `receiver` add one turn
-each, a routing function picks whose turn is next or ends the call, and `finish` builds the
-text, joins the audio and asks the judge. Each node saves the call to the store before it
-returns.
-
-The store is the only state. A call is loaded from it (or created), every turn is built from the
-turns already stored, and the call is written back after every turn, so a stopped run picks up
-where it left off. Records follow the spec's schema; `generation` and `review` are extra and are
-dropped when the dataset is built.
-
-Before a scam call starts, the planner writes the caller's plan from the scenario and the newest
-pattern notes for its scam type (patterns.py). The plan is stored with the call.
-
-What the agents are told comes from the config (config.py); this file only decides whose turn
-it is, fills slots, speaks each line, and checks the finished call.
+`run_call` loads the call from the store (or creates it) and runs the call graph (graph.py) on
+it. The store is the only state: every node saves the call, so a stopped run picks up where it
+left off. Records follow the spec's schema; `generation` and `review` are extra and are dropped
+when the dataset is built.
 
 Naming: `call` is the CallConfig of one call (scenarios.py); `config` is the loaded YAML Config.
 """
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
-import logging
-import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Literal, TypedDict
-
-import dspy
-import openai
-from dspy.utils.exceptions import AdapterParseError
-from langgraph.graph import END, START, StateGraph
-from langgraph.runtime import Runtime
-from langgraph.types import RetryPolicy
-
-from llm_serving.client import LLMUnavailable
-from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
+from typing import Any
 
 from .agents import Agents
-from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config, ConfigError
-from .fill import RECEIVER_ONLY_SLOTS, RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
-from .patterns import render_notes
+from .fill import SlotFiller
+from .graph import (
+    CALL_GRAPH,
+    MODEL_RETRY,
+    SimContext,
+    SimState,
+    build_graph,
+    next_step,
+    retry_policy,
+)
 from .scenarios import CallConfig, ReceiverProfile, sample_config
-from .spoken import pick_speech_style, spoken_text
 from .store import RECORD_SCHEMA, Store
-from .tts import Voices, join_call, pick_voices
+from .tts import Voices, pick_voices
+from .turns import (
+    CALLER,
+    RECEIVER,
+    conversation,
+    conversation_lines,
+    is_model_error,
+    pacing,
+    speech_style,
+    spelling,
+    stage,
+)
 
-log = logging.getLogger("data_pipeline")
-
-TOO_LONG_FOR_JUDGE = "too_long_for_judge"
-TOO_LONG_FOR_CONTEXT = "too_long_for_context"
-CALLER, RECEIVER = "A", "B"  # speaker ids in the record; the caller always speaks first
-
-
-def is_model_error(exc: BaseException) -> bool:
-    """True for a failure that comes from the model's answer or from rate limiting: a reply
-    DSPy could not parse, or a 429 / 5xx answer. Anything else (a bug, a bad config, a store
-    error) is not the model's fault, so it is neither retried nor blamed on the model."""
-    if isinstance(exc, (AdapterParseError, openai.RateLimitError)):
-        return True
-    if isinstance(exc, openai.APIStatusError) and (
-        exc.status_code == 429 or exc.status_code >= 500
-    ):
-        return True
-    # DSPy wraps rate limits in its own classes (LMRateLimitError, lm15.RateLimitError)
-    return any("RateLimit" in cls.__name__ for cls in type(exc).__mro__)
-
-
-def retry_policy(initial_interval: float = 5.0) -> RetryPolicy:
-    """A malformed answer or a rate limit is retried by LangGraph with waits of 5, 15 and 45 s.
-    Everything else fails at once, and a call that stopped halfway resumes from the store."""
-    return RetryPolicy(
-        max_attempts=4,
-        initial_interval=initial_interval,
-        backoff_factor=3.0,
-        max_interval=120.0,
-        retry_on=is_model_error,
-    )
-
-
-MODEL_RETRY = retry_policy()
-
-
-# ---- one call --------------------------------------------------------------------------------
+__all__ = [
+    "CALLER",
+    "CALL_GRAPH",
+    "MODEL_RETRY",
+    "RECEIVER",
+    "SimContext",
+    "SimState",
+    "SlotFiller",
+    "build_graph",
+    "call_id",
+    "conversation",
+    "conversation_lines",
+    "is_model_error",
+    "new_record",
+    "next_step",
+    "pacing",
+    "receiver_hash",
+    "record_id",
+    "retry_policy",
+    "run_call",
+    "sample_config",
+    "speech_style",
+    "spelling",
+    "stage",
+]
 
 
 def run_call(
@@ -129,11 +104,6 @@ def run_call(
         {"record": record}, context=context, config={"recursion_limit": limit}
     )
     return result["record"]
-
-
-def speech_style(call: CallConfig, config: Config) -> str:
-    """ "dash" or "pause": how this call's numbers are said (see spoken.py)."""
-    return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
 
 
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
@@ -235,512 +205,3 @@ def _open_record(
             "use the original receiver, or delete the call from the store"
         )
     return record
-
-
-def _plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> dict:
-    """The scam caller's plan for this call, from its scenario and recent pattern notes."""
-    notes = store.notes(call.call_type, limit=config.agents.planner.notes_limit)
-    last = (call.max_turns - 1) // 2
-    scenario = call.scenario
-    turns = (
-        f"The caller has {last + 1} turns. The first ask may come on turn "
-        f"{call.reveal_turn + 1} at the earliest."
-    )
-    inputs = dict(
-        scam_type=config.agents.judge.intended[call.call_type],
-        role=scenario.role,
-        goal=scenario.goal,
-        tactics=scenario.tactics,
-        turns=turns,
-    )
-    signature, budget = agents.signatures["planner"], prompt_budget(config, "planner")
-
-    def tokens_with(kept) -> int:
-        return prompt_tokens(signature, {**inputs, "pattern_notes": render_notes(list(kept))})
-
-    # the notes are newest first: when the prompt is too long the oldest are dropped
-    notes = trim_notes(notes, lambda kept: tokens_with(kept) <= budget)
-    with dspy.context(lm=agents.lms["planner"]):
-        pred = _model_call(lambda: agents.planner(**inputs, pattern_notes=render_notes(notes)))
-    return {
-        "plan": [step.strip() for step in pred.plan if step.strip()],
-        # summaries, not ids: a wiki sync re-creates the notes and gives them new ids
-        "notes_used": [note["summary"] for note in notes],
-        "prompt_tokens": tokens_with(notes),
-        "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
-    }
-
-
-def _next_turn(
-    agents: Agents,
-    call: CallConfig,
-    config: Config,
-    turns: list[dict],
-    filler: SlotFiller,
-    plan: list[str],
-) -> dict:
-    """Ask the agent whose turn it is for one line, fill its slots, and describe the turn."""
-    started = time.perf_counter()
-    speaker, agent_name, pred, tokens = _model_call(
-        lambda: _speak(agents, call, config, turns, plan)
-    )
-    raw = (pred.line or "").strip()
-    text, entities, problems = filler.fill(raw)
-    leaked = receiver_leaks(raw) if speaker == RECEIVER else []
-    if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
-        problems.append("caller_used_receiver_slot")  # a caller cannot know these details
-    if not text:
-        problems.append("empty_line")
-    return {
-        "speaker": speaker,
-        "agent": agent_name,
-        "raw": raw,
-        "text": text,
-        "spoken_text": spoken_text(text, entities, speech_style(call, config)),
-        "entities": entities,
-        "asks_now": bool(getattr(pred, "asks_now", False)),
-        "end_call": bool(pred.end_call),
-        "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
-        "problems": problems,
-        "leaked": leaked,
-        "spelling": spelling(raw),
-        "latency_s": round(time.perf_counter() - started, 3),
-        "prompt_tokens": tokens,
-        "audio": None,
-        "audio_s": None,
-    }
-
-
-def _finish_call(
-    record: dict, agents: Agents, config: Config, voices: Voices | None, out_dir: Path
-) -> None:
-    generation = record["generation"]
-    _finish_text(record)
-    _finish_leaks(record)
-    if voices is not None:
-        _join_audio(record, out_dir, config.agents.tts.gap_s)
-    generation["judge"] = _judge(agents, config, record)
-    record["reference_summary"] = generation["judge"]["summary"]
-    if record["label_scam"]:
-        record["scam_start_turn"], generation["scam_start_from"] = _scam_start(record)
-    generation["reasons"] = _verdict(record, config)
-    generation["status"] = "rejected" if generation["reasons"] else "accepted"
-
-
-# ---- what each agent is given ----------------------------------------------------------------
-
-
-def _speak(
-    agents: Agents, call: CallConfig, config: Config, turns: list[dict], plan: list[str]
-) -> tuple[str, str, dspy.Prediction, int]:
-    """Run the agent whose turn it is. Returns (speaker, agent name, prediction, estimated
-    prompt tokens)."""
-    if len(turns) % 2 == 1:
-        pred, tokens = _receiver_says(agents, call, config, turns)
-        return RECEIVER, "receiver", pred, tokens
-    agent_name, pred, tokens = _caller_says(agents, call, config, turns, plan)
-    return CALLER, agent_name, pred, tokens
-
-
-def _fit_conversation(
-    agents: Agents, config: Config, agent: str, inputs: dict, lines: list[str]
-) -> tuple[str, int]:
-    """The conversation text for this agent's prompt and the prompt's estimated size. When the
-    whole call does not fit the agent's budget, the first turns and the newest turns are kept
-    and the middle is replaced by a marker (budget.trim_turns)."""
-    signature, budget = agents.signatures[agent], prompt_budget(config, agent)
-
-    def tokens(conversation: str) -> int:
-        return prompt_tokens(signature, {**inputs, "conversation": conversation})
-
-    if not lines:
-        text = config.agents.speakers.empty_call
-    else:
-        text, hidden = trim_turns(lines, lambda conversation: tokens(conversation) <= budget)
-        if hidden:
-            log.info("%s: %d earlier turns left out of the prompt", agent, hidden)
-    size = tokens(text)
-    if size > budget:  # nothing left to cut: do not send a prompt the model cannot take
-        raise ContextTooLong(agent, size, budget)
-    return text, size
-
-
-def _receiver_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[dict]
-) -> tuple[dspy.Prediction, int]:
-    own_turn = len(turns) // 2
-    inputs = dict(
-        # the profile key is for choosing a profile on the command line, not for the model
-        persona=call.receiver.model_dump(exclude={"key"}),
-        voice=config.agents.speakers.voice[call.receiver.gender],
-        stage=stage(config, own_turn),
-    )
-    conversation_text, tokens = _fit_conversation(
-        agents, config, "receiver", inputs, _receiver_lines(turns, call, config)
-    )
-    with dspy.context(lm=agents.lms["receiver"]):
-        return agents.receiver(**inputs, conversation=conversation_text), tokens
-
-
-def _receiver_lines(turns: list[dict], call: CallConfig, config: Config) -> list[str]:
-    """The call as the receiver hears it, one line per turn: real values, except its own name
-    and details, which stay the slots that its instructions call "your name", "your bank
-    account" and so on."""
-    values = SlotFiller(call, config.details).values
-    own = sorted(RECEIVER_OWN_SLOTS, key=lambda slot: -len(values[slot]))
-    lines = []
-    for line in conversation_lines(turns, config, raw=False):
-        for slot in own:
-            line = line.replace(values[slot], "{" + slot + "}")
-        lines.append(line)
-    return lines
-
-
-def _receiver_view(turns: list[dict], call: CallConfig, config: Config) -> str:
-    """The call as the receiver hears it: real values, except its own name and details, which
-    stay the slots that its instructions call "your name", "your bank account" and so on.
-    Without this the receiver did not recognise its own name and answered "you have the wrong
-    number"."""
-    lines = _receiver_lines(turns, call, config)
-    return "\n".join(lines) if lines else config.agents.speakers.empty_call
-
-
-def _caller_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[dict], plan: list[str]
-) -> tuple[str, dspy.Prediction, int]:
-    own_turn = len(turns) // 2
-    scenario = call.scenario
-    inputs = dict(
-        role=scenario.role,
-        voice=config.agents.speakers.voice[call.caller_gender],
-        org="{ORG}" if scenario.org else "",
-        goal=scenario.goal,
-        receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
-    )
-    lines = conversation_lines(turns, config, raw=True)
-    if call.label_scam:
-        inputs |= dict(tactics=scenario.tactics, pacing=pacing(call, config, own_turn), plan=plan)
-        text, tokens = _fit_conversation(agents, config, "scam_caller", inputs, lines)
-        with dspy.context(lm=agents.lms["scam_caller"]):
-            return "scam_caller", agents.scam_caller(**inputs, conversation=text), tokens
-    inputs["manner"] = scenario.tactics
-    text, tokens = _fit_conversation(agents, config, "legit_caller", inputs, lines)
-    with dspy.context(lm=agents.lms["legit_caller"]):
-        return "legit_caller", agents.legit_caller(**inputs, conversation=text), tokens
-
-
-def conversation_lines(turns: list[dict], config: Config, *, raw: bool) -> list[str]:
-    """One line per turn: the speaker's tag and what was said."""
-    speakers = config.agents.speakers
-    tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
-    key = "raw" if raw else "text"
-    return [f"{tag[turn['speaker']]}: {turn[key]}" for turn in turns]
-
-
-def conversation(turns: list[dict], config: Config, *, raw: bool) -> str:
-    """The call so far as Thai lines. Callers see their slots ({PHONE}); receivers see values."""
-    if not turns:
-        return config.agents.speakers.empty_call
-    return "\n".join(conversation_lines(turns, config, raw=raw))
-
-
-def pacing(call: CallConfig, config: Config, own_turn: int) -> str:
-    """Tell the scam caller where it is in the call: before, at, or after its reveal turn."""
-    texts = config.agents.scam_caller.pacing
-    last = (call.max_turns - 1) // 2  # the caller's last possible own turn (0-based)
-    if own_turn >= last - 1 and own_turn >= call.reveal_turn:
-        text = texts.last
-    elif own_turn < call.reveal_turn:
-        text = texts.before
-    elif own_turn == call.reveal_turn:
-        text = texts.start
-    else:
-        text = texts.push
-    return text.format(turn=own_turn + 1, turns=last + 1)
-
-
-def stage(config: Config, own_turn: int) -> str:
-    receiver = config.agents.receiver
-    text = receiver.stage.stay if own_turn < receiver.stay_on_line else receiver.stage.free
-    return text.format(turn=own_turn + 1)
-
-
-# ---- model calls -----------------------------------------------------------------------------
-
-
-def _model_call(fn):
-    """Run one DSPy call. A connection failure becomes LLMUnavailable, which stops the run
-    instead of being retried (see MODEL_RETRY)."""
-    try:
-        return fn()
-    except UNAVAILABLE as exc:
-        raise LLMUnavailable(f"cannot reach LLM server: {type(exc).__name__}") from exc
-
-
-def spelling(raw: str) -> list[str]:
-    """Words that look misspelled. Checked on the line before filling, so names are skipped."""
-    from tts_voice_agent.spelling import spelling_problems
-
-    return spelling_problems(SLOT_RE.sub(" ", raw))
-
-
-# ---- finishing a call ------------------------------------------------------------------------
-
-
-def _finish_text(record: dict) -> None:
-    """Build text, speaker_turns and entity spans from the turns."""
-    lines, spans, offset = [], [], 0
-    turns = record["generation"]["turns"]
-    for turn in turns:
-        prefix = f"{turn['speaker']}: "
-        for entity in turn["entities"]:
-            start = offset + len(prefix) + entity["start"]
-            spans.append({**entity, "start": start, "end": start + len(entity["text"])})
-        line = prefix + turn["text"]
-        lines.append(line)
-        offset += len(line) + 1  # newline
-    record["text"] = "\n".join(lines)
-    record["speaker_turns"] = [
-        {"speaker": turn["speaker"], "start": None, "end": None, "text": turn["text"]}
-        for turn in turns
-    ]
-    record["entities"] = spans
-
-
-def _finish_leaks(record: dict) -> None:
-    """generation.receiver_leaked: every kind of detail the receiver gave away (sorted);
-    generation.first_leak_turn: index of the first receiver turn that gave one, else None."""
-    generation = record["generation"]
-    turns = generation["turns"]
-    generation["receiver_leaked"] = sorted({label for t in turns for label in t.get("leaked", [])})
-    generation["first_leak_turn"] = next((i for i, t in enumerate(turns) if t.get("leaked")), None)
-
-
-def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None:
-    turn = record["generation"]["turns"][index]
-    if not turn["text"]:
-        return
-    said = turn.get("spoken_text") or turn["text"]
-    rel = f"audio/{record['id']}/{index:02d}_{turn['speaker']}.wav"
-    voice = record["generation"]["voices"][turn["speaker"]]
-    try:
-        turn["audio_s"] = round(voices.speak(said, voice, out_dir / rel), 3)
-        turn["audio"] = rel
-    except Exception as exc:  # a turn without audio is flagged, the call text is still kept
-        log.warning("tts failed for %s turn %d: %s", record["id"], index, type(exc).__name__)
-        turn["problems"].append("tts_failed")
-
-
-def _join_audio(record: dict, out_dir: Path, gap_s: float) -> None:
-    turns = record["generation"]["turns"]
-    if not turns or any(turn["audio"] is None for turn in turns):
-        return
-    rel = f"audio/{record['id']}.wav"
-    times = join_call([out_dir / turn["audio"] for turn in turns], out_dir / rel, gap_s)
-    record["audio_path"] = rel
-    for speaker_turn, (start, end) in zip(record["speaker_turns"], times, strict=True):
-        speaker_turn["start"], speaker_turn["end"] = start, end
-
-
-def _judge(agents: Agents, config: Config, record: dict) -> dict:
-    speakers = config.agents.speakers
-    tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
-    transcript = "\n".join(
-        f"[{i}] {tag[turn['speaker']]}: {turn['text']}"
-        for i, turn in enumerate(record["generation"]["turns"])
-    )
-    intended = config.agents.judge.intended[record["label_type"] or "benign"]
-    tokens = prompt_tokens(
-        agents.signatures["judge"], dict(intended=intended, transcript=transcript)
-    )
-    if tokens > prompt_budget(config, "judge"):
-        # The judge must read the whole call, so a call that does not fit is not judged at all.
-        return {
-            "label_holds": False,
-            "scam_start_turn": -1,
-            "natural_thai": 0,
-            "giveaway": False,
-            "summary": "",
-            "issues": "not judged: the call does not fit the judge's context window",
-            "reasoning": "",
-            "skipped": TOO_LONG_FOR_JUDGE,
-            "prompt_tokens": tokens,
-        }
-    with dspy.context(lm=agents.lms["judge"]):
-        pred = _model_call(lambda: agents.judge(intended=intended, transcript=transcript))
-    return {
-        "prompt_tokens": tokens,
-        "label_holds": bool(pred.label_holds),
-        "scam_start_turn": int(pred.scam_start_turn),
-        "natural_thai": int(pred.natural_thai),
-        "giveaway": bool(pred.giveaway),
-        "summary": (pred.summary or "").strip(),
-        "issues": (pred.issues or "").strip(),
-        "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
-    }
-
-
-def _scam_start(record: dict) -> tuple[int | None, str | None]:
-    """First turn where the scam shows: the caller's own flag, else the judge's answer.
-
-    Callers often under-report their own ask (a link "to check the parcel" is an ask), while
-    the judge reads the whole call. The source is kept so the two can be compared later.
-    """
-    turns = record["generation"]["turns"]
-    reveal = record["generation"]["call"]["reveal_turn"]
-    flagged = None
-    for i, turn in enumerate(turns):
-        if turn["speaker"] != CALLER or not turn["asks_now"]:
-            continue
-        if i // 2 < reveal:  # the plan forbids asking before the reveal turn: not a scam move
-            log.warning(
-                "%s turn %d: asks_now before reveal turn %d, ignored", record["id"], i, reveal
-            )
-            continue
-        flagged = i
-        break
-    if flagged is not None:
-        return flagged, "caller"
-    judge = record["generation"]["judge"]
-    at = judge["scam_start_turn"]
-    # the judge must point at a caller turn: the receiver never makes a scam move
-    if judge["label_holds"] and 0 <= at < len(turns) and turns[at]["speaker"] == CALLER:
-        return at, "judge"
-    return None, None
-
-
-def _verdict(record: dict, config: Config) -> list[str]:
-    """Reasons to reject the call; empty means accepted."""
-    generation, reasons = record["generation"], []
-    turns = generation["turns"]
-    if len(turns) < config.scenarios.calls.min_turns:
-        reasons.append("too_short")
-    reasons += sorted({problem for turn in turns for problem in turn["problems"]})
-    if any("tone_mark_order" in turn["spelling"] for turn in turns):
-        reasons.append("tone_mark_order")
-    judge = generation["judge"]
-    if judge.get("skipped"):  # not judged: there is nothing else to hold against the call
-        return [*reasons, judge["skipped"]]
-    if not judge["label_holds"]:
-        reasons.append("judge_label_does_not_hold")
-    if judge["giveaway"]:
-        reasons.append("judge_giveaway")
-    if record["label_scam"] and record["scam_start_turn"] is None:
-        reasons.append("no_scam_move")
-    if not record["label_scam"] and judge["scam_start_turn"] >= 0:
-        reasons.append("judge_saw_scam_in_normal_call")
-    return reasons
-
-
-# ---- the call graph (LangGraph) --------------------------------------------------------------
-
-
-class SimState(TypedDict):
-    """Graph state: the call record. Nodes change it in place and return it, so the default
-    overwrite reducer is all that is needed."""
-
-    record: dict
-
-
-@dataclass
-class SimContext:
-    """What every node needs that is not state: passed to invoke(context=...) and read in a
-    node through its `runtime: Runtime[SimContext]` parameter."""
-
-    agents: Agents
-    config: Config
-    call: CallConfig
-    store: Store
-    voices: Voices | None
-    filler: SlotFiller
-
-
-def plan_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Scam calls only: write the caller's plan once, before the first turn."""
-    ctx, record = runtime.context, state["record"]
-    if ctx.call.label_scam and record["generation"]["briefing"] is None:
-        record["generation"]["briefing"] = _plan(ctx.agents, ctx.call, ctx.config, ctx.store)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Add one turn (caller or receiver, by turn order), speak it, save the call.
-
-    Safe to retry: the turn is built first, from the record as it was; only then is it added to
-    a copy of the record, which becomes the new state once the node returns. If anything after
-    the model answer fails and LangGraph runs the node again, the state still has the old
-    turns, so a turn is never added twice or given the wrong speaker."""
-    ctx = runtime.context
-    old = state["record"]["generation"]
-    try:
-        turn = _next_turn(
-            ctx.agents,
-            ctx.call,
-            ctx.config,
-            old["turns"],
-            ctx.filler,
-            (old["briefing"] or {}).get("plan", []),
-        )
-    except ContextTooLong as exc:
-        # The prompt cannot be made to fit, so the model is not asked. The call ends here,
-        # rejected, with the turns it has.
-        log.warning("%s: %s", state["record"]["id"], exc)
-        record = copy.deepcopy(state["record"])
-        generation = record["generation"]
-        _finish_text(record)
-        _finish_leaks(record)
-        generation["reasons"] = [TOO_LONG_FOR_CONTEXT]
-        generation["status"] = "rejected"
-        ctx.store.save(record)
-        return {"record": record}
-    record = copy.deepcopy(state["record"])
-    turns = record["generation"]["turns"]
-    turns.append(turn)
-    if ctx.voices is not None:
-        _speak_turn(ctx.voices, record, len(turns) - 1, ctx.store.folder)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def finish_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Build the text, join the audio, ask the judge, and set accepted or rejected."""
-    ctx, record = runtime.context, state["record"]
-    if record["generation"]["status"] == "in_progress":  # else it ended early (too long)
-        _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def next_step(
-    state: SimState, runtime: Runtime[SimContext]
-) -> Literal["caller", "receiver", "finish"]:
-    """Whose turn it is, or "finish" when someone hung up or the call reached its length."""
-    turns = state["record"]["generation"]["turns"]
-    if state["record"]["generation"]["status"] != "in_progress":
-        return "finish"
-    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
-        return "finish"
-    return "caller" if len(turns) % 2 == 0 else "receiver"
-
-
-def build_graph(retry: RetryPolicy = MODEL_RETRY):
-    graph = StateGraph(SimState, context_schema=SimContext)
-    graph.add_node("plan", plan_node, retry_policy=retry)
-    graph.add_node("caller", turn_node, retry_policy=retry)
-    graph.add_node("receiver", turn_node, retry_policy=retry)
-    graph.add_node("finish", finish_node, retry_policy=retry)
-    graph.add_edge(START, "plan")
-    # Each node lists only the moves it can make, so the drawing shows the real call and a
-    # routing mistake fails loudly instead of taking a wrong turn.
-    # plan can lead to any of them: a resumed call goes straight to whoever speaks next
-    graph.add_conditional_edges(
-        "plan", next_step, {"caller": "caller", "receiver": "receiver", "finish": "finish"}
-    )
-    graph.add_conditional_edges("caller", next_step, {"receiver": "receiver", "finish": "finish"})
-    graph.add_conditional_edges("receiver", next_step, {"caller": "caller", "finish": "finish"})
-    graph.add_edge("finish", END)
-    return graph.compile()  # no checkpointer: the store already saves the call every step
-
-
-CALL_GRAPH = build_graph()

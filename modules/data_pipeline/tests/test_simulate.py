@@ -8,9 +8,11 @@ import yaml
 from dspy.utils import DummyLM
 
 from data_pipeline import simulate
+from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.simulate import _scam_start, record_id, run_call
+from data_pipeline.finish import _scam_start
+from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
 CONFIG = load_config()
@@ -121,7 +123,7 @@ def test_normal_call_the_judge_calls_a_scam_is_rejected(tmp_path):
 def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    real_speak = simulate._speak
+    real_speak = turn_module._speak
     calls = {"n": 0}
 
     def crash_on_third(*a, **kw):
@@ -130,13 +132,13 @@ def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
             raise KeyboardInterrupt
         return real_speak(*a, **kw)
 
-    monkeypatch.setattr(simulate, "_speak", crash_on_third)
+    monkeypatch.setattr(turn_module, "_speak", crash_on_third)
     with pytest.raises(KeyboardInterrupt):
         run_call("phishing_otp", 1, store, agents, CONFIG)
     saved = store.load(record_id("phishing_otp", 1))
     assert len(saved["generation"]["turns"]) == 2
 
-    monkeypatch.setattr(simulate, "_speak", real_speak)
+    monkeypatch.setattr(turn_module, "_speak", real_speak)
     rec = run_call("phishing_otp", 1, store, agents, CONFIG)
     assert len(rec["generation"]["turns"]) == 5
     assert rec["generation"]["status"] == "accepted"
@@ -274,7 +276,7 @@ def fast_graph(monkeypatch):
 def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, saved):
     """After 1 or 3 saved turns the receiver is next; `plan` must route there."""
     store = Store(tmp_path / "calls.db")
-    real_speak = simulate._speak
+    real_speak = turn_module._speak
     seen = {"n": 0}
 
     def stop_after_saved(*a, **kw):
@@ -283,13 +285,13 @@ def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, 
             raise KeyboardInterrupt
         return real_speak(*a, **kw)
 
-    monkeypatch.setattr(simulate, "_speak", stop_after_saved)
+    monkeypatch.setattr(turn_module, "_speak", stop_after_saved)
     first = make_agents(SCAM, REPLIES, judge(start=2))
     with pytest.raises(KeyboardInterrupt):
         run_call("phishing_otp", 1, store, first, CONFIG)
     assert len(store.load(record_id("phishing_otp", 1))["generation"]["turns"]) == saved
 
-    monkeypatch.setattr(simulate, "_speak", real_speak)
+    monkeypatch.setattr(turn_module, "_speak", real_speak)
     callers_done, receivers_done = (saved + 1) // 2, saved // 2
     second = make_agents(SCAM[callers_done:], REPLIES[receivers_done:], judge(start=2))
     rec = run_call("phishing_otp", 1, store, second, CONFIG)
@@ -490,7 +492,7 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = simulate._receiver_view(turns, call, CONFIG)
+    view = turn_module._receiver_view(turns, call, CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
 
 
