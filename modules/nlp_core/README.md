@@ -51,4 +51,4 @@ as numbers. Text with no number word is returned without being tokenized.
 
 ## Add your own model
 
-See "Add your WangchanBERTa model" in [`../orchestrator/README.md`](../orchestrator/README.md).
+See "Add a model to nlp-core" in [`../orchestrator/README.md`](../orchestrator/README.md#add-a-model-to-nlp-core). That section also explains why the PhayaThaiBERT models are not connected yet.

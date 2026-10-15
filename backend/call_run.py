@@ -19,7 +19,7 @@ from typing import Any
 from orchestrator.graph import verdict_from
 
 from . import runtime
-from .views import Band, confidence_word, fmt_seconds, type_name, who
+from .views import Band, confidence_word, diarizer_label, fmt_seconds, type_name, who
 
 TERMINAL_NODES = frozenset({"escalate", "speak"})
 
@@ -199,7 +199,7 @@ class RunView:
             Stage(
                 2,
                 "Split speakers",
-                "pyannote segmentation 3.0",
+                diarizer_label(),
                 "done" if have_turns else "busy",
                 "with Listen" if have_turns else "",
             ),
