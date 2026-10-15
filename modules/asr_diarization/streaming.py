@@ -36,77 +36,20 @@ VAD_RMS_THRESHOLD = 0.015
 FRAME_S = 0.02  # VAD frame length
 PREROLL_S = 0.3  # silence kept before speech starts so the first syllable is not clipped
 
-
-class Engine(Protocol):
-    def feed_chunk(self, chunk: np.ndarray) -> str: ...
-    def flush(self) -> str: ...
-    def reset(self) -> None: ...
-
-
-def pcm16_to_float(b: bytes) -> np.ndarray:
-    """Little-endian int16 mono bytes -> float32 in [-1, 1). A trailing odd byte is dropped."""
-    n = len(b) // 2 * 2
-    return np.frombuffer(b[:n], dtype="<i2").astype(np.float32) / 32768.0
-
-
-_model = None
-_model_lock = threading.Lock()
-
-
 # Every pythaiasr model that can stream is a Typhoon FastConformer or a Typhoon Nemotron, and all
 # their names contain one of these. Checking the name first means a Whisper or Wav2Vec2 setting
 # fails with a clear message instead of trying to load torch (device="auto" is not a torch device).
 STREAMING_NAME_PARTS = ("typhoon", "nemotron")
 CANNOT_STREAM = "ASR_MODEL {name!r} cannot stream. Use typhoon_asr or typhoon_nemotron_asr."
 
-
-def _get_model():
-    """Load the ASR_MODEL pythaiasr ONNX model once and share it across all calls."""
-    global _model
-    with _model_lock:
-        if _model is None:
-            from callas_settings import get_settings
-
-            name = get_settings().asr_model
-            if not any(part in name.lower() for part in STREAMING_NAME_PARTS):
-                raise RuntimeError(CANNOT_STREAM.format(name=name))
-            from pythaiasr import ASR  # heavy import, lazy
-
-            try:
-                _model = ASR(model=name, device="auto").model
-            except (AssertionError, ImportError) as exc:  # unknown name, missing extras
-                raise RuntimeError(f"{CANNOT_STREAM.format(name=name)} ({exc})") from exc
-            log.info("loaded streaming ASR model=%s", name)
-        return _model
+_model = None
+_model_lock = threading.Lock()
 
 
-class _NemotronEngine:
-    """Engine view of pythaiasr's Nemotron 3.5 stream, which names its feed process_chunk."""
-
-    def __init__(self, model) -> None:
-        from pythaiasr.typhoon_nemotron_asr import NemotronStreamASR
-
-        self._stream = NemotronStreamASR(model, sample_rate=SAMPLE_RATE)
-
-    def feed_chunk(self, chunk: np.ndarray) -> str:
-        return self._stream.process_chunk(chunk)
-
-    def flush(self) -> str:
-        return self._stream.flush()
-
-    def reset(self) -> None:
-        self._stream.reset()
-
-
-def default_engine_factory() -> Engine:
-    model = _get_model()
-    if hasattr(model, "create_streaming_session"):  # Typhoon FastConformer
-        return model.create_streaming_session()
-    from pythaiasr.typhoon_nemotron_asr import NemotronStreamingASR
-
-    if isinstance(model, NemotronStreamingASR):
-        return _NemotronEngine(model)
-    raise RuntimeError(CANNOT_STREAM.format(name=type(model).__name__))
+class Engine(Protocol):
+    def feed_chunk(self, chunk: np.ndarray) -> str: ...
+    def flush(self) -> str: ...
+    def reset(self) -> None: ...
 
 
 class LiveTranscriber:
@@ -201,3 +144,58 @@ class LiveTranscriber:
             events.append(
                 {"type": "turn", "speaker": "Caller", "start": start, "end": end, "text": text}
             )
+
+
+def pcm16_to_float(b: bytes) -> np.ndarray:
+    """Little-endian int16 mono bytes -> float32 in [-1, 1). A trailing odd byte is dropped."""
+    n = len(b) // 2 * 2
+    return np.frombuffer(b[:n], dtype="<i2").astype(np.float32) / 32768.0
+
+
+def default_engine_factory() -> Engine:
+    model = _get_model()
+    if hasattr(model, "create_streaming_session"):  # Typhoon FastConformer
+        return model.create_streaming_session()
+    from pythaiasr.typhoon_nemotron_asr import NemotronStreamingASR
+
+    if isinstance(model, NemotronStreamingASR):
+        return _NemotronEngine(model)
+    raise RuntimeError(CANNOT_STREAM.format(name=type(model).__name__))
+
+
+def _get_model():
+    """Load the ASR_MODEL pythaiasr ONNX model once and share it across all calls."""
+    global _model
+    with _model_lock:
+        if _model is None:
+            from callas_settings import get_settings
+
+            name = get_settings().asr_model
+            if not any(part in name.lower() for part in STREAMING_NAME_PARTS):
+                raise RuntimeError(CANNOT_STREAM.format(name=name))
+            from pythaiasr import ASR  # heavy import, lazy
+
+            try:
+                _model = ASR(model=name, device="auto").model
+            except (AssertionError, ImportError) as exc:  # unknown name, missing extras
+                raise RuntimeError(f"{CANNOT_STREAM.format(name=name)} ({exc})") from exc
+            log.info("loaded streaming ASR model=%s", name)
+        return _model
+
+
+class _NemotronEngine:
+    """Engine view of pythaiasr's Nemotron 3.5 stream, which names its feed process_chunk."""
+
+    def __init__(self, model) -> None:
+        from pythaiasr.typhoon_nemotron_asr import NemotronStreamASR
+
+        self._stream = NemotronStreamASR(model, sample_rate=SAMPLE_RATE)
+
+    def feed_chunk(self, chunk: np.ndarray) -> str:
+        return self._stream.process_chunk(chunk)
+
+    def flush(self) -> str:
+        return self._stream.flush()
+
+    def reset(self) -> None:
+        self._stream.reset()
