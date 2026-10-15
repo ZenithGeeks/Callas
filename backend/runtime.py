@@ -21,6 +21,7 @@ _local = threading.local()
 
 
 def demo_enabled() -> bool:
+    """True when CALLAS_FAKE is set to 1, true, yes or on."""
     return os.environ.get("CALLAS_FAKE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -47,6 +48,8 @@ def _recording(run):
 
 @dataclass
 class AppRuntime:
+    """The orchestrator Runtime plus what the web app needs around it."""
+
     mode: str
     runtime: Runtime
     sessions: CallSessions
@@ -80,12 +83,14 @@ class AppRuntime:
         return agents.explain(text, agent=self._agent)
 
     def close(self) -> None:
+        """End every call still in memory and put the original ASR function back."""
         for call_id in list(self.runtime.states):
             self.sessions.end(call_id)
         asr_pipeline.run = self.original_run
 
 
 def build(force_demo: bool | None = None) -> AppRuntime:
+    """Build the runtime for demo mode (CALLAS_FAKE, or force_demo) or real mode."""
     is_demo = demo_enabled() if force_demo is None else force_demo
     original = getattr(asr_pipeline.run, "_callas_wrapped", asr_pipeline.run)
     if is_demo:
