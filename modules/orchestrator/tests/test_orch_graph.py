@@ -123,7 +123,7 @@ def test_unparseable_llm_classifier_escalates(monkeypatch):
     from nlp_core.registry import LLMClassifier, LLMSummarizer
 
     for var in registry.ENV_VARS.values():
-        monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv(var, "")  # the built-in defaults, whatever .env says
     llm = FakeLLM({"classify": "auto_reply please"})
     saved = dict(registry._INSTANCES)
     registry._INSTANCES[("classifier", "llm")] = LLMClassifier(llm)

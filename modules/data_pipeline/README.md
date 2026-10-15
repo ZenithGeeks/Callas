@@ -126,7 +126,7 @@ Everything the agents are told lives in `config/`:
 |---|---|
 | `agents.yaml` | each agent's instructions and field descriptions, model, temperature and max_tokens; caller pacing text; receiver persona and when it may hang up; judge's description of each call type; TTS voices |
 | `scenarios.yaml` | the scam and normal scenarios, the receiver pools (jobs, temperaments, endings), call length and pacing numbers |
-| `details.yaml` | names, banks, made-up companies, link words and amounts that fill the slots |
+| `details.yaml` | names, banks, made-up companies, link words, amounts and address parts that fill the slots |
 
 To try a variant without touching the default:
 
@@ -135,8 +135,13 @@ To try a variant without touching the default:
 3. Check it: `python -m data_pipeline.synthesize --check-config --config my_cfg`
 4. Generate into its own folder: `--config my_cfg --out data/synthetic/my_cfg`
 
+Every record stores the config hash, which is a hash of the parsed YAML, so any change to
+`agents.yaml` (the `context` and `speech` settings too) gives a new hash. A call left unfinished with
+the old config is not resumed with the new one: finish it with the old config or delete it. An older
+config folder with no `addresses` in `details.yaml` still loads and uses the built-in parts.
+
 The loader refuses a config that would break the run: an unknown key, a renamed field under
-`fields`, a slot that does not exist (`{ADDRESS}`), a missing scam type, a gender with fewer than
+`fields`, a slot that does not exist (`{HOUSE_NUMBER}`), a missing scam type, a gender with fewer than
 two different voices or names, a pacing or stage text that `str.format` cannot fill (only `{turn}`
 and `{turns}` exist; stage texts only `{turn}`; write a literal brace as `{{`), a receiver age range
 that is not `[low, high]` within 10-100, or a reveal turn that no call can fit. The last rule:
@@ -148,12 +153,101 @@ Before you edit:
 
 - Field names under `fields:` are fixed (the code reads them). Change the text, not the keys.
 - Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE}
-  {BANK_ACCOUNT} {OTP} {URL} {MONEY}`. Code fills them with made-up values, which gives exact
-  entity spans and keeps real numbers out of the data.
+  {BANK_ACCOUNT} {OTP} {URL} {MONEY}` and the receiver's own `{RECEIVER_PHONE}
+  {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values,
+  which gives exact entity spans and keeps real numbers out of the data.
 - Seeds pick scenarios by list position. Adding a scenario in the middle of a list changes which
   call a seed makes; the config hash keeps old and new records apart.
 - Temperature: qwen3.8 garbled Thai spelling at 0.3, so speakers run at 0.0. Variety comes from
   the sampled scenario, receiver, plan and pacing.
+
+## Receiver leaks
+
+A real victim sometimes gives personal details away, and those are the calls a scam classifier
+most needs to see. The receiver may do this when the person it plays would (its temperament, how
+much it knows about scams, how it uses its phone); it is never told whether the call is a scam.
+It can only give details through its own slots, so no real data appears:
+
+| Slot | Value | Entity label |
+|---|---|---|
+| `{OTP}` | 6 random digits | `OTP` |
+| `{RECEIVER_PHONE}` | a made-up mobile number | `PHONE` |
+| `{RECEIVER_ACCOUNT}` | a made-up bank account | `BANK_ACCOUNT` |
+| `{ID_CARD}` | 13 random digits as `1-2345-67890-12-3` (the check digit is not computed, so it is never a valid ID number) | `ID_CARD` |
+| `{BIRTH_DATE}` | day, month and Buddhist-era year, e.g. `12 มีนาคม 2511`, exactly the receiver's age on 1 July 2025 | `BIRTH_DATE` |
+| `{ADDRESS}` | built from the made-up parts under `addresses` in `details.yaml` | `ADDRESS` |
+
+The receiver's values are drawn after all the other values, so adding them did not change the
+values of existing calls. The receiver reads its own name and details back as slots in the
+conversation, so it recognises them.
+
+Leaks are found by code from the slots a receiver line uses, never reported by the model.
+`{RECEIVER_NAME}` does not count: saying your name when you answer is not a leak. A caller cannot know
+the receiver's own details: the callers' prompts do not list those slots, and a caller turn that
+uses one gets the problem `caller_used_receiver_slot`, which rejects the call like any other slot
+problem. Only receiver turns count as leaks. Each receiver turn gets
+`leaked`, the labels it gave away in order of first use (`["OTP", "ID_CARD"]`). When the call
+finishes, `generation.receiver_leaked` has the sorted labels of the whole call and
+`generation.first_leak_turn` the 0-based index of the first leaking turn (`null` if none). The
+store keeps them in new columns (`calls.receiver_leaked`, `calls.first_leak_turn`,
+`turns.leaked`); an older `calls.db` gets the columns added when it is opened. `--export` writes
+`receiver_leaked` and `first_leak_turn` at the top level of each record. `/dataset` shows a red
+"Leaked: OTP, ID CARD" tag under a receiver message that leaked.
+
+New entity labels: `ID_CARD`, `BIRTH_DATE` and `ADDRESS` (in `nlp_core.types.ENTITY_LABELS`).
+`PHONE`, `BANK_ACCOUNT`, `OTP` and `PERSON` already existed.
+
+## How numbers are spoken
+
+VachanaTTS reads `158-5-96045-2` as one number with minus signs. So the voice is not given the
+stored text: `spoken.py` builds a spoken version from the turn's own entity spans and keeps it on
+the turn as `spoken_text` (shown to reviewers; the stored `text` and its spans keep the digits,
+because the digits are the labels).
+
+| Label | Said as |
+|---|---|
+| `PHONE`, `BANK_ACCOUNT`, `ID_CARD` | digit by digit per group: `158-5-96045-2` is "หนึ่งห้าแปด ขีด ห้า ขีด เก้าหกศูนย์สี่ห้า ขีด สอง" |
+| `OTP` | digit by digit, no dashes |
+| `MONEY` | place value: `49,500 บาท` is "สี่หมื่นเก้าพันห้าร้อยบาท" |
+| `BIRTH_DATE` | day and year as numbers, month as written |
+| `ADDRESS` | house and soi numbers by place value (`45` is สี่สิบห้า, `12/3` is สิบสองทับสาม); a 5-digit postcode digit by digit |
+| `PERSON`, `ORG`, `URL` | as written |
+
+People do not always say "ขีด"; often they only pause between groups. In the audio a pause
+is a comma (", "), because VachanaTTS barely pauses on a plain space (4 digit groups: 3.41 s with
+spaces, 3.29 s with nothing, 3.55 s with commas on `th_f_1`; 3.17 s, 3.11 s and 3.80 s on
+`th_m_1`). Each call picks one style
+from its seed and keeps it (`generation.speech_style`, `dash` or `pause`). The share of `dash`
+calls is `speech.say_dash_share` in `agents.yaml` (0 to 1, default 0.5). Text outside the spans is
+never changed.
+
+## Context window
+
+qwen3.8 on the gateway has a 100K-token window. `context` in `agents.yaml` sets
+`window_tokens: 100000` and `safety_margin_tokens: 2000`. Each agent's prompt may use
+`window_tokens - lm.max_tokens - safety_margin_tokens`; the loader refuses a config where an
+agent's `max_tokens` plus the margin is not below the window, and names the agent.
+
+The prompt is measured, not guessed: `budget.py` formats the exact messages DSPy sends (the
+ChatAdapter, with the `reasoning` field ChainOfThought adds) and estimates their size as UTF-8
+bytes / 3, rounded up. That is about one token per Thai character, the worst case; it over-counts
+English, which is the safe side. When a prompt is over budget:
+
+- speakers (both callers and the receiver) keep the first 2 turns and as many of the newest turns
+  as fit; the turns between are replaced by one line, `(... N earlier turns not shown ...)`
+- the planner drops the oldest pattern notes until it fits (`generation.briefing.notes_used`
+  lists the ones it used)
+- if the prompt still does not fit (a huge newest turn, or 3 turns or fewer), the model is not
+  asked: the call ends `rejected` with the reason `too_long_for_context`
+- the judge must read the whole call, so a call that does not fit is not judged: it is marked
+  `rejected` with the reason `too_long_for_judge`, and the judge program is not called
+- `patterns add` cuts the article to the longest start that fits (never more than
+  `MAX_ARTICLE_CHARS`)
+
+Every turn stores the estimated size of its prompt as `prompt_tokens` (and the plan and the judge
+store theirs). A normal call is a few thousand tokens, so none of this changes a normal run. The
+live call's `CONTEXT_TOKEN_BUDGET` counts PyThaiNLP words, not model tokens (see
+`tts_voice_agent/constants.py`).
 
 ## Checks before a call is accepted
 

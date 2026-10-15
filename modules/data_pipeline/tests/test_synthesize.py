@@ -202,3 +202,24 @@ def test_receiver_file_cannot_reuse_a_scenarios_key(tmp_path):
     taken = CONFIG.scenarios.receivers.profiles[0].key
     with pytest.raises(ConfigError, match=taken):
         synthesize._chosen_receiver(receiver_file(tmp_path, key=taken), CONFIG)
+
+
+def test_export_has_the_leak_fields(tmp_path):
+    import json
+
+    store = Store(tmp_path / "calls.db")
+    record = make_record(status="accepted")
+    record["generation"]["receiver_leaked"] = ["ID_CARD", "OTP"]
+    record["generation"]["first_leak_turn"] = 3
+    store.save(record)
+    quiet = make_record(seed=1, status="accepted")
+    store.save(quiet)
+    out = tmp_path / "calls.jsonl"
+    assert synthesize.main(["--db", str(tmp_path / "calls.db"), "--export", str(out)]) == 0
+    rows = {r["id"]: r for r in map(json.loads, out.read_text(encoding="utf-8").splitlines())}
+    assert rows[record["id"]]["receiver_leaked"] == ["ID_CARD", "OTP"]
+    assert rows[record["id"]]["first_leak_turn"] == 3
+    assert (
+        rows[quiet["id"]]["receiver_leaked"] == [] and rows[quiet["id"]]["first_leak_turn"] is None
+    )
+    assert "generation" not in rows[record["id"]]

@@ -46,15 +46,19 @@ from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 
 from .agents import Agents
+from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config, ConfigError
-from .fill import SLOT_RE, SlotFiller
+from .fill import RECEIVER_ONLY_SLOTS, RECEIVER_OWN_SLOTS, SLOT_RE, SlotFiller, receiver_leaks
 from .patterns import render_notes
 from .scenarios import CallConfig, ReceiverProfile, sample_config
+from .spoken import pick_speech_style, spoken_text
 from .store import RECORD_SCHEMA, Store
 from .tts import Voices, join_call, pick_voices
 
 log = logging.getLogger("data_pipeline")
 
+TOO_LONG_FOR_JUDGE = "too_long_for_judge"
+TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 CALLER, RECEIVER = "A", "B"  # speaker ids in the record; the caller always speaks first
 
 
@@ -127,6 +131,11 @@ def run_call(
     return result["record"]
 
 
+def speech_style(call: CallConfig, config: Config) -> str:
+    """ "dash" or "pause": how this call's numbers are said (see spoken.py)."""
+    return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
+
+
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
     """romance_00001, or romance_teacher_cm_00001 for a call with a hand-picked receiver."""
     middle = f"_{receiver_key}" if receiver_key else ""
@@ -184,8 +193,11 @@ def new_record(
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "call": {**call.to_dict(), "receiver_override": receiver_hash(receiver)},
             "voices": {CALLER: caller_voice, RECEIVER: receiver_voice},
+            "speech_style": speech_style(call, config),
             "briefing": None,
             "turns": [],
+            "receiver_leaked": [],
+            "first_leak_turn": None,
             "scam_start_from": None,
             "judge": None,
         },
@@ -234,21 +246,27 @@ def _plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> dic
         f"The caller has {last + 1} turns. The first ask may come on turn "
         f"{call.reveal_turn + 1} at the earliest."
     )
+    inputs = dict(
+        scam_type=config.agents.judge.intended[call.call_type],
+        role=scenario.role,
+        goal=scenario.goal,
+        tactics=scenario.tactics,
+        turns=turns,
+    )
+    signature, budget = agents.signatures["planner"], prompt_budget(config, "planner")
+
+    def tokens_with(kept) -> int:
+        return prompt_tokens(signature, {**inputs, "pattern_notes": render_notes(list(kept))})
+
+    # the notes are newest first: when the prompt is too long the oldest are dropped
+    notes = trim_notes(notes, lambda kept: tokens_with(kept) <= budget)
     with dspy.context(lm=agents.lms["planner"]):
-        pred = _model_call(
-            lambda: agents.planner(
-                scam_type=config.agents.judge.intended[call.call_type],
-                role=scenario.role,
-                goal=scenario.goal,
-                tactics=scenario.tactics,
-                pattern_notes=render_notes(notes),
-                turns=turns,
-            )
-        )
+        pred = _model_call(lambda: agents.planner(**inputs, pattern_notes=render_notes(notes)))
     return {
         "plan": [step.strip() for step in pred.plan if step.strip()],
         # summaries, not ids: a wiki sync re-creates the notes and gives them new ids
         "notes_used": [note["summary"] for note in notes],
+        "prompt_tokens": tokens_with(notes),
         "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
     }
 
@@ -263,9 +281,14 @@ def _next_turn(
 ) -> dict:
     """Ask the agent whose turn it is for one line, fill its slots, and describe the turn."""
     started = time.perf_counter()
-    speaker, agent_name, pred = _model_call(lambda: _speak(agents, call, config, turns, plan))
+    speaker, agent_name, pred, tokens = _model_call(
+        lambda: _speak(agents, call, config, turns, plan)
+    )
     raw = (pred.line or "").strip()
     text, entities, problems = filler.fill(raw)
+    leaked = receiver_leaks(raw) if speaker == RECEIVER else []
+    if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
+        problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if not text:
         problems.append("empty_line")
     return {
@@ -273,13 +296,16 @@ def _next_turn(
         "agent": agent_name,
         "raw": raw,
         "text": text,
+        "spoken_text": spoken_text(text, entities, speech_style(call, config)),
         "entities": entities,
         "asks_now": bool(getattr(pred, "asks_now", False)),
         "end_call": bool(pred.end_call),
         "reasoning": (getattr(pred, "reasoning", "") or "").strip(),
         "problems": problems,
+        "leaked": leaked,
         "spelling": spelling(raw),
         "latency_s": round(time.perf_counter() - started, 3),
+        "prompt_tokens": tokens,
         "audio": None,
         "audio_s": None,
     }
@@ -290,6 +316,7 @@ def _finish_call(
 ) -> None:
     generation = record["generation"]
     _finish_text(record)
+    _finish_leaks(record)
     if voices is not None:
         _join_audio(record, out_dir, config.agents.tts.gap_s)
     generation["judge"] = _judge(agents, config, record)
@@ -305,39 +332,82 @@ def _finish_call(
 
 def _speak(
     agents: Agents, call: CallConfig, config: Config, turns: list[dict], plan: list[str]
-) -> tuple[str, str, dspy.Prediction]:
-    """Run the agent whose turn it is. Returns (speaker, agent name, prediction)."""
+) -> tuple[str, str, dspy.Prediction, int]:
+    """Run the agent whose turn it is. Returns (speaker, agent name, prediction, estimated
+    prompt tokens)."""
     if len(turns) % 2 == 1:
-        return RECEIVER, "receiver", _receiver_says(agents, call, config, turns)
-    agent_name, pred = _caller_says(agents, call, config, turns, plan)
-    return CALLER, agent_name, pred
+        pred, tokens = _receiver_says(agents, call, config, turns)
+        return RECEIVER, "receiver", pred, tokens
+    agent_name, pred, tokens = _caller_says(agents, call, config, turns, plan)
+    return CALLER, agent_name, pred, tokens
+
+
+def _fit_conversation(
+    agents: Agents, config: Config, agent: str, inputs: dict, lines: list[str]
+) -> tuple[str, int]:
+    """The conversation text for this agent's prompt and the prompt's estimated size. When the
+    whole call does not fit the agent's budget, the first turns and the newest turns are kept
+    and the middle is replaced by a marker (budget.trim_turns)."""
+    signature, budget = agents.signatures[agent], prompt_budget(config, agent)
+
+    def tokens(conversation: str) -> int:
+        return prompt_tokens(signature, {**inputs, "conversation": conversation})
+
+    if not lines:
+        text = config.agents.speakers.empty_call
+    else:
+        text, hidden = trim_turns(lines, lambda conversation: tokens(conversation) <= budget)
+        if hidden:
+            log.info("%s: %d earlier turns left out of the prompt", agent, hidden)
+    size = tokens(text)
+    if size > budget:  # nothing left to cut: do not send a prompt the model cannot take
+        raise ContextTooLong(agent, size, budget)
+    return text, size
 
 
 def _receiver_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[dict]
-) -> dspy.Prediction:
+) -> tuple[dspy.Prediction, int]:
     own_turn = len(turns) // 2
+    inputs = dict(
+        # the profile key is for choosing a profile on the command line, not for the model
+        persona=call.receiver.model_dump(exclude={"key"}),
+        voice=config.agents.speakers.voice[call.receiver.gender],
+        stage=stage(config, own_turn),
+    )
+    conversation_text, tokens = _fit_conversation(
+        agents, config, "receiver", inputs, _receiver_lines(turns, call, config)
+    )
     with dspy.context(lm=agents.lms["receiver"]):
-        return agents.receiver(
-            # the profile key is for choosing a profile on the command line, not for the model
-            persona=call.receiver.model_dump(exclude={"key"}),
-            voice=config.agents.speakers.voice[call.receiver.gender],
-            stage=stage(config, own_turn),
-            conversation=_receiver_view(turns, call, config),
-        )
+        return agents.receiver(**inputs, conversation=conversation_text), tokens
+
+
+def _receiver_lines(turns: list[dict], call: CallConfig, config: Config) -> list[str]:
+    """The call as the receiver hears it, one line per turn: real values, except its own name
+    and details, which stay the slots that its instructions call "your name", "your bank
+    account" and so on."""
+    values = SlotFiller(call, config.details).values
+    own = sorted(RECEIVER_OWN_SLOTS, key=lambda slot: -len(values[slot]))
+    lines = []
+    for line in conversation_lines(turns, config, raw=False):
+        for slot in own:
+            line = line.replace(values[slot], "{" + slot + "}")
+        lines.append(line)
+    return lines
 
 
 def _receiver_view(turns: list[dict], call: CallConfig, config: Config) -> str:
-    """The call as the receiver hears it: real values, except its own name, which stays the
-    {RECEIVER_NAME} slot that its instructions call "your name". Without this the receiver did
-    not recognise its own name and answered "you have the wrong number"."""
-    own_name = SlotFiller(call, config.details).values["RECEIVER_NAME"]
-    return conversation(turns, config, raw=False).replace(own_name, "{RECEIVER_NAME}")
+    """The call as the receiver hears it: real values, except its own name and details, which
+    stay the slots that its instructions call "your name", "your bank account" and so on.
+    Without this the receiver did not recognise its own name and answered "you have the wrong
+    number"."""
+    lines = _receiver_lines(turns, call, config)
+    return "\n".join(lines) if lines else config.agents.speakers.empty_call
 
 
 def _caller_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[dict], plan: list[str]
-) -> tuple[str, dspy.Prediction]:
+) -> tuple[str, dspy.Prediction, int]:
     own_turn = len(turns) // 2
     scenario = call.scenario
     inputs = dict(
@@ -346,30 +416,32 @@ def _caller_says(
         org="{ORG}" if scenario.org else "",
         goal=scenario.goal,
         receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
-        conversation=conversation(turns, config, raw=True),
     )
+    lines = conversation_lines(turns, config, raw=True)
     if call.label_scam:
+        inputs |= dict(tactics=scenario.tactics, pacing=pacing(call, config, own_turn), plan=plan)
+        text, tokens = _fit_conversation(agents, config, "scam_caller", inputs, lines)
         with dspy.context(lm=agents.lms["scam_caller"]):
-            pred = agents.scam_caller(
-                **inputs,
-                tactics=scenario.tactics,
-                pacing=pacing(call, config, own_turn),
-                plan=plan,
-            )
-        return "scam_caller", pred
+            return "scam_caller", agents.scam_caller(**inputs, conversation=text), tokens
+    inputs["manner"] = scenario.tactics
+    text, tokens = _fit_conversation(agents, config, "legit_caller", inputs, lines)
     with dspy.context(lm=agents.lms["legit_caller"]):
-        pred = agents.legit_caller(**inputs, manner=scenario.tactics)
-    return "legit_caller", pred
+        return "legit_caller", agents.legit_caller(**inputs, conversation=text), tokens
+
+
+def conversation_lines(turns: list[dict], config: Config, *, raw: bool) -> list[str]:
+    """One line per turn: the speaker's tag and what was said."""
+    speakers = config.agents.speakers
+    tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
+    key = "raw" if raw else "text"
+    return [f"{tag[turn['speaker']]}: {turn[key]}" for turn in turns]
 
 
 def conversation(turns: list[dict], config: Config, *, raw: bool) -> str:
     """The call so far as Thai lines. Callers see their slots ({PHONE}); receivers see values."""
-    speakers = config.agents.speakers
     if not turns:
-        return speakers.empty_call
-    tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
-    key = "raw" if raw else "text"
-    return "\n".join(f"{tag[turn['speaker']]}: {turn[key]}" for turn in turns)
+        return config.agents.speakers.empty_call
+    return "\n".join(conversation_lines(turns, config, raw=raw))
 
 
 def pacing(call: CallConfig, config: Config, own_turn: int) -> str:
@@ -435,14 +507,24 @@ def _finish_text(record: dict) -> None:
     record["entities"] = spans
 
 
+def _finish_leaks(record: dict) -> None:
+    """generation.receiver_leaked: every kind of detail the receiver gave away (sorted);
+    generation.first_leak_turn: index of the first receiver turn that gave one, else None."""
+    generation = record["generation"]
+    turns = generation["turns"]
+    generation["receiver_leaked"] = sorted({label for t in turns for label in t.get("leaked", [])})
+    generation["first_leak_turn"] = next((i for i, t in enumerate(turns) if t.get("leaked")), None)
+
+
 def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None:
     turn = record["generation"]["turns"][index]
     if not turn["text"]:
         return
+    said = turn.get("spoken_text") or turn["text"]
     rel = f"audio/{record['id']}/{index:02d}_{turn['speaker']}.wav"
     voice = record["generation"]["voices"][turn["speaker"]]
     try:
-        turn["audio_s"] = round(voices.speak(turn["text"], voice, out_dir / rel), 3)
+        turn["audio_s"] = round(voices.speak(said, voice, out_dir / rel), 3)
         turn["audio"] = rel
     except Exception as exc:  # a turn without audio is flagged, the call text is still kept
         log.warning("tts failed for %s turn %d: %s", record["id"], index, type(exc).__name__)
@@ -468,9 +550,26 @@ def _judge(agents: Agents, config: Config, record: dict) -> dict:
         for i, turn in enumerate(record["generation"]["turns"])
     )
     intended = config.agents.judge.intended[record["label_type"] or "benign"]
+    tokens = prompt_tokens(
+        agents.signatures["judge"], dict(intended=intended, transcript=transcript)
+    )
+    if tokens > prompt_budget(config, "judge"):
+        # The judge must read the whole call, so a call that does not fit is not judged at all.
+        return {
+            "label_holds": False,
+            "scam_start_turn": -1,
+            "natural_thai": 0,
+            "giveaway": False,
+            "summary": "",
+            "issues": "not judged: the call does not fit the judge's context window",
+            "reasoning": "",
+            "skipped": TOO_LONG_FOR_JUDGE,
+            "prompt_tokens": tokens,
+        }
     with dspy.context(lm=agents.lms["judge"]):
         pred = _model_call(lambda: agents.judge(intended=intended, transcript=transcript))
     return {
+        "prompt_tokens": tokens,
         "label_holds": bool(pred.label_holds),
         "scam_start_turn": int(pred.scam_start_turn),
         "natural_thai": int(pred.natural_thai),
@@ -520,6 +619,8 @@ def _verdict(record: dict, config: Config) -> list[str]:
     if any("tone_mark_order" in turn["spelling"] for turn in turns):
         reasons.append("tone_mark_order")
     judge = generation["judge"]
+    if judge.get("skipped"):  # not judged: there is nothing else to hold against the call
+        return [*reasons, judge["skipped"]]
     if not judge["label_holds"]:
         reasons.append("judge_label_does_not_hold")
     if judge["giveaway"]:
@@ -572,14 +673,27 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     turns, so a turn is never added twice or given the wrong speaker."""
     ctx = runtime.context
     old = state["record"]["generation"]
-    turn = _next_turn(
-        ctx.agents,
-        ctx.call,
-        ctx.config,
-        old["turns"],
-        ctx.filler,
-        (old["briefing"] or {}).get("plan", []),
-    )
+    try:
+        turn = _next_turn(
+            ctx.agents,
+            ctx.call,
+            ctx.config,
+            old["turns"],
+            ctx.filler,
+            (old["briefing"] or {}).get("plan", []),
+        )
+    except ContextTooLong as exc:
+        # The prompt cannot be made to fit, so the model is not asked. The call ends here,
+        # rejected, with the turns it has.
+        log.warning("%s: %s", state["record"]["id"], exc)
+        record = copy.deepcopy(state["record"])
+        generation = record["generation"]
+        _finish_text(record)
+        _finish_leaks(record)
+        generation["reasons"] = [TOO_LONG_FOR_CONTEXT]
+        generation["status"] = "rejected"
+        ctx.store.save(record)
+        return {"record": record}
     record = copy.deepcopy(state["record"])
     turns = record["generation"]["turns"]
     turns.append(turn)
@@ -592,7 +706,8 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
 def finish_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx, record = runtime.context, state["record"]
-    _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
+    if record["generation"]["status"] == "in_progress":  # else it ended early (too long)
+        _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
     ctx.store.save(record)
     return {"record": record}
 
@@ -602,6 +717,8 @@ def next_step(
 ) -> Literal["caller", "receiver", "finish"]:
     """Whose turn it is, or "finish" when someone hung up or the call reached its length."""
     turns = state["record"]["generation"]["turns"]
+    if state["record"]["generation"]["status"] != "in_progress":
+        return "finish"
     if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
         return "finish"
     return "caller" if len(turns) % 2 == 0 else "receiver"
