@@ -29,6 +29,7 @@ Install torch first. The normal Windows wheel has no GPU support.
 | File | What it is |
 |------|------------|
 | `dataset/scam_dataset.csv` | Input. One call per row: `dialogue`, `scam_class`, `scam_type`. |
+| `dataset/scam_dataset_generated.csv` | Optional input. Simulated calls from `data_pipeline`. See "Generated data". |
 | `data/processed/dataset.csv` | All cleaned samples. |
 | `data/processed/train.csv`, `valid.csv`, `test.csv` | The fixed 70 / 15 / 15 split. |
 | `models/phayathaibert-scam-gate/` | Saved gate model. Not in git. |
@@ -53,7 +54,7 @@ Part A prepares the data. Part B trains and scores.
 | 5. Near-duplicate detection | Groups calls that are almost the same text. |
 | 6. Split | 70 / 15 / 15 with seed 42. A group never crosses two sets. |
 | 7. Export | Writes the csv files. |
-| 8. Baseline | TF-IDF + logistic regression. Also checks which speaker the gate relies on. |
+| 8. Baseline | TF-IDF + logistic regression. Also checks which speaker the gate relies on, and whether generated rows in train help. |
 | 9. Tokenization | Loads the PhayaThaiBERT tokenizer and checks text length. |
 | 10. Gate model | Fine-tunes PhayaThaiBERT for scam / not scam. |
 | 11. Type model | Fine-tunes PhayaThaiBERT for the scam type. |
@@ -71,8 +72,18 @@ Train, valid and test have different jobs. The model learns from train. Valid pi
 | `TYPE_MAP` | Step 4 | Which dataset type goes to which spec type. |
 | `MIN_TYPE_SAMPLES`, `MIN_TYPE_EVAL_SAMPLES` | First cell | How many samples a type needs before the type model trains on it. |
 | `REBUILD_SPLIT` | First cell | `True` makes a new split. `False` keeps the files on disk. |
+| `KEEP_ORIGINAL_TEST` | First cell | With generated data, `True` keeps the hand-written test set. See "Generated data". |
+| `GENERATED_FILE` | Input format cell | The generated csv. Set it to `None` to train on hand-written data only. |
 | `RUN_BERT_CV`, `N_FOLDS` | Step 12 | Turn PhayaThaiBERT cross-validation on or off. |
 | `GATE_MIN_CONFIDENCE`, `TYPE_MIN_CONFIDENCE` | Step 14 and start of part B | Below these the model answers "unsure". |
+
+## Generated data
+
+`python -m data_pipeline.synthesize --export-notebook dataset/scam_dataset_generated.csv` writes simulated calls in the same format (see [`modules/data_pipeline/README.md`](../modules/data_pipeline/README.md#export-for-the-classifier-notebook)). The notebook reads that file when it exists. Without it, the notebook gives back `data/processed` unchanged.
+
+- Rows with the same `group_hint` (call type and scenario) always land in one split.
+- With `KEEP_ORIGINAL_TEST = True`, every hand-written row keeps the split it has in `data/processed/{train,valid,test}.csv`.
+- A generated row follows the hand-written rows of its group. It is dropped if that split is test, or if its group has hand-written rows in two splits (the notebook prints a warning). Groups with no hand-written row go to train and valid only.
 
 ## Results of the last run
 
