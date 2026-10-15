@@ -17,14 +17,14 @@ _DIGITS = {
 }  # fmt: skip
 _MULT = {"สิบ": 10, "ร้อย": 100, "พัน": 1000, "หมื่น": 10_000, "แสน": 100_000, "ล้าน": 1_000_000}
 _YEE = "ยี่"  # 20 as in ยี่สิบ
-_DASH = ("ขีด", "ลบ")  # ลบ is also a real word, so a dash only between two numbers
+_DASH_WORDS = ("ขีด", "ลบ")  # ลบ is also a real word, so a dash only between two numbers
 # Shared with the reply leak check (tts_voice_agent.leak).
 THAI_NUMBER_WORDS = (*_DIGITS, *_MULT, _YEE)
 ENGLISH_DIGIT_WORDS = "zero one two three four five six seven eight nine oh".split()
 _EN_VALUE = {w: str(i) for i, w in enumerate(ENGLISH_DIGIT_WORDS[:10])} | {"oh": "0"}
 
 _UNITS = ("บาท", "ดอลลาร์", "เหรียญ", "หยวน", "เยน", "ยูโร", "ปอนด์", "สตางค์")
-_WORD_ALT = "|".join(sorted((*THAI_NUMBER_WORDS, *_DASH), key=len, reverse=True))
+_WORD_ALT = "|".join(sorted((*THAI_NUMBER_WORDS, *_DASH_WORDS), key=len, reverse=True))
 _NUMBER_WORD = re.compile(_WORD_ALT)
 _UNIT_AFTER = re.compile(rf"\s*(?:{'|'.join(_UNITS)})")
 _COUNTER_AFTER = re.compile(r"\s*(?:คน|ปี|วัน|เดือน|ครั้ง|ชั้น|ตัว|ชิ้น|ข้อ|ที่)")
@@ -104,7 +104,7 @@ def _split_on_dashes(words: list[str]) -> list[list[str]] | None:
     """Groups of number words between dashes, None if a dash has no number on one side."""
     groups: list[list[str]] = [[]]
     for w in words:
-        if w not in _DASH:
+        if w not in _DASH_WORDS:
             groups[-1].append(w)
         elif groups[-1]:
             groups.append([])
@@ -180,9 +180,9 @@ def _runs(matches: list[re.Match[str]], text: str) -> list[list[re.Match[str]]]:
 
 def _trim_dashes(run: list[re.Match[str]]) -> list[re.Match[str]]:
     """Drop a dash at either end: it is an ordinary word ("ลบ" = delete), not part of the number."""
-    while run and run[-1].group() in _DASH:
+    while run and run[-1].group() in _DASH_WORDS:
         run = run[:-1]
-    while run and run[0].group() in _DASH:
+    while run and run[0].group() in _DASH_WORDS:
         run = run[1:]
     return run
 
@@ -214,7 +214,7 @@ def _edit_for_run(
         return None
     # a range such as "ห้าสิบ-หกสิบบาท": both halves convert or neither; only a long digit
     # run keeps converting next to a hyphen
-    long_digits = len(words) >= MIN_DIGITS and all(w in _DIGITS or w in _DASH for w in words)
+    long_digits = len(words) >= MIN_DIGITS and all(w in _DIGITS or w in _DASH_WORDS for w in words)
     next_to_hyphen = before.rstrip().endswith("-") or after.lstrip().startswith("-")
     if next_to_hyphen and not long_digits:
         return None
@@ -229,6 +229,7 @@ def spoken_numbers_to_digits(text: str) -> str:
         lambda m: "".join(_EN_VALUE[w.lower()] for w in re.findall(r"[a-z]+", m.group(), re.I)),
         text,
     )
+    # last edit first, so the offsets of the earlier edits stay valid
     for start, end, out in reversed(_thai_edits(text)):
         text = text[:start] + out + text[end:]
     return text

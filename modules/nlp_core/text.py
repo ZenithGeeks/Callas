@@ -20,6 +20,7 @@ _THAI_WORD = re.compile("[ก-ฺเ-ๅ็-๎]+")
 
 def normalize_text(text: str) -> str:
     """NFC, PyThaiNLP normalize (fixes doubled tone marks) and single spaces between words."""
+    # "。" (ideographic full stop) turns up in some ASR output; treat it as a space
     text = unicodedata.normalize("NFC", text).replace("。", " ")
     return " ".join(thai_normalize(text).split())
 
@@ -53,9 +54,10 @@ def _fix_word(word: str) -> str:
 def autocorrect_text(text: str, mode: str | None = None) -> str:
     """Fix Thai words that are not in the dictionary. Leaves digits, English, names and URLs.
 
-    ponytail: PyThaiNLP's correct() takes about 0.4 s per unknown word and can pick a wrong
-    word ("โอนเงนิ" becomes "ถอนเงิน"), so the default is off. Swap in a context-aware model
-    if the three checks in issue #30 do not pass.
+    mode is "pythainlp" or "off"; None reads the AUTOCORRECT setting, which is "off" by default.
+    It is off because PyThaiNLP's correct() takes about 0.4 s per unknown word and can pick a
+    wrong word ("โอนเงนิ" becomes "ถอนเงิน"). Swap in a context-aware model if the three
+    checks in issue #30 do not pass.
     """
     if mode is None:
         from callas_settings import get_settings
@@ -72,13 +74,18 @@ def autocorrect_text(text: str, mode: str | None = None) -> str:
 def _correct_tokens(tokens: list[str]) -> list[str]:
     """Replace each unknown Thai token (with its Thai neighbours) by its best spelling."""
     words, names = _dictionary(), _names()
+    # `corrected` is the output so far. The previous Thai token is taken back out of it so it
+    # can be corrected together with the unknown one; `i` skips the next token only when the
+    # corrected word already includes it.
     corrected: list[str] = []
     i = 0
     while i < len(tokens):
         token = tokens[i]
         # a name the lists do not know is cut into several pieces after its title
         after_title = any(t in _TITLES for t in corrected[-4:])
-        is_unknown_word = _THAI_WORD.fullmatch(token) and token not in words and token not in names
+        is_unknown_word = (
+            bool(_THAI_WORD.fullmatch(token)) and token not in words and token not in names
+        )
         if not is_unknown_word or after_title:
             corrected.append(token)
             i += 1

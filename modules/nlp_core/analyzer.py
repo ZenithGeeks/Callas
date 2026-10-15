@@ -25,7 +25,11 @@ class Analyzer:
         self.llm = llm
 
     def analyze(self, text: str) -> NLPResult:
-        """Entities from rules, summary and scam label from two LLM calls."""
+        """Entities from rules, summary and scam label from two LLM calls.
+
+        This path does not read NLP_NER, NLP_CLASSIFIER or NLP_SUMMARIZER; use
+        registry.analyze_with_tools for that.
+        """
         entities = extract_entities(text)
         summary = LLMSummarizer(self.llm).summarize(text)
         label_scam, label_type, confidence = LLMClassifier(self.llm).predict(text)

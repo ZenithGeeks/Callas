@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# label_type values. None means not a scam.
+# label_type values. None means a normal call, or a scam check that was unsure.
 SCAM_TYPES: tuple[str, ...] = (
     "fake_authority",
     "romance",

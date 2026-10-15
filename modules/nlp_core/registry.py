@@ -31,7 +31,7 @@ DEFAULT_NAMES: dict[str, str] = {"ner": "rules", "classifier": "llm", "summarize
 
 _FACTORIES: dict[str, dict[str, Callable[[], Any]]] = {k: {} for k in KINDS}
 _INSTANCES: dict[tuple[str, str], Any] = {}
-_LOCK = threading.RLock()
+_LOCK = threading.RLock()  # re-entrant: a factory may call get() for another part
 
 
 def _check_kind(kind: str) -> None:
@@ -57,6 +57,8 @@ def default_name(kind: str) -> str:
     """Name chosen by the environment variable, then .env, then the built-in default."""
     _check_kind(kind)
     from callas_settings import get_settings
+
+    # Settings has one field per kind: nlp_ner, nlp_classifier, nlp_summarizer.
 
     from_process_env = os.environ.get(ENV_VARS[kind], "").strip()
     return from_process_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
@@ -137,7 +139,11 @@ def analyze_with_tools(
     """Run the selected NER, summarizer and classifier and combine them into an NLPResult."""
     entities = get("ner", ner).extract(text)
     summary = get("summarizer", summarizer).summarize(text)
-    scam, kind, conf = get("classifier", classifier).predict(text)
+    label_scam, label_type, confidence = get("classifier", classifier).predict(text)
     return NLPResult(
-        entities=entities, summary=summary, label_scam=scam, label_type=kind, confidence=conf
+        entities=entities,
+        summary=summary,
+        label_scam=label_scam,
+        label_type=label_type,
+        confidence=confidence,
     )
