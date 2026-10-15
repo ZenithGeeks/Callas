@@ -279,14 +279,8 @@ def _resume_overrides(
 def mark_model_error(store: Store, record_id: str, exc: BaseException) -> None:
     """Same as the command line run: a model error that survived the retries rejects the call
     (llm_error:...). Any other error leaves the call unfinished so it can be resumed."""
-    if not is_model_error(exc):
-        return
-    record = store.load_call(record_id)
-    if record is None or record.generation.status != "in_progress":
-        return
-    reasons = [f"llm_error:{type(exc).__name__}"]
-    generation = replace(record.generation, status="rejected", reasons=reasons)
-    store.save_call(replace(record, generation=generation))
+    if is_model_error(exc):
+        store.reject_after_model_error(record_id, exc)
 
 
 # demo mode: a scripted LM and silent voices

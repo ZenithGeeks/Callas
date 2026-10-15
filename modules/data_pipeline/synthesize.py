@@ -24,7 +24,6 @@ import logging
 import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import replace
 from pathlib import Path
 
 from callas_tracing import setup_tracing
@@ -325,13 +324,7 @@ def _run_one(
         if not is_model_error(exc):
             print(f"{wanted_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return wanted_id, "error"
-        record = store.load_call(wanted_id)
-        if record is None:
-            return wanted_id, "error"
-        reasons = [f"llm_error:{type(exc).__name__}"]
-        generation = replace(record.generation, status="rejected", reasons=reasons)
-        store.save_call(replace(record, generation=generation))
-        return wanted_id, "rejected"
+        return wanted_id, "rejected" if store.reject_after_model_error(wanted_id, exc) else "error"
     return record["id"], record["generation"]["status"]
 
 

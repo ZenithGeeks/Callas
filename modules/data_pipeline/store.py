@@ -20,6 +20,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,30 @@ CREATE TABLE IF NOT EXISTS pattern_notes (
     added_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS notes_by_type ON pattern_notes (scam_type, active);
+"""
+
+# The values come from _call_values, in this order. On a conflict the review columns and
+# created_at are left alone (see Store.save).
+_UPSERT_CALL = """
+INSERT INTO calls (
+    id, call_type, seed, label_scam, label_type, status, reasons,
+    config_name, config_hash, models, call, voices, briefing, judge,
+    scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
+    speech_style,
+    reference_summary, audio_path,
+    review_status, review_note, reviewed_at, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?)
+ON CONFLICT (id) DO UPDATE SET
+    status = excluded.status, reasons = excluded.reasons,
+    models = excluded.models, briefing = excluded.briefing,
+    judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
+    scam_start_from = excluded.scam_start_from,
+    receiver_leaked = excluded.receiver_leaked,
+    first_leak_turn = excluded.first_leak_turn,
+    speech_style = excluded.speech_style,
+    reference_summary = excluded.reference_summary,
+    audio_path = excluded.audio_path, updated_at = excluded.updated_at
 """
 
 _TURN_COLUMNS = (
@@ -201,62 +226,11 @@ class Store:
         A new call gets the record's review block, but saving an existing call never changes
         its review: a generator that saves a stale record must not undo a human's decision.
         Use set_review to change it."""
-        gen, review = record["generation"], record.get("review", {})
+        turns = record["generation"]["turns"]
         timed = record.get("speaker_turns") or []
-        stamp = now()
         with self._tx() as db:
-            db.execute(
-                """
-                INSERT INTO calls (
-                    id, call_type, seed, label_scam, label_type, status, reasons,
-                    config_name, config_hash, models, call, voices, briefing, judge,
-                    scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
-                    speech_style,
-                    reference_summary, audio_path,
-                    review_status, review_note, reviewed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?)
-                ON CONFLICT (id) DO UPDATE SET
-                    status = excluded.status, reasons = excluded.reasons,
-                    models = excluded.models, briefing = excluded.briefing,
-                    judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
-                    scam_start_from = excluded.scam_start_from,
-                    receiver_leaked = excluded.receiver_leaked,
-                    first_leak_turn = excluded.first_leak_turn,
-                    speech_style = excluded.speech_style,
-                    reference_summary = excluded.reference_summary,
-                    audio_path = excluded.audio_path, updated_at = excluded.updated_at
-                """,
-                (
-                    record["id"],
-                    record.get("label_type") or "benign",
-                    gen["call"]["seed"],
-                    int(bool(record["label_scam"])),
-                    record.get("label_type"),
-                    gen["status"],
-                    json.dumps(gen.get("reasons", []), ensure_ascii=False),
-                    gen.get("config_name", ""),
-                    gen.get("config_hash", ""),
-                    json.dumps(gen.get("models", {}), ensure_ascii=False),
-                    json.dumps(gen["call"], ensure_ascii=False),
-                    json.dumps(gen.get("voices", {}), ensure_ascii=False),
-                    _dump_or_none(gen.get("briefing")),
-                    _dump_or_none(gen.get("judge")),
-                    record.get("scam_start_turn"),
-                    gen.get("scam_start_from"),
-                    json.dumps(gen.get("receiver_leaked", []), ensure_ascii=False),
-                    gen.get("first_leak_turn"),
-                    gen.get("speech_style", ""),
-                    record.get("reference_summary", ""),
-                    record.get("audio_path"),
-                    review.get("status", "pending"),
-                    review.get("note", ""),
-                    review.get("reviewed_at"),
-                    gen.get("created_at") or stamp,
-                    stamp,
-                ),
-            )
-            for i, turn in enumerate(gen["turns"]):
+            db.execute(_UPSERT_CALL, _call_values(record, now()))
+            for i, turn in enumerate(turns):
                 timing = timed[i] if i < len(timed) else {}
                 values = [_turn_value(turn, c) for c in _TURN_COLUMNS]
                 db.execute(
@@ -269,8 +243,7 @@ class Store:
                 )
             # A rerun of the same call can only grow, but keep the table exact anyway.
             db.execute(
-                "DELETE FROM turns WHERE call_id = ? AND idx >= ?",
-                (record["id"], len(gen["turns"])),
+                "DELETE FROM turns WHERE call_id = ? AND idx >= ?", (record["id"], len(turns))
             )
 
     def load(self, call_id: str) -> dict | None:
@@ -341,6 +314,19 @@ class Store:
                 (status, note, reviewed_at, now(), call_id),
             )
         return cur.rowcount == 1
+
+    def reject_after_model_error(self, call_id: str, exc: BaseException) -> bool:
+        """Mark an unfinished call `rejected` with the reason `llm_error:<error name>`.
+
+        Used when a model error survived the retries. Returns False, and changes nothing, when
+        there is no such call or it is already finished."""
+        record = self.load_call(call_id)
+        if record is None or record.generation.status != "in_progress":
+            return False
+        reasons = [f"llm_error:{type(exc).__name__}"]
+        generation = replace(record.generation, status="rejected", reasons=reasons)
+        self.save_call(replace(record, generation=generation))
+        return True
 
     def delete(self, call_id: str) -> None:
         """Delete a call and, through the foreign key, its turns."""
@@ -445,6 +431,39 @@ class Store:
 
 
 # row <-> record
+
+
+def _call_values(record: dict, stamp: str) -> tuple:
+    """The values of the calls row for this record, in the order of _UPSERT_CALL."""
+    generation, review = record["generation"], record.get("review", {})
+    return (
+        record["id"],
+        record.get("label_type") or "benign",
+        generation["call"]["seed"],
+        int(bool(record["label_scam"])),
+        record.get("label_type"),
+        generation["status"],
+        json.dumps(generation.get("reasons", []), ensure_ascii=False),
+        generation.get("config_name", ""),
+        generation.get("config_hash", ""),
+        json.dumps(generation.get("models", {}), ensure_ascii=False),
+        json.dumps(generation["call"], ensure_ascii=False),
+        json.dumps(generation.get("voices", {}), ensure_ascii=False),
+        _dump_or_none(generation.get("briefing")),
+        _dump_or_none(generation.get("judge")),
+        record.get("scam_start_turn"),
+        generation.get("scam_start_from"),
+        json.dumps(generation.get("receiver_leaked", []), ensure_ascii=False),
+        generation.get("first_leak_turn"),
+        generation.get("speech_style", ""),
+        record.get("reference_summary", ""),
+        record.get("audio_path"),
+        review.get("status", "pending"),
+        review.get("note", ""),
+        review.get("reviewed_at"),
+        generation.get("created_at") or stamp,
+        stamp,
+    )
 
 
 def _dump_or_none(value: Any) -> str | None:
