@@ -11,6 +11,9 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from starlette.concurrency import run_in_threadpool
 
+from llm_serving.client import LLMUnavailable
+from orchestrator import ToolCallingUnavailable
+
 from . import views
 from .web import form_error, page, render
 
@@ -30,9 +33,6 @@ async def message_page(request: Request) -> HTMLResponse:
 @router.post("/message/check", response_class=HTMLResponse)
 async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
     """The verdict panel for one message, or a form error."""
-    from llm_serving.client import LLMUnavailable
-    from orchestrator import ToolCallingUnavailable
-
     rt = request.app.state.rt
     text = text.strip()
     if not text:

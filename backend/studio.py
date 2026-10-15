@@ -44,21 +44,6 @@ from .web import form_error, page, render
 log = logging.getLogger("callas.studio")
 SHUTDOWN = threading.Event()  # set when the app stops, so open event streams end
 
-
-@asynccontextmanager
-async def _lifespan(app: Any) -> AsyncIterator[None]:
-    """Runs with the app's own lifespan (include_router merges it)."""
-    SHUTDOWN.clear()
-    try:
-        yield
-    finally:
-        SHUTDOWN.set()
-        for run in BOARD.all():
-            run.cancel.set()  # a running call stops after its step; it stays saved and resumable
-
-
-router = APIRouter(lifespan=_lifespan)
-
 RUN_ID_RE = re.compile(r"[0-9a-f]{12}")
 KEPT_RUNS = 5
 CUSTOM = "__custom__"
@@ -84,9 +69,6 @@ class FormProblem(Exception):
     def __init__(self, message: str, status: int = 422) -> None:
         super().__init__(message)
         self.status = status
-
-
-# ---- runs ------------------------------------------------------------------------------------
 
 
 @dataclass
@@ -140,29 +122,19 @@ class Board:
 BOARD = Board()
 
 
-def _elapsed(seconds: float) -> str:
-    minutes, secs = divmod(int(seconds), 60)
-    return f"{minutes} min {secs} s" if minutes else f"{secs} s"
+@asynccontextmanager
+async def _lifespan(app: Any) -> AsyncIterator[None]:
+    """Runs with the app's own lifespan (include_router merges it)."""
+    SHUTDOWN.clear()
+    try:
+        yield
+    finally:
+        SHUTDOWN.set()
+        for run in BOARD.all():
+            run.cancel.set()  # a running call stops after its step; it stays saved and resumable
 
 
-@cache
-def _config() -> Config:
-    return load_default_config()
-
-
-def _demo(request: Request) -> bool:
-    return request.app.state.rt.is_demo
-
-
-def _type_options() -> list[tuple[str, str]]:
-    return [(key, dataset.CALL_TYPE_NAMES[key]) for key in CALL_TYPES]
-
-
-def _profile_label(profile: ReceiverProfile) -> str:
-    return f"{profile.key}: {profile.gender}, {profile.age}, {profile.occupation}"
-
-
-# ---- the page and the form -------------------------------------------------------------------
+router = APIRouter(lifespan=_lifespan)
 
 
 @router.get("/studio", response_class=HTMLResponse)
@@ -190,6 +162,44 @@ def studio_page(request: Request) -> HTMLResponse:
         run_view=_run_view(run) if run else None,
         db=str(dataset.db_path()),
     )
+
+
+@cache
+def _config() -> Config:
+    return load_default_config()
+
+
+def _demo(request: Request) -> bool:
+    return request.app.state.rt.is_demo
+
+
+def _type_options() -> list[tuple[str, str]]:
+    return [(key, dataset.CALL_TYPE_NAMES[key]) for key in CALL_TYPES]
+
+
+def _profile_label(profile: ReceiverProfile) -> str:
+    return f"{profile.key}: {profile.gender}, {profile.age}, {profile.occupation}"
+
+
+@router.post("/studio/start", response_class=HTMLResponse)
+async def studio_start(request: Request) -> Response:
+    form = await request.form()  # the store and the templates are used in a worker thread
+    return await run_in_threadpool(_begin, form, _demo(request), request.app.state.pace)
+
+
+def _begin(form: Any, demo: bool, pace: float) -> Response:
+    try:
+        spec = parse_form(form, _config(), _taken_ids())
+        run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
+    except FormProblem as problem:
+        return form_error(str(problem), problem.status)
+    threading.Thread(
+        target=_work,
+        args=(run, demo, pace, bool(form.get("speak")), dataset.db_path()),
+        name=f"studio-{run.id}",
+        daemon=True,
+    ).start()
+    return HTMLResponse(render("partials/studio_run.html", run=_run_view(run), demo=demo))
 
 
 def parse_form(form: Any, config: Config, taken_ids: set[str]) -> live.CallSpec:
@@ -261,27 +271,6 @@ def _taken_ids() -> set[str]:
     return {r["id"] for r in db.summaries() if r["status"] != "in_progress"} if db else set()
 
 
-@router.post("/studio/start", response_class=HTMLResponse)
-async def studio_start(request: Request) -> Response:
-    form = await request.form()  # the store and the templates are used in a worker thread
-    return await run_in_threadpool(_begin, form, _demo(request), request.app.state.pace)
-
-
-def _begin(form: Any, demo: bool, pace: float) -> Response:
-    try:
-        spec = parse_form(form, _config(), _taken_ids())
-        run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
-    except FormProblem as problem:
-        return form_error(str(problem), problem.status)
-    threading.Thread(
-        target=_work,
-        args=(run, demo, pace, bool(form.get("speak")), dataset.db_path()),
-        name=f"studio-{run.id}",
-        daemon=True,
-    ).start()
-    return HTMLResponse(render("partials/studio_run.html", run=_run_view(run), demo=demo))
-
-
 def _title(spec: live.CallSpec) -> str:
     return f"{dataset.CALL_TYPE_NAMES[spec.call_type]} #{spec.seed}"
 
@@ -298,7 +287,9 @@ def _run_view(run: StudioRun) -> dict:
     }
 
 
-# ---- server-sent events ----------------------------------------------------------------------
+def _elapsed(seconds: float) -> str:
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes} min {secs} s" if minutes else f"{secs} s"
 
 
 def _sse(name: str, html: str, event_id: int) -> str:
@@ -351,9 +342,6 @@ def studio_stop(run_id: str) -> Response:
         return JSONResponse({"detail": "Unknown run."}, status_code=404)
     run.cancel.set()
     return Response(status_code=204)
-
-
-# ---- the background thread -------------------------------------------------------------------
 
 
 def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -> None:
@@ -422,52 +410,6 @@ def _explain(run: StudioRun, exc: Exception) -> str:
     )
 
 
-# ---- turning steps into HTML -----------------------------------------------------------------
-
-
-def _tag(modules: list[live.ModuleRun], agent: str, fallback_s: float | None = None) -> dict | None:
-    """The small label under a message: agent, DSPy module, model, time taken."""
-    if modules:
-        main = modules[-1]
-        return {
-            "agent": main.agent,
-            "module": main.module,
-            "model": main.model,
-            "seconds": main.seconds,
-            "calls": [_lm_view(c) for m in modules for c in m.lm_calls],
-        }
-    if fallback_s is not None:  # a resumed turn: no callbacks, only the stored time
-        return {"agent": agent, "module": "", "model": "", "seconds": fallback_s, "calls": []}
-    return None
-
-
-def _lm_view(call: live.LmCall) -> dict:
-    return {
-        "model": call.model,
-        "messages": call.messages,
-        "answer": call.answer,
-        "error": call.error,
-    }
-
-
-def _flags(turn: dict) -> list[str]:
-    flags = [dataset.reason_text(p) for p in turn.get("problems", [])]
-    words = [w for w in turn.get("spelling", []) if len(w.strip()) > 1]
-    if words:
-        flags.append(f"Check spelling: {', '.join(words[:3])}")
-    return flags
-
-
-def _leaked(turn: dict) -> str:
-    """What the turn leaked, if the turn says so. Detection is not done here."""
-    labels = turn.get("leaked") or []  # label names, e.g. ["OTP", "ID_CARD"]
-    return ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
-
-
-def _audio_url(record_id: str, turn: dict) -> str | None:
-    return f"/dataset/audio/{record_id}/{Path(turn['audio']).name}" if turn.get("audio") else None
-
-
 def _render_event(run: StudioRun, event: live.Event) -> str:
     record, generation = event.record, event.record["generation"]
     if event.kind == "thinking":
@@ -515,3 +457,46 @@ def _render_event(run: StudioRun, event: live.Event) -> str:
         label_scam=record["label_scam"],
         tag=_tag(event.modules, "judge"),
     )
+
+
+def _tag(modules: list[live.ModuleRun], agent: str, fallback_s: float | None = None) -> dict | None:
+    """The small label under a message: agent, DSPy module, model, time taken."""
+    if modules:
+        main = modules[-1]
+        return {
+            "agent": main.agent,
+            "module": main.module,
+            "model": main.model,
+            "seconds": main.seconds,
+            "calls": [_lm_view(c) for m in modules for c in m.lm_calls],
+        }
+    if fallback_s is not None:  # a resumed turn: no callbacks, only the stored time
+        return {"agent": agent, "module": "", "model": "", "seconds": fallback_s, "calls": []}
+    return None
+
+
+def _lm_view(call: live.LmCall) -> dict:
+    return {
+        "model": call.model,
+        "messages": call.messages,
+        "answer": call.answer,
+        "error": call.error,
+    }
+
+
+def _flags(turn: dict) -> list[str]:
+    flags = [dataset.reason_text(p) for p in turn.get("problems", [])]
+    words = [w for w in turn.get("spelling", []) if len(w.strip()) > 1]
+    if words:
+        flags.append(f"Check spelling: {', '.join(words[:3])}")
+    return flags
+
+
+def _leaked(turn: dict) -> str:
+    """What the turn leaked, if the turn says so. Detection is not done here."""
+    labels = turn.get("leaked") or []  # label names, e.g. ["OTP", "ID_CARD"]
+    return ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
+
+
+def _audio_url(record_id: str, turn: dict) -> str | None:
+    return f"/dataset/audio/{record_id}/{Path(turn['audio']).name}" if turn.get("audio") else None
