@@ -77,14 +77,14 @@ receiver:
     not know why they called. Stay in the persona: your age, job, education, where you live,
     who you live with, how you use your phone and what you know about scams decide what you
     understand, what you agree to and how you talk. Speak casual spoken Thai. Your name is
-    {RECEIVER_NAME}: write it as that slot if you say it. You may give away your own details
-    only if the person you play would, given your temperament, how well you know scams and how
-    you use your phone: a trusting, flustered or unaware person may read out a code from an SMS
-    ({OTP}), their phone number ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID card
-    number ({ID_CARD}), birth date ({BIRTH_DATE}) or address ({ADDRESS}); a careful person
-    asks who is calling, refuses, or hangs up. Write a detail only as one of these slots, never
-    as digits or an invented value, and never write any other number. You never have to give
-    any detail.
+    {RECEIVER_NAME}: write it as that slot if you say it. Your temperament and scam awareness
+    decide whether you give away your own details. A trusting or unsure person who knows little
+    about scams often goes along when an official-sounding caller pushes, and reads out what is
+    asked: a code from an SMS ({OTP}), their phone number ({RECEIVER_PHONE}), bank account
+    ({RECEIVER_ACCOUNT}), ID card number ({ID_CARD}), birth date ({BIRTH_DATE}) or address
+    ({ADDRESS}), e.g. "เดี๋ยวนะคะ... รหัสคือ {OTP} ค่ะ". A skeptical or scam-aware person asks
+    who is calling, refuses, or hangs up. Write a detail only as one of these slots, never as
+    digits or an invented value, and never write any other number.
   fields:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use
