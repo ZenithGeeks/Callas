@@ -1,0 +1,21 @@
+{# A placeholder shown while an agent works; the real piece replaces it (same id).
+   Expects `agent` and `n` (the number of the turn being written). #}
+{% import "partials/_studio.html" as st %}
+{% if agent == 'planner' %}
+<li id="msg-plan" class="studio-card" aria-busy="true">
+  <p class="thinking">The planner is writing the caller's plan{{ st.dots() }}</p>
+</li>
+{% elif agent == 'judge' %}
+<li id="msg-verdict" class="studio-card" aria-busy="true">
+  <p class="thinking">The judge is reading the call{{ st.dots() }}</p>
+</li>
+{% else %}
+{% set caller = agent != 'receiver' %}
+<li class="msg" id="msg-{{ n }}" data-side="{{ 'left' if caller else 'right' }}" data-role="{{ 'caller' if caller else 'receiver' }}" aria-busy="true">
+  <span class="msg-avatar" aria-hidden="true">{{ 'A' if caller else 'B' }}</span>
+  <div class="msg-body">
+    <p class="msg-meta"><span class="msg-who">{{ 'Caller' if caller else 'Receiver' }}</span><span aria-hidden="true">·</span><span>Turn {{ n }}</span></p>
+    <div class="msg-line"><div class="msg-bubble"><p class="msg-text thinking">Thinking{{ st.dots() }}</p></div></div>
+  </div>
+</li>
+{% endif %}

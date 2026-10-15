@@ -1,0 +1,8 @@
+{# Replaces the "thinking" bubble of a turn that was never written: the call ended early. #}
+<li id="msg-{{ n }}" class="studio-card" data-tone="unsure">
+  <h3 class="sec-h">The call ended before turn {{ n }}</h3>
+  {% if reasons %}
+  <ul class="mt-3 flex flex-wrap gap-2">{% for x in reasons %}<li class="reason">{{ x }}</li>{% endfor %}</ul>
+  {% endif %}
+  <p class="mt-3 text-[15px] text-muted">The model was not asked. The turns so far are saved, and the call is marked as failed.</p>
+</li>

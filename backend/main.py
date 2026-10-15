@@ -36,7 +36,7 @@ from fastapi.templating import Jinja2Templates  # noqa: E402
 from markupsafe import Markup  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 
-from . import call_run, dataset, demo, live_ws, views  # noqa: E402
+from . import call_run, dataset, demo, live_ws, studio, views  # noqa: E402
 from . import runtime as rt_mod  # noqa: E402
 
 log = logging.getLogger("callas.web")
@@ -100,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Callas", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
+app.include_router(studio.router)
 
 
 def render(name: str, **ctx) -> str:

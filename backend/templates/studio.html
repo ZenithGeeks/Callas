@@ -1,0 +1,93 @@
+{# /studio: make a simulated call and watch it being written.
+   Expects types, scenarios, profiles, genders, detail_fields, age_range, run, run_view, db. #}
+{% extends "base.html" %}
+{% import "partials/_ui.html" as ui %}
+{% block title %}Call studio | Callas{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ asset('css/studio.css') }}">
+<script src="{{ asset('js/studio.js') }}" defer></script>
+{% endblock %}
+{% block main %}
+<div class="grid grid-cols-1 gap-x-10 gap-y-10 lg:grid-cols-[392px_minmax(0,1fr)]">
+  <form id="studio-form" class="slip p-5 lg:sticky lg:top-6 lg:self-start" hx-post="/studio/start" hx-target="#studio-run" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]" aria-labelledby="new-h">
+    <h2 id="new-h" class="sec-h">New call</h2>
+
+    <div class="studio-row">
+      <label for="call_type">Kind of call</label>
+      <select id="call_type" name="call_type" class="select" required>
+        {% for key, label in types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="studio-row">
+      <label for="scenario">Scenario <span class="opt">optional</span></label>
+      <select id="scenario" name="scenario" class="select">
+        <option value="">Let the seed pick</option>
+        {% for key, call_type, label in scenarios %}<option value="{{ key }}" data-type="{{ call_type }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+
+    <div class="studio-row">
+      <label for="receiver">Who answers</label>
+      <select id="receiver" name="receiver" class="select">
+        <option value="">A random person</option>
+        {% for key, label in profiles %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        <option value="__custom__">Describe the person</option>
+      </select>
+    </div>
+
+    <fieldset class="studio-custom" data-custom>
+      <legend>The person</legend>
+      <div class="studio-row">
+        <label for="receiver_name">Name <span class="opt">optional</span></label>
+        <input id="receiver_name" name="receiver_name" type="text" class="studio-input" maxlength="200" autocomplete="off" lang="th">
+      </div>
+      <div class="studio-pair">
+        <div class="studio-row">
+          <label for="r_gender">Gender</label>
+          <select id="r_gender" name="r_gender" class="select">
+            {% for g in genders %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="studio-row">
+          <label for="r_age">Age</label>
+          <input id="r_age" name="r_age" type="number" class="studio-input" min="10" max="100" value="45" inputmode="numeric">
+        </div>
+      </div>
+      {% for key, label, options in detail_fields %}
+      <div class="studio-row">
+        <label for="r_{{ key }}">{{ label }}</label>
+        <input id="r_{{ key }}" name="r_{{ key }}" type="text" class="studio-input" maxlength="200" list="dl-{{ key }}" autocomplete="off">
+        <datalist id="dl-{{ key }}">{% for o in options %}<option value="{{ o }}">{% endfor %}</datalist>
+      </div>
+      {% endfor %}
+    </fieldset>
+
+    <div class="studio-row">
+      <label for="seed">Seed <span class="opt">optional</span></label>
+      <input id="seed" name="seed" type="text" class="studio-input" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="Next free seed" autocomplete="off" aria-describedby="seed-help">
+      <p id="seed-help" class="studio-help">The same seed, scenario and person give the same setup. Empty takes the next free seed.</p>
+    </div>
+
+    <div class="studio-check">
+      <input id="speak" name="speak" type="checkbox" value="1" checked>
+      <label for="speak">Speak each line{% if demo %} (silent in demo mode){% else %} (slower; needs the TTS extra){% endif %}</label>
+    </div>
+
+    <div id="form-error" class="mt-4 empty:hidden" aria-live="assertive"></div>
+    <div class="mt-5">
+      <button type="submit" class="btn btn-primary" data-start>Start the call</button>
+    </div>
+    <p class="mt-4 text-[14px] leading-[1.5] text-muted">One call at a time. It is saved to <code class="break-all">{{ db }}</code> like a command line run, and appears on <a class="btn-link" href="/dataset">Dataset</a>.</p>
+  </form>
+
+  <div id="studio-run" class="min-w-0">
+    {% if run_view %}
+    {% set run = run_view %}
+    {% include "partials/studio_run.html" %}
+    {% else %}
+    {{ ui.placeholder("No call yet", "Choose the kind of call and who answers, then press Start. The plan, each message with its reasoning and audio, and the judge's verdict appear here as they are written.") }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
