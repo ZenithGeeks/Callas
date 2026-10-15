@@ -15,7 +15,7 @@
     {% if audio %}<audio class="turn-audio" controls preload="none" src="{{ audio }}" aria-label="Audio of turn {{ n }}"></audio>{% endif %}
     {% if flags or leaked %}
     <ul class="msg-flags">
-      {% if leaked %}<li class="trow-tag !mt-0" data-tone="alarm">Leaked: {{ leaked }}</li>{% endif %}
+      {% if leaked %}<li class="trow-tag !mt-0" data-tone="alarm" data-leak lang="en">Leaked: {{ leaked }}</li>{% endif %}
       {% for f in flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
     </ul>
     {% endif %}

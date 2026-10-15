@@ -204,3 +204,26 @@ def test_a_resumed_call_keeps_its_scenario_and_name_and_refuses_others(tmp_path)
     assert record["generation"]["status"] == "accepted"
     assert record["generation"]["call"]["scenario"]["key"] == first.key
     assert "สมหญิง" in record["text"]
+
+
+def test_a_call_that_ends_early_yields_an_ended_step_then_a_verdict(tmp_path, monkeypatch):
+    from data_pipeline import simulate
+    from data_pipeline.budget import ContextTooLong
+
+    real = simulate._next_turn
+
+    def next_turn(agents, call, config, written, *rest):
+        if len(written) >= 2:
+            raise ContextTooLong("scam_caller", 9000, 8000)
+        return real(agents, call, config, written, *rest)
+
+    monkeypatch.setattr(simulate, "_next_turn", next_turn)
+    store, events = collect(live.CallSpec("romance", 0), tmp_path)
+    kinds = [e.kind for e in events]
+    assert kinds[-3:] == ["thinking", "ended", "verdict"]
+    ended = events[-2]
+    assert ended.index == 2 and ended.agent == "scam_caller"  # the turn that was not written
+    assert [e.index for e in events if e.kind == "turn"] == [0, 1]
+    record = store.load("romance_00000")["generation"]
+    assert record["status"] == "rejected" and record["judge"] is None
+    assert events[-1].kind == "verdict"

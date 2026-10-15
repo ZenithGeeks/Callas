@@ -38,7 +38,7 @@ from data_pipeline.config import load_config as load_default_config
 from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
-from . import dataset
+from . import dataset, views
 
 log = logging.getLogger("callas.studio")
 SHUTDOWN = threading.Event()  # set when the app stops, so open event streams end
@@ -472,10 +472,8 @@ def _flags(turn: dict) -> list[str]:
 
 def _leaked(turn: dict) -> str:
     """What the turn leaked, if the turn says so. Detection is not done here."""
-    leaked = turn.get("leaked")
-    if not leaked:
-        return ""
-    return ", ".join(str(x) for x in leaked) if isinstance(leaked, list) else str(leaked)
+    labels = turn.get("leaked") or []  # label names, e.g. ["OTP", "ID_CARD"]
+    return ", ".join(views.LABEL_TEXT.get(label, label) for label in labels)
 
 
 def _audio_url(record_id: str, turn: dict) -> str | None:
@@ -512,7 +510,13 @@ def _render_event(run: StudioRun, event: live.Event) -> str:
             audio=_audio_url(record["id"], turn),
             tag=_tag(event.modules, turn["agent"], turn.get("latency_s")),
         )
-    judge = generation["judge"]
+    if event.kind == "ended":  # replaces the "thinking" bubble of a turn that was never written
+        return _render(
+            "partials/studio_ended.html",
+            n=event.index + 1,
+            reasons=[dataset.reason_text(r) for r in generation["reasons"]],
+        )
+    judge = generation["judge"]  # None when the call ended early and was not judged
     return _render(
         "partials/studio_verdict.html",
         judge=judge,

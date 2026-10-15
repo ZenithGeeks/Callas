@@ -205,6 +205,7 @@ def stream_call(
         yield Event("turn", turn["agent"], record, index)
     pending = Event("thinking", "planner", record) if _needs_plan(record) else whose_turn(record)
     yield pending
+    written = len(generation["turns"])
 
     updates = CALL_GRAPH.stream(
         {"record": record},
@@ -222,12 +223,17 @@ def stream_call(
         elif node == "finish":
             yield Event("verdict", "judge", record, modules=modules)
             return
+        elif len(record["generation"]["turns"]) == written:
+            # the turn node ended the call early (a prompt that does not fit): no turn was added
+            yield Event("ended", pending.agent, record, written, modules)
+            continue  # the finish step follows at once
         else:
-            index = len(record["generation"]["turns"]) - 1
-            yield Event("turn", node_agent(record, index), record, index, modules)
+            written = index = len(record["generation"]["turns"])
+            yield Event("turn", node_agent(record, index - 1), record, index - 1, modules)
         if cancel is not None and cancel.is_set():
             return
-        yield whose_turn(record)
+        pending = whose_turn(record)
+        yield pending
 
 
 def _resume_overrides(spec: CallSpec, call: Any, generation: dict) -> tuple[Any, str]:

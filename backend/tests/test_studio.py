@@ -137,8 +137,8 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
             tag=None,
         )
 
-    leaking = render(leaked=["OTP"])
-    assert 'data-tone="alarm">Leaked: OTP</li>' in leaking
+    leaking = render(leaked=["OTP", "ID_CARD"])
+    assert ">Leaked: OTP, ID CARD</li>" in leaking and "data-leak" in leaking
     assert "Leaked" not in render()
     assert "Leaked" not in render(leaked=[])
 
@@ -390,3 +390,35 @@ def test_start_does_its_store_and_template_work_off_the_event_loop(client, monke
     monkeypatch.setattr(studio, "_begin", begin)
     assert start(client).status_code == 200
     assert seen == ["in a worker thread"]
+
+
+def too_long_after(turns, monkeypatch):
+    """Make the turn after `turns` written turns fail the way a prompt that is too long does."""
+    from data_pipeline import simulate
+    from data_pipeline.budget import ContextTooLong
+
+    real = simulate._next_turn
+
+    def next_turn(agents, call, config, written, *rest):
+        if len(written) >= turns:
+            raise ContextTooLong("receiver", 9000, 8000)
+        return real(agents, call, config, written, *rest)
+
+    monkeypatch.setattr(simulate, "_next_turn", next_turn)
+
+
+def test_a_call_that_ends_early_shows_an_ending_and_does_not_hang(client, monkeypatch, tmp_path):
+    too_long_after(3, monkeypatch)
+    run_id = run_id_of(start(client))
+    wait_idle(studio.BOARD)
+    events = read_events(client, run_id)
+    names = [n for n, _ in events]
+    assert names.count("turn") == 3 and "ended" in names
+    assert names[-2:] == ["verdict", "done"]
+    ended = next(d for n, d in events if n == "ended")
+    assert 'id="msg-4"' in ended  # replaces the bubble of the turn that never came
+    assert "ended before turn 4" in ended and "did not fit the context window" in ended
+    verdict = next(d for n, d in events if n == "verdict")
+    assert "Failed the checks" in verdict and "did not read it" in verdict
+    record = saved(tmp_path, "phishing_otp_00000")["generation"]
+    assert record["status"] == "rejected" and record["reasons"] == ["too_long_for_context"]
