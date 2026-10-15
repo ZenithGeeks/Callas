@@ -27,14 +27,15 @@ class FakeLLM:
         if job not in JOBS:
             raise ValueError(f"unknown job {job!r}")
         self.calls.append((job, context))
-        r = self.responses[job]
-        if callable(r):
-            return r(context)
-        if isinstance(r, list):
-            i = self._index.get(job, 0)
-            self._index[job] = i + 1
-            return r[min(i, len(r) - 1)]
-        return r
+        response = self.responses[job]
+        if callable(response):
+            return response(context)
+        if isinstance(response, list):
+            position = self._index.get(job, 0)
+            self._index[job] = position + 1
+            return response[min(position, len(response) - 1)]
+        return response
 
     def calls_for(self, job: str) -> list[str]:
-        return [c for j, c in self.calls if j == job]
+        """Return the contexts the given job was called with, in order."""
+        return [context for call_job, context in self.calls if call_job == job]
