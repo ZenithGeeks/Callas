@@ -124,8 +124,8 @@ SIGNATURES: dict[str, type[dspy.Signature]] = {
 
 def configured(name: str, agent: Agent) -> type[dspy.Signature]:
     """The signature for `name` with its instructions and field descriptions from config."""
-    sig = SIGNATURES[name]
-    fields = set(sig.input_fields) | set(sig.output_fields)
+    signature = SIGNATURES[name]
+    fields = set(signature.input_fields) | set(signature.output_fields)
     if missing := fields - set(agent.fields):
         raise ConfigError(f"agents.yaml {name}.fields is missing {sorted(missing)}")
     if extra := set(agent.fields) - fields:
@@ -133,10 +133,10 @@ def configured(name: str, agent: Agent) -> type[dspy.Signature]:
             f"agents.yaml {name}.fields has unknown {sorted(extra)}; "
             f"the fields are fixed in code: {sorted(fields)}"
         )
-    sig = sig.with_instructions(agent.instructions.strip())
+    signature = signature.with_instructions(agent.instructions.strip())
     for field, desc in agent.fields.items():
-        sig = sig.with_updated_fields(field, desc=desc.strip())
-    return sig
+        signature = signature.with_updated_fields(field, desc=desc.strip())
+    return signature
 
 
 def build_lms(config: Config) -> dict[str, Any]:

@@ -256,9 +256,9 @@ def _run_jobs(
     try:
         for done, future in enumerate(as_completed(futures), 1):
             call_type, seed = futures[future]
-            call_id_used, status = future.result()
+            finished_id, status = future.result()
             counts[(call_type, status)] += 1
-            print(f"[{done}/{len(todo)}] {call_id_used} {status}", flush=True)
+            print(f"[{done}/{len(todo)}] {finished_id} {status}", flush=True)
     except KeyboardInterrupt:
         # Leaving a `with` block would wait for every queued call; cancel the queue instead.
         # Calls already running finish their current turn; every turn is saved, so a rerun resumes.

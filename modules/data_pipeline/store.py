@@ -282,7 +282,7 @@ class Store:
         turns = db.execute(
             "SELECT * FROM turns WHERE call_id = ? ORDER BY idx", (call_id,)
         ).fetchall()
-        return _record(row, turns)
+        return _record_from_rows(row, turns)
 
     def load_call(self, call_id: str) -> CallRecord | None:
         """The call as a CallRecord, or None."""
@@ -464,7 +464,7 @@ def _turn_value(turn: dict, column: str) -> Any:
     return value
 
 
-def _turn(row: sqlite3.Row) -> dict:
+def _turn_from_row(row: sqlite3.Row) -> dict:
     """A turns row as the turn dict of a record."""
     turn = {c: row[c] for c in _TURN_COLUMNS}
     for c in _JSON_TURN_FIELDS:
@@ -474,7 +474,7 @@ def _turn(row: sqlite3.Row) -> dict:
     return turn
 
 
-def _text(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
+def _dialogue(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
     """The spec's `text` ("A: ...\\nB: ...") and entity spans shifted into it."""
     parts, spans, offset = [], [], 0
     for t in turns:
@@ -488,9 +488,9 @@ def _text(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
     return "\n".join(parts), spans
 
 
-def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
+def _record_from_rows(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
     """A calls row and its turns rows as the call record the web pages and the export read."""
-    text, entities = _text(turns)
+    text, entities = _dialogue(turns)
     return {
         "id": row["id"],
         "channel": "call",
@@ -517,7 +517,7 @@ def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
             "call": json.loads(row["call"]),
             "voices": json.loads(row["voices"]),
             "briefing": json.loads(row["briefing"]) if row["briefing"] else None,
-            "turns": [_turn(t) for t in turns],
+            "turns": [_turn_from_row(t) for t in turns],
             "receiver_leaked": json.loads(row["receiver_leaked"]),
             "first_leak_turn": row["first_leak_turn"],
             "speech_style": row["speech_style"],

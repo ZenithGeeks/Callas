@@ -83,14 +83,14 @@ class Voices:
 def join_call(turn_paths: list[Path], out: Path, gap_s: float) -> list[tuple[float, float]]:
     """Join turn WAVs with gap_s of silence between; return (start, end) seconds of each turn."""
     gap = np.zeros(int(gap_s * SAMPLE_RATE), dtype="<i2")
-    parts, times, now = [], [], 0.0
+    parts, times, position_s = [], [], 0.0
     for i, turn_path in enumerate(turn_paths):
         if i:
             parts.append(gap)
-            now += gap_s
+            position_s += gap_s
         pcm = _read_mono16k(turn_path)
         parts.append(pcm)
-        times.append((round(now, 3), round(now + len(pcm) / SAMPLE_RATE, 3)))
-        now += len(pcm) / SAMPLE_RATE
+        times.append((round(position_s, 3), round(position_s + len(pcm) / SAMPLE_RATE, 3)))
+        position_s += len(pcm) / SAMPLE_RATE
     _write(out, np.concatenate(parts) if parts else np.zeros(0, dtype="<i2"))
     return times
