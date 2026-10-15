@@ -10,13 +10,13 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
-from .records import Turn
+from .records import CallRecord, Turn
 from .tts import Voices, join_call
 
 log = logging.getLogger("data_pipeline")
 
 
-def speak_turn(voices: Voices, turn: Turn, index: int, record: dict, folder: Path) -> Turn:
+def speak_turn(voices: Voices, turn: Turn, index: int, record: CallRecord, folder: Path) -> Turn:
     """The turn with its audio file and length, or with a tts_failed problem. A turn with no
     text is returned as it is.
 
@@ -25,12 +25,12 @@ def speak_turn(voices: Voices, turn: Turn, index: int, record: dict, folder: Pat
     if not turn.text:
         return turn
     said = turn.spoken_text or turn.text
-    rel = f"audio/{record['id']}/{index:02d}_{turn.speaker}.wav"
-    voice = record["generation"]["voices"][turn.speaker]
+    rel = f"audio/{record.id}/{index:02d}_{turn.speaker}.wav"
+    voice = record.generation.voices[turn.speaker]
     try:
         seconds = round(voices.speak(said, voice, folder / rel), 3)
     except Exception as exc:  # a turn without audio is flagged, the call text is still kept
-        log.warning("tts failed for %s turn %d: %s", record["id"], index, type(exc).__name__)
+        log.warning("tts failed for %s turn %d: %s", record.id, index, type(exc).__name__)
         return replace(turn, problems=[*turn.problems, "tts_failed"])
     return replace(turn, audio=rel, audio_s=seconds)
 

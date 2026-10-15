@@ -29,6 +29,7 @@ from dspy.utils.callback import BaseCallback
 from .agents import SIGNATURES, Agents
 from .config import Config, ReceiverProfile, Scenario
 from .fill import SlotFiller
+from .records import CallRecord
 from .scenarios import sample_config
 from .simulate import (
     CALL_GRAPH,
@@ -192,7 +193,7 @@ def stream_call(
     call = sample_config(spec.call_type, spec.seed, config, spec.receiver)
     if spec.scenario is not None:
         call = replace(call, scenario=spec.scenario)
-    record = _open_record(store, call, config, agents, spec.receiver)
+    record = _open_record(store, call, config, agents, spec.receiver).to_dict()
     generation = record["generation"]
     if generation["status"] != "in_progress":
         raise CallConflict(f"{record['id']} is already finished")
@@ -201,11 +202,13 @@ def stream_call(
     filler = SlotFiller(call, config.details)
     if name:
         filler.values["RECEIVER_NAME"] = name
-    context = SimContext(agents, config, call, store, voices, filler, record)
+    context = SimContext(agents, config, call, store, voices, filler, CallRecord.from_dict(record))
     caller = "scam_caller" if call.label_scam else "legit_caller"
 
     def whose_turn(rec: dict) -> Event:
-        step = next_speaker(initial_state(rec), SimpleNamespace(context=context))
+        step = next_speaker(
+            initial_state(CallRecord.from_dict(rec)), SimpleNamespace(context=context)
+        )
         agent = {"caller": caller, "receiver": "receiver", "finish": "judge"}[step]
         return Event("thinking", agent, rec)
 
@@ -216,7 +219,7 @@ def stream_call(
     written = len(generation["turns"])
 
     updates = CALL_GRAPH.stream(
-        initial_state(record),
+        initial_state(context.record),
         context=context,
         config={"recursion_limit": call.max_turns + 5},
         stream_mode="updates",

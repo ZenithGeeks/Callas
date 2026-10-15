@@ -8,10 +8,9 @@ speaks it, and simulate.run_call loads the call from the store and runs this gra
 
 from __future__ import annotations
 
-import copy
 import logging
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -24,7 +23,7 @@ from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
 from .finish import Ending, ended_early, finish_call
-from .records import Briefing, CallRecord, Turn
+from .records import Briefing, CallRecord, Status, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
@@ -38,7 +37,7 @@ class CallState(TypedDict):
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
-    status: Literal["in_progress", "accepted", "rejected"]
+    status: Status
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
 
 
@@ -52,50 +51,49 @@ class SimContext:
     store: Store
     voices: Voices | None  # None: text only
     filler: SlotFiller  # this call's values for the {SLOTS}
-    record: dict  # the call as loaded or created; to_record() lays the state over it
+    record: CallRecord  # the call as loaded or created; to_record() lays the state over it
 
 
-def initial_state(record: dict) -> CallState:
+def initial_state(record: CallRecord) -> CallState:
     """The state of a stored call that is new or still in progress."""
-    generation = record["generation"]
-    briefing = generation["briefing"]
+    generation = record.generation
     return {
-        "briefing": None if briefing is None else Briefing.from_dict(briefing),
-        "turns": [Turn.from_dict(turn) for turn in generation["turns"]],
-        "status": generation["status"],
+        "briefing": generation.briefing,
+        "turns": generation.turns,
+        "status": generation.status,
         "ending": None,
     }
 
 
-def to_record(record: dict, state: CallState) -> dict:
-    """The call as the store keeps it: a copy of `record` with the state written into it."""
-    record = copy.deepcopy(record)
-    generation = record["generation"]
-    briefing = state["briefing"]
-    generation.update(
-        briefing=None if briefing is None else briefing.to_dict(),
-        turns=[turn.to_dict() for turn in state["turns"]],
+def to_record(record: CallRecord, state: CallState) -> CallRecord:
+    """The call as the store keeps it: `record` with the state written into it."""
+    generation = replace(
+        record.generation,
+        briefing=state["briefing"],
+        turns=state["turns"],
         status=state["status"],
     )
     ending = state["ending"]
     if ending is None:
-        return record
-    record.update(
+        return replace(record, generation=generation)
+    generation = replace(
+        generation,
+        receiver_leaked=ending.receiver_leaked,
+        first_leak_turn=ending.first_leak_turn,
+        scam_start_from=ending.scam_start_from,
+        judge=ending.judge,
+        reasons=ending.reasons,
+    )
+    return replace(
+        record,
         text=ending.text,
         speaker_turns=ending.speaker_turns,
         entities=ending.entities,
         audio_path=ending.audio_path,
         reference_summary=ending.reference_summary,
         scam_start_turn=ending.scam_start_turn,
+        generation=generation,
     )
-    generation.update(
-        receiver_leaked=ending.receiver_leaked,
-        first_leak_turn=ending.first_leak_turn,
-        scam_start_from=ending.scam_start_from,
-        judge=None if ending.judge is None else ending.judge.to_dict(),
-        reasons=ending.reasons,
-    )
-    return record
 
 
 def plan(state: CallState, runtime: Runtime[SimContext]) -> dict:
@@ -104,7 +102,7 @@ def plan(state: CallState, runtime: Runtime[SimContext]) -> dict:
     update = {}
     if ctx.call.label_scam and state["briefing"] is None:
         update["briefing"] = write_plan(ctx.agents, ctx.call, ctx.config, ctx.store)
-    ctx.store.save(to_record(ctx.record, {**state, **update}))
+    ctx.store.save_call(to_record(ctx.record, {**state, **update}))
     return update
 
 
@@ -132,13 +130,13 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     except ContextTooLong as exc:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
-        log.warning("%s: %s", ctx.record["id"], exc)
+        log.warning("%s: %s", ctx.record.id, exc)
         update = {"status": "rejected", "ending": ended_early(turns)}
-        ctx.store.save(to_record(ctx.record, {**state, **update}))
+        ctx.store.save_call(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
         turn = speak_turn(ctx.voices, turn, len(turns), ctx.record, ctx.store.folder)
-    ctx.store.save(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
+    ctx.store.save_call(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
     return {"turns": [turn]}
 
 
@@ -147,10 +145,10 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     ctx = runtime.context
     update = {}
     if state["status"] == "in_progress":  # else a turn already ended the call
-        record = CallRecord.from_dict(to_record(ctx.record, state))
+        record = to_record(ctx.record, state)
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
-    ctx.store.save(to_record(ctx.record, {**state, **update}))
+    ctx.store.save_call(to_record(ctx.record, {**state, **update}))
     return update
 
 

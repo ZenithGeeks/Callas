@@ -150,7 +150,7 @@ def test_resume_with_another_config_is_refused(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
     rec = simulate.new_record(simulate.sample_config("phishing_otp", 1, CONFIG), CONFIG, agents)
-    store.save(rec)
+    store.save_call(rec)
 
     other = tmp_path / "other_cfg"
     shutil.copytree(DEFAULT_DIR, other)
