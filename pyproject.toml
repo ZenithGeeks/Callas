@@ -49,6 +49,7 @@ trace = [
     "arize-phoenix-otel>=0.17",
     "openinference-instrumentation-langchain>=0.1.79",
     "openinference-instrumentation-dspy>=0.1.48",
+    "openinference-instrumentation-litellm>=0.1.50",
 ]
 ml = [
     # Install torch first from the CUDA index; the PyPI wheel on Windows is CPU only:

@@ -11,6 +11,7 @@ from callas_settings import get_settings
 pytest.importorskip("phoenix.otel", reason="needs the trace extra")
 from openinference.instrumentation.dspy import DSPyInstrumentor  # noqa: E402
 from openinference.instrumentation.langchain import LangChainInstrumentor  # noqa: E402
+from openinference.instrumentation.litellm import LiteLLMInstrumentor  # noqa: E402
 
 
 @pytest.fixture
@@ -28,6 +29,7 @@ def traced(monkeypatch):
     monkeypatch.setattr("phoenix.otel.register", fake_register)
     monkeypatch.setattr(LangChainInstrumentor, "instrument", fake_instrument)
     monkeypatch.setattr(DSPyInstrumentor, "instrument", fake_instrument)
+    monkeypatch.setattr(LiteLLMInstrumentor, "instrument", fake_instrument)
     monkeypatch.setattr(callas_tracing, "_started", False)
     monkeypatch.setenv("TRACING", "phoenix")
     get_settings.cache_clear()
@@ -72,7 +74,7 @@ def test_loopback_endpoint_is_accepted(traced, monkeypatch, endpoint):
 
 def test_web_hides_call_text(traced):
     callas_tracing.setup_tracing("callas-web", call_text=False)
-    assert len(traced["config"]) == 2  # LangChain and DSPy
+    assert len(traced["config"]) == 3  # LangChain, DSPy, LiteLLM
     assert all(c.hide_inputs and c.hide_outputs for c in traced["config"])
 
 
@@ -85,7 +87,7 @@ def test_second_call_does_nothing(traced):
     callas_tracing.setup_tracing("callas-web", call_text=False)
     callas_tracing.setup_tracing("callas-web", call_text=False)
     assert len(traced["register"]) == 1
-    assert len(traced["config"]) == 2
+    assert len(traced["config"]) == 3
 
 
 def test_tracing_setting_is_validated(monkeypatch):

@@ -41,6 +41,7 @@ def setup_tracing(project: str, *, call_text: bool) -> None:
         from openinference.instrumentation import TraceConfig
         from openinference.instrumentation.dspy import DSPyInstrumentor
         from openinference.instrumentation.langchain import LangChainInstrumentor
+        from openinference.instrumentation.litellm import LiteLLMInstrumentor
         from phoenix.otel import register
     except ImportError:
         log.warning("TRACING=phoenix but the trace extra is missing: pip install -e '.[trace]'")
@@ -55,6 +56,8 @@ def setup_tracing(project: str, *, call_text: bool) -> None:
     config = TraceConfig(hide_inputs=not call_text, hide_outputs=not call_text)
     LangChainInstrumentor().instrument(tracer_provider=provider, config=config)
     DSPyInstrumentor().instrument(tracer_provider=provider, config=config)
+    # DSPy calls the model through LiteLLM; only this span carries the token counts.
+    LiteLLMInstrumentor().instrument(tracer_provider=provider, config=config)
     _started = True
     log.info(
         "tracing %s to %s (call text %s)", project, endpoint, "kept" if call_text else "hidden"
