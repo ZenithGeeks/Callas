@@ -137,9 +137,7 @@ Without them the server answers 400 and `explain()` raises `ToolCallingUnavailab
 Env vars (read through `callas_settings`): `VLLM_BASE_URL`, `VLLM_MODEL` (empty = first model the
 server lists), `VLLM_API_KEY`, `VLLM_TIMEOUT_S`, plus `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER`.
 
-Python dependencies: `langgraph`, `langchain-core`, `langchain-openai`.
-`langgraph.prebuilt.create_react_agent` is deprecated in favour of `langchain.agents.create_agent`
-(package `langchain`, not installed here); `agents.py` is the only place to change when moving.
+Python dependencies: `langchain` (`create_agent`), `langgraph`, `langchain-core`, `langchain-openai`.
 
 ## Live calls
 
