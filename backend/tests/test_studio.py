@@ -1,0 +1,277 @@
+"""The /studio page, in demo mode (scripted agents on a real DSPy stack, silent voices)."""
+
+import time
+
+import pytest
+
+from backend import studio
+from data_pipeline import live
+from data_pipeline.store import Store
+
+BASE = {"call_type": "phishing_otp", "speak": "1"}
+
+
+@pytest.fixture(autouse=True)
+def _private_studio(tmp_path, monkeypatch):
+    """Each test gets its own board and database, and no run outlives it."""
+    monkeypatch.setenv("CALLAS_DATASET_DB", str(tmp_path / "calls.db"))
+    board = studio.Board()
+    monkeypatch.setattr(studio, "BOARD", board)
+    yield board
+    for run in board._runs.values():
+        run.cancel.set()
+    wait_idle(board)
+
+
+def wait_idle(board, timeout=60):
+    end = time.time() + timeout
+    while board.running() is not None:
+        assert time.time() < end, "the run did not finish"
+        time.sleep(0.02)
+
+
+def start(client, **fields):
+    return client.post("/studio/start", data={**BASE, **fields})
+
+
+def run_id_of(response):
+    html = response.text
+    marker = "/studio/"
+    start_at = html.index(marker) + len(marker)
+    return html[start_at : start_at + 12]
+
+
+def read_events(client, run_id):
+    """The (name, data) pairs of a run's stream. The stream ends when the run has finished."""
+    events, name, data = [], None, []
+    with client.stream("GET", f"/studio/{run_id}/events") as response:
+        assert response.headers["content-type"].startswith("text/event-stream")
+        for line in response.iter_lines():
+            if line.startswith("event: "):
+                name = line[7:]
+            elif line.startswith("data: "):
+                data.append(line[6:])
+            elif line == "" and name:
+                events.append((name, "\n".join(data)))
+                name, data = None, []
+    return events
+
+
+def saved(tmp_path, record_id):
+    return Store(tmp_path / "calls.db").load(record_id)
+
+
+# ---- the form --------------------------------------------------------------------------------
+
+
+def test_page_has_the_form_and_a_nav_link(client):
+    html = client.get("/studio").text
+    assert 'href="/studio"' in html and 'aria-current="page"' in html
+    for key in ("phishing_otp", "romance", "benign"):
+        assert f'<option value="{key}">' in html
+    assert '<label for="call_type">' in html and '<label for="receiver">' in html
+    assert "teacher_cm" in html  # a saved profile
+    assert 'list="dl-occupation"' in html  # suggestions for a described person
+    assert "No call yet" in html
+
+
+def test_start_shows_the_run_and_the_call_is_saved(client, tmp_path):
+    response = start(client)
+    assert response.status_code == 200
+    assert "data-studio-run" in response.text and "phishing_otp_00000" in response.text
+    wait_idle(studio.BOARD)
+    record = saved(tmp_path, "phishing_otp_00000")
+    assert record["generation"]["status"] == "accepted"
+    assert record["generation"]["briefing"]["plan"]
+    assert record["generation"]["judge"]["label_holds"]
+    assert len(record["generation"]["turns"]) >= 5
+    # the dataset page lists and opens it like any other call
+    assert "phishing_otp_00000" in client.get("/dataset?view=all").text
+    assert "Judge" in client.get("/dataset?id=phishing_otp_00000").text
+
+
+def test_events_come_in_order_with_tags_and_prompts(client):
+    run_id = run_id_of(start(client))
+    events = read_events(client, run_id)
+    names = [n for n, _ in events]
+    shown = [n for n in names if n != "thinking"]
+    assert shown[0] == "plan" and shown[-2:] == ["verdict", "done"]
+    assert set(shown[1:-2]) == {"turn"}
+    assert names.index("plan") < names.index("verdict")
+    # a bubble is announced before the line replaces it
+    assert names[:3] == ["thinking", "plan", "thinking"]
+    assert 'id="msg-1"' in events[2][1] and "Thinking" in events[2][1]
+    first_turn = next(d for n, d in events if n == "turn")
+    assert 'id="msg-1"' in first_turn  # it replaces the bubble with the same id
+    assert 'agent-tag-name">scam_caller' in first_turn
+    assert "ChainOfThought" in first_turn and "scripted-demo" in first_turn
+    assert "Agent reasoning" in first_turn
+    assert "Prompt and answer" in first_turn and "[[ ## conversation ## ]]" in first_turn
+    assert "[[ ## line ## ]]" in first_turn  # the answer the model gave
+    assert '<audio class="turn-audio"' in first_turn
+    verdict = next(d for n, d in events if n == "verdict")
+    assert "Passed the checks" in verdict and "judge" in verdict
+    assert "/dataset?id=phishing_otp_00000" in events[-1][1]
+    assert "Done. The call is saved" in events[-1][1]
+
+
+def test_a_normal_call_has_no_plan(client, tmp_path):
+    run_id = run_id_of(start(client, call_type="benign"))
+    names = [n for n, _ in read_events(client, run_id) if n != "thinking"]
+    assert "plan" not in names and names[0] == "turn" and names[-1] == "done"
+    assert saved(tmp_path, "benign_00000")["generation"]["briefing"] is None
+
+
+def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
+    def render(**turn):
+        base = {"speaker": "A", "text": "สวัสดี", "entities": [], "reasoning": "", "agent": "x"}
+        return studio._render(
+            "partials/studio_turn.html",
+            n=1,
+            turn={**base, **turn},
+            side="left",
+            who="Caller",
+            flags=[],
+            leaked=studio._leaked({**base, **turn}),
+            audio=None,
+            tag=None,
+        )
+
+    leaking = render(leaked=["OTP"])
+    assert 'data-tone="alarm">Leaked: OTP</li>' in leaking
+    assert "Leaked" not in render()
+    assert "Leaked" not in render(leaked=[])
+
+
+# ---- one run at a time ------------------------------------------------------------------------
+
+
+def test_a_second_start_is_refused_with_a_message(client):
+    client.app.state.pace = 0.2  # slow enough to still be running
+    try:
+        first = start(client)
+        second = start(client, call_type="romance")
+        assert second.status_code == 409
+        assert "already being written" in second.text and "Phishing" in second.text
+        assert second.headers["HX-Retarget"] == "#form-error"
+        client.post(f"/studio/{run_id_of(first)}/stop")
+        wait_idle(studio.BOARD)
+    finally:
+        client.app.state.pace = 0
+    assert start(client, call_type="romance").status_code == 200  # not blocked for good
+
+
+def test_stop_ends_the_run_and_keeps_an_unfinished_call(client, tmp_path):
+    client.app.state.pace = 0.1
+    try:
+        run_id = run_id_of(start(client))
+        time.sleep(0.5)
+        assert client.post(f"/studio/{run_id}/stop").status_code == 204
+        wait_idle(studio.BOARD)
+    finally:
+        client.app.state.pace = 0
+    events = read_events(client, run_id)
+    assert events[-1][0] == "done" and "Stopped" in events[-1][1]
+    assert "verdict" not in [n for n, _ in events]
+    assert saved(tmp_path, "phishing_otp_00000")["generation"]["status"] == "in_progress"
+
+
+def test_closing_the_stream_does_not_stop_the_call(client, tmp_path):
+    client.app.state.pace = 0.05
+    try:
+        run_id = run_id_of(start(client))
+        with client.stream("GET", f"/studio/{run_id}/events") as response:
+            next(response.iter_lines())  # read a little, then close the tab
+        wait_idle(studio.BOARD)
+    finally:
+        client.app.state.pace = 0
+    assert saved(tmp_path, "phishing_otp_00000")["generation"]["status"] == "accepted"
+    # a reconnecting page replays from the start, or from Last-Event-ID
+    assert read_events(client, run_id)[-1][0] == "done"
+    with client.stream("GET", f"/studio/{run_id}/events", headers={"Last-Event-ID": "1"}) as r:
+        ids = [line for line in r.iter_lines() if line.startswith("id: ")]
+    assert ids[0] == "id: 2"
+
+
+def test_a_failing_run_reports_and_frees_the_server(client, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(live, "fake_agents", broken)
+        run_id = run_id_of(start(client))
+        wait_idle(studio.BOARD)
+    names = [n for n, _ in read_events(client, run_id)]
+    assert names == ["failed", "done"]
+    assert start(client, call_type="romance").status_code == 200
+
+
+def test_unknown_runs_are_404(client):
+    assert client.get("/studio/0123456789ab/events").status_code == 404
+    assert client.get("/studio/not-a-run/events").status_code == 404
+    assert client.post("/studio/0123456789ab/stop").status_code == 404
+
+
+# ---- what the form may ask for ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"call_type": "bogus"}, "Choose the kind of call"),
+        ({"scenario": "not_a_scenario"}, "does not belong"),
+        ({"seed": "abc"}, "whole number"),
+        ({"seed": "123456"}, "whole number"),
+        ({"receiver": "nobody"}, "does not exist"),
+        ({"receiver": "__custom__", "r_gender": "female"}, "Missing"),
+        ({"receiver": "__custom__", "r_gender": "robot"}, "Gender is one of"),
+    ],
+)
+def test_bad_forms_are_refused_with_a_message(client, fields, message):
+    response = start(client, **fields)
+    assert response.status_code == 422 and message in response.text
+    assert studio.BOARD.running() is None
+
+
+def test_a_taken_seed_is_refused_and_empty_takes_the_next_free_one(client):
+    start(client, seed="3")
+    wait_idle(studio.BOARD)
+    again = start(client, seed="3")
+    assert again.status_code == 422 and "phishing_otp_00003 is already in the dataset" in again.text
+    assert "phishing_otp_00000" in start(client).text  # lowest free seed
+    wait_idle(studio.BOARD)
+    assert "phishing_otp_00001" in start(client).text
+
+
+def test_a_scenario_and_a_saved_person_are_used(client, tmp_path):
+    key = studio._config().scenarios.scams["phishing_otp"][-1].key
+    start(client, scenario=key, receiver="teacher_cm", seed="7")
+    wait_idle(studio.BOARD)
+    record = saved(tmp_path, "phishing_otp_teacher_cm_00007")
+    call = record["generation"]["call"]
+    assert call["scenario"]["key"] == key and call["receiver"]["key"] == "teacher_cm"
+
+
+def test_a_described_person_and_name_are_used(client, tmp_path):
+    person = {
+        "receiver": "__custom__",
+        "receiver_name": "สมหญิง",
+        "r_gender": "female",
+        "r_age": "61",
+        **{f"r_{k}": f"my {k}" for k, _, _ in studio.DETAIL_FIELDS},
+    }
+    response = start(client, **person)
+    assert response.status_code == 200 and "สมหญิง" in response.text
+    wait_idle(studio.BOARD)
+    record = saved(tmp_path, "phishing_otp_custom_00000")
+    receiver = record["generation"]["call"]["receiver"]
+    assert receiver["age"] == 61 and receiver["occupation"] == "my occupation"
+    assert record["generation"]["call"]["receiver_name"] == "สมหญิง"
+    assert "สมหญิง" in record["text"]  # the caller says the name
+
+
+def test_a_bad_age_is_refused(client):
+    person = {"receiver": "__custom__", "r_gender": "female", "r_age": "5"}
+    person.update({f"r_{k}": "x" for k, _, _ in studio.DETAIL_FIELDS})
+    response = start(client, **person)
+    assert response.status_code == 422 and "age" in response.text

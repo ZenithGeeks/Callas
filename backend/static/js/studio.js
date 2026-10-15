@@ -1,0 +1,132 @@
+/* /studio: show a call as the server writes it.
+ * The server sends server-sent events whose data is a piece of HTML: "thinking", "plan", "turn"
+ * and "verdict" are list items for the thread (an item with the id of an earlier one replaces it,
+ * which is how a "thinking" bubble becomes the message), "failed" is an error message and "done"
+ * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
+ * has to replace one element by id. Closing the tab does not stop the run; the server saves it. */
+(function () {
+  "use strict";
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var source = null;
+
+  function toElement(html) {
+    var t = document.createElement("template");
+    t.innerHTML = html.trim();
+    return t.content.firstElementChild;
+  }
+
+  // Put an item in the thread: replace the one with the same id, or add it at the end.
+  function put(thread, html) {
+    var el = toElement(html);
+    if (!el) return;
+    var near = thread.getBoundingClientRect().bottom - window.innerHeight < 160;
+    var old = el.id ? document.getElementById(el.id) : null;
+    if (old && thread.contains(old)) {
+      old.replaceWith(el);
+    } else {
+      thread.appendChild(el);
+    }
+    if (near) el.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  }
+
+  function setBusy(on) {
+    var start = document.querySelector("[data-start]");
+    if (start) start.disabled = on;
+  }
+
+  function end(root, status, html) {
+    if (source) source.close();
+    source = null;
+    status.innerHTML = html;
+    var stop = root.querySelector("[data-stop-run]");
+    if (stop) stop.hidden = true;
+    setBusy(false);
+  }
+
+  function connect(root) {
+    if (source) source.close();
+    var thread = root.querySelector("#studio-thread");
+    var status = root.querySelector("#studio-status");
+    var stop = root.querySelector("[data-stop-run]");
+    setBusy(true);
+    source = new EventSource(root.dataset.events);
+    source.addEventListener("open", function () {
+      status.textContent = "The call is being written.";
+    });
+    ["thinking", "plan", "turn", "verdict"].forEach(function (name) {
+      source.addEventListener(name, function (e) {
+        put(thread, e.data);
+      });
+    });
+    source.addEventListener("failed", function (e) {
+      var box = toElement(e.data);
+      if (box) status.before(box);
+    });
+    source.addEventListener("done", function (e) {
+      end(root, status, e.data);
+    });
+    source.onerror = function () {
+      if (source && source.readyState === EventSource.CLOSED) {
+        end(root, status, "<p>The connection to the server was lost. The call keeps running there and is saved; reload this page to watch it.</p>");
+      } else {
+        status.textContent = "Reconnecting…";
+      }
+    };
+    if (stop) {
+      stop.addEventListener("click", function () {
+        stop.disabled = true;
+        status.textContent = "Stopping after the step in progress…";
+        fetch(root.dataset.stop, { method: "POST" });
+      });
+    }
+    var heading = root.querySelector("#run-h");
+    if (heading) heading.focus({ preventScroll: true });
+  }
+
+  function connectNew() {
+    var root = document.querySelector("[data-studio-run]");
+    if (root && !root.dataset.connected) {
+      root.dataset.connected = "1";
+      connect(root);
+    }
+  }
+
+  // The scenario list only shows scenarios of the chosen kind of call.
+  function filterScenarios() {
+    var type = document.getElementById("call_type");
+    var scenario = document.getElementById("scenario");
+    if (!type || !scenario) return;
+    Array.prototype.forEach.call(scenario.options, function (o) {
+      var hide = o.dataset.type && o.dataset.type !== type.value;
+      o.hidden = hide;
+      o.disabled = hide;
+    });
+    if (scenario.selectedOptions[0] && scenario.selectedOptions[0].disabled) scenario.value = "";
+  }
+
+  // The fields for a described person are shown only when that is chosen.
+  function toggleCustom() {
+    var who = document.getElementById("receiver");
+    var box = document.querySelector("[data-custom]");
+    if (!who || !box) return;
+    var on = who.value === "__custom__";
+    box.hidden = !on;
+    Array.prototype.forEach.call(box.querySelectorAll("input, select"), function (f) {
+      f.disabled = !on;
+    });
+  }
+
+  document.addEventListener("change", function (e) {
+    if (e.target.id === "call_type") filterScenarios();
+    if (e.target.id === "receiver") toggleCustom();
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    if (e.target && e.target.id === "studio-run") connectNew();
+  });
+  document.addEventListener("DOMContentLoaded", function () {
+    filterScenarios();
+    toggleCustom();
+    connectNew();
+  });
+})();

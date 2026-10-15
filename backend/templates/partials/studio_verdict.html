@@ -1,0 +1,22 @@
+{# The judge's verdict, replacing the judge's placeholder. #}
+{% import "partials/_ui.html" as ui %}
+{% import "partials/_studio.html" as st %}
+<li id="msg-verdict" class="studio-card" data-tone="{{ 'safe' if accepted else 'unsure' }}">
+  <h3 class="sec-h">Judge's verdict</h3>
+  <p class="mt-2 font-display text-[22px] font-semibold text-ink">
+    {% if accepted %}{{ ui.check_icon("inline h-[14px] w-[16px]") }} Passed the checks{% else %}{{ ui.warn_icon("inline h-[14px] w-[16px]") }} Failed the checks{% endif %}
+  </p>
+  <dl class="facts mt-4">
+    <div><dt>Shows the intended call</dt><dd>{{ 'Yes' if judge.label_holds else 'No' }}</dd></div>
+    <div><dt>Natural Thai</dt><dd>{{ judge.natural_thai }} / 5</dd></div>
+    <div><dt>Scam starts</dt><dd>{% if scam_start is not none %}Turn {{ scam_start + 1 }}{% elif label_scam %}Not found{% else %}None{% endif %}</dd></div>
+  </dl>
+  {% if reasons %}
+  <ul class="mt-4 flex flex-wrap gap-2">{% for x in reasons %}<li class="reason">{{ x }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary %}<p class="mt-4 text-[16px] leading-[1.6]" lang="th">{{ summary }}</p>{% endif %}
+  {% if judge.issues and judge.issues != 'none' %}<p class="mt-2 text-[15px] text-muted">{{ judge.issues }}</p>{% endif %}
+  {{ st.tag(tag) }}
+  {% if judge.reasoning %}<details class="why msg-why mt-2"><summary>Judge reasoning</summary><p>{{ judge.reasoning }}</p></details>{% endif %}
+  {{ st.trace(tag) }}
+</li>
