@@ -115,7 +115,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |
 | `LEAK_JUDGE` | `off` | `on` adds a DSPy leak judge after the leak rules. It can only block more replies |
-| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | `rules`, `llm`, `llm` | Which model fills each nlp-core slot. Set them as real environment variables. The code reads the process environment, not `.env` |
+| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. A real environment variable wins over `.env` |
 | `CALLAS_FAKE` | not set | `1` runs the web demo with fake models |
 | `CALLAS_DATASET_DB` | `data/synthetic/calls.db` | The store the `/dataset` page reads |
 

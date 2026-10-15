@@ -94,7 +94,7 @@ Today only these built-in names exist. The fine-tuned PhayaThaiBERT models from 
 
    register("classifier", "phayathaibert", lambda: MyClassifier("models/phayathaibert-scam-gate"))
    ```
-3. Set `NLP_CLASSIFIER=phayathaibert` as a process environment variable. The registry reads `os.environ`, not `.env` (`registry.default_name`).
+3. Set `NLP_CLASSIFIER=phayathaibert` in `.env`. A real environment variable wins over `.env`. If both are empty the built-in default is used (`registry.default_name`).
 4. Run `python -m pytest modules -q`. An unknown name raises a `KeyError` that lists the registered names.
 
 The tools in `tools.py` and the graphs pick the new model up through the registry. Nothing else changes.
