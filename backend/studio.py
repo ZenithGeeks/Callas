@@ -36,7 +36,7 @@ from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
 from . import dataset
-from .web import form_error, page, render
+from .web import ROOT, form_error, page, render
 
 log = logging.getLogger("callas.studio")
 SHUTDOWN = threading.Event()  # set when the app stops, so open event streams end
@@ -161,8 +161,20 @@ def studio_page(request: Request) -> HTMLResponse:
         detail_fields=[(key, label, getattr(pools, pool)) for key, label, pool in DETAIL_FIELDS],
         age_range=pools.age,
         run_view=_run_view(run) if run else None,
-        db=str(dataset.db_path()),
+        db=_shown_path(dataset.db_path()),
     )
+
+
+def _shown_path(path: Path) -> str:
+    """The store's path as the page shows it: relative to the repo, or only the file name.
+
+    The page can be opened from other machines (tailscale), so it does not print this machine's
+    folder layout.
+    """
+    try:
+        return path.resolve().relative_to(ROOT.parent).as_posix()
+    except ValueError:
+        return path.name
 
 
 @cache

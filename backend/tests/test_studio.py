@@ -422,3 +422,8 @@ def test_a_call_that_ends_early_shows_an_ending_and_does_not_hang(client, monkey
     assert "Failed the checks" in verdict and "did not read it" in verdict
     record = saved(tmp_path, "phishing_otp_00000")["generation"]
     assert record["status"] == "rejected" and record["reasons"] == ["too_long_for_context"]
+
+
+def test_the_page_does_not_print_the_machines_folder_layout(client, tmp_path):
+    html = client.get("/studio").text
+    assert str(tmp_path) not in html and "calls.db" in html
