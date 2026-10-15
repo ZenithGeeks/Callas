@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from nlp_core.types import SCAM_TYPES, NLPResult
 
-from .leak import leaks_sensitive
+from .leak import leak_reasons
 
 TEMPLATES: tuple[str, ...] = (
     "ขณะนี้ไม่สะดวกรับสายค่ะ กรุณาติดต่อกลับภายหลังค่ะ",
@@ -17,8 +17,16 @@ TEMPLATES: tuple[str, ...] = (
     "ขออภัยค่ะ ไม่สะดวกรับสายในขณะนี้ค่ะ",
 )
 
-for _t in TEMPLATES:
-    assert not leaks_sensitive(_t, []), f"template fails leak check: {_t!r}"
+
+def check_templates(templates: tuple[str, ...]) -> None:
+    """Raise ValueError if a template fails the leak check. Runs at import, also under -O."""
+    for template in templates:
+        reasons = leak_reasons(template)
+        if reasons:
+            raise ValueError(f"template fails leak check ({','.join(reasons)}): {template!r}")
+
+
+check_templates(TEMPLATES)
 
 
 def pick_template(result: NLPResult) -> str:

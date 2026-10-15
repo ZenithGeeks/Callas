@@ -1,5 +1,9 @@
 import logging
+import os
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -9,7 +13,7 @@ from nlp_core.types import Entity, NLPResult
 from tts_voice_agent.leak import leak_reasons, leaks_sensitive
 from tts_voice_agent.memory import CallState
 from tts_voice_agent.reply import current_facts, fact_numbers, safe_reply
-from tts_voice_agent.templates import TEMPLATES, pick_template
+from tts_voice_agent.templates import TEMPLATES, check_templates, pick_template
 
 
 class FakeLLM:
@@ -131,6 +135,22 @@ def test_templates_clean_and_pick_deterministic():
     for t in ("fake_authority", "romance", "investment", "phishing_otp", "lottery", None, "zzz"):
         r = NLPResult(label_type=t)
         assert pick_template(r) == pick_template(r) and pick_template(r) in TEMPLATES
+
+
+def test_leaky_template_is_refused():
+    with pytest.raises(ValueError, match=r"template fails leak check \(digit\)"):
+        check_templates((*TEMPLATES, "โทรกลับ 0812345678 ค่ะ"))
+
+
+def test_template_check_runs_under_python_O():
+    code = "from tts_voice_agent.templates import check_templates; check_templates(('otp',))"
+    run = subprocess.run(
+        [sys.executable, "-O", "-c", code],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[2])},
+    )
+    assert run.returncode != 0 and "template fails leak check" in run.stderr
 
 
 NOW = datetime(2026, 10, 14, 20, 48, tzinfo=ZoneInfo("Asia/Bangkok"))
