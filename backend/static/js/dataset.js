@@ -179,7 +179,8 @@
 
   // Keys are matched by position (e.code), so they work on a Thai keyboard layout too.
   document.addEventListener("keydown", function (e) {
-    var target = e.target;
+    // Keys pressed with nothing focused come from the document, which has no closest().
+    var target = e.target && e.target.closest ? e.target : document.body;
     // Enter in the note would submit the form through its first button, which is Approve.
     if (e.key === "Enter" && target.id === "note") {
       e.preventDefault();
@@ -390,8 +391,10 @@
   });
   document.addEventListener("htmx:afterSwap", function (e) {
     bindCallAudio();
-    // A new queue (filter or tab) has no current row until it is told which call is open.
-    if (e.detail.target && e.detail.target.id === "queue") markCurrentRow(openCallId());
+    // A new queue (filter or tab) has no current row until it is told which call is open, and
+    // a newly opened call moves the mark (after Undo the queue swaps before the call does).
+    var id = e.detail.target && e.detail.target.id;
+    if (id === "queue" || id === "dataset-call") markCurrentRow(openCallId());
   });
   // Leaving a page must not leave its audio playing.
   document.addEventListener("htmx:beforeHistorySave", function () {
