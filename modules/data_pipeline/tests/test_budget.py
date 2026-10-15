@@ -169,7 +169,9 @@ def test_the_receiver_is_trimmed_too(tmp_path):
 
 def test_every_turn_records_its_prompt_size(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
-    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = simulate.run_call(
+        "phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG
+    ).to_dict()
     sizes = [t["prompt_tokens"] for t in rec["generation"]["turns"]]
     assert all(isinstance(n, int) and n > 0 for n in sizes)
     assert sizes[4] > sizes[0]  # the conversation grew
@@ -206,13 +208,13 @@ def test_the_planner_drops_the_oldest_notes(tmp_path):
 
 def test_a_call_too_long_for_the_judge_is_rejected_without_asking_it(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
-    fine = simulate.run_call("phishing_otp", 1, Store(tmp_path / "a.db"), agents, CONFIG)
+    fine = simulate.run_call("phishing_otp", 1, Store(tmp_path / "a.db"), agents, CONFIG).to_dict()
     needed = fine["generation"]["judge"]["prompt_tokens"]
     assert fine["generation"]["status"] == "accepted" and len(agents.judge.calls) == 1
 
     tight = config_with_budget(tmp_path, "judge", needed - 1)
     agents = make_agents(SCAM, REPLIES, judge(start=2), config=tight)
-    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "b.db"), agents, tight)
+    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "b.db"), agents, tight).to_dict()
     assert agents.judge.calls == []  # the judge program was never called
     assert rec["generation"]["status"] == "rejected"
     assert rec["generation"]["reasons"] == ["too_long_for_judge"]
@@ -311,12 +313,11 @@ def test_a_prompt_exactly_at_the_budget_is_not_trimmed(tmp_path):
 
 def test_a_call_exactly_at_the_judge_budget_is_judged(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
-    needed = simulate.run_call("phishing_otp", 1, Store(tmp_path / "a.db"), agents, CONFIG)[
-        "generation"
-    ]["judge"]["prompt_tokens"]
+    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "a.db"), agents, CONFIG)
+    needed = rec.generation.judge.prompt_tokens
     config = config_with_budget(tmp_path, "judge", needed)  # budget == measured prompt
     agents = make_agents(SCAM, REPLIES, judge(start=2), config=config)
-    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "b.db"), agents, config)
+    rec = simulate.run_call("phishing_otp", 1, Store(tmp_path / "b.db"), agents, config).to_dict()
     assert len(agents.judge.calls) == 1
     assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
 
@@ -345,7 +346,7 @@ def test_a_call_whose_prompt_cannot_fit_ends_rejected_without_the_model(tmp_path
     tight = config_with_budget(tmp_path, "receiver", 10)  # the receiver's prompt never fits
     agents = make_agents(SCAM, REPLIES, judge(start=2), config=tight)
     store = Store(tmp_path / "calls.db")
-    rec = simulate.run_call("phishing_otp", 1, store, agents, tight)
+    rec = simulate.run_call("phishing_otp", 1, store, agents, tight).to_dict()
     assert rec["generation"]["status"] == "rejected"
     assert rec["generation"]["reasons"] == ["too_long_for_context"]
     assert [t["speaker"] for t in rec["generation"]["turns"]] == ["A"]
@@ -353,7 +354,7 @@ def test_a_call_whose_prompt_cannot_fit_ends_rejected_without_the_model(tmp_path
     assert rec["text"].startswith("A: ")
     assert store.load(rec["id"]) == rec
     # a finished call is not run again
-    again = simulate.run_call("phishing_otp", 1, store, agents, tight)
+    again = simulate.run_call("phishing_otp", 1, store, agents, tight).to_dict()
     assert again == rec
 
 

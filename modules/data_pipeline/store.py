@@ -3,8 +3,9 @@ the human review and the scam pattern notes.
 
 `save()` writes a whole call record (a dict in the spec's schema plus `generation` and `review`
 blocks) in one transaction after every turn, and `load()` rebuilds it from the tables, so a
-stopped run resumes from the turns table. The simulator uses `save_call()` and `load_call()`,
-which take and give the same record as a records.CallRecord. The web pages read the dicts.
+stopped run resumes from the turns table. The methods come in pairs: `load_call`, `save_call`
+and `calls` give and take a records.CallRecord, which the simulator uses; `load`, `save` and
+`call_dicts` give and take the same record as a dict, which the web pages and exports read.
 
 WAL mode lets the generator write while the /dataset page reads. Each thread gets its own
 connection (sqlite3 connections must not be shared across threads).
@@ -268,7 +269,7 @@ class Store:
 
     def calls(self, call_type: str = "") -> Iterator[CallRecord]:
         """Every call as a CallRecord, oldest id first, optionally of one call type."""
-        for record in self.records(call_type):
+        for record in self.call_dicts(call_type):
             yield CallRecord.from_dict(record)
 
     def exists(self, call_id: str) -> bool:
@@ -278,8 +279,8 @@ class Store:
             is not None
         )
 
-    def records(self, call_type: str = "") -> Iterator[dict]:
-        """Every call record, oldest id first, optionally of one call type."""
+    def call_dicts(self, call_type: str = "") -> Iterator[dict]:
+        """Every call as the dict load() gives, oldest id first, optionally of one call type."""
         db = self._conn()
         sql, args = "SELECT id FROM calls", ()
         if call_type:

@@ -3,8 +3,7 @@
 `run_call` loads the call from the store (or creates it) and runs the call graph (graph.py) on
 it. The store is the only state: every node saves the call, so a stopped run picks up where it
 left off. Records follow the spec's schema; `generation` and `review` are extra and are dropped
-when the dataset is built. Inside, a call is a records.CallRecord; `run_call` returns it as the
-dict the store keeps.
+when the dataset is built. A call is a records.CallRecord; dicts appear only at the store's edge.
 
 Naming: `call` is the CallConfig of one call (scenarios.py); `config` is the loaded YAML Config.
 """
@@ -59,7 +58,7 @@ def run_call(
     config: Config,
     voices: Voices | None = None,
     receiver: ReceiverProfile | None = None,
-) -> dict:
+) -> CallRecord:
     """Generate (or finish) one call and return its record as the store keeps it.
 
     `receiver` replaces the sampled receiver with a person chosen by hand; such calls get
@@ -71,7 +70,7 @@ def run_call(
     call = sample_config(call_type, seed, config, receiver)
     record = _open_record(store, call, config, agents, receiver)
     if record.generation.status != "in_progress":
-        return record.to_dict()
+        return record
     call, filler = _as_started(call, record, config)
     context = SimContext(agents, config, call, store, voices, filler, record)
     # One step per turn plus plan and finish; a call that runs past this is a bug.
@@ -79,7 +78,7 @@ def run_call(
     state = CALL_GRAPH.invoke(
         initial_state(record), context=context, config={"recursion_limit": limit}
     )
-    return to_record(record, state).to_dict()
+    return to_record(record, state)
 
 
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:

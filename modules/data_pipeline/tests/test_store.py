@@ -131,9 +131,9 @@ def test_records_filter_by_type(tmp_path):
     store.save(make_record("phishing_otp_00001"))
     store.save(make_record("benign_00002", call_type="benign", seed=2))
     store.save(make_record("phishing_otp_00003", seed=3))
-    ids = [r["id"] for r in store.records("phishing_otp")]
+    ids = [r["id"] for r in store.call_dicts("phishing_otp")]
     assert ids == ["phishing_otp_00001", "phishing_otp_00003"]
-    assert len(list(store.records())) == 3
+    assert len(list(store.call_dicts())) == 3
     benign = store.load("benign_00002")
     assert benign["label_type"] is None
     assert benign["label_scam"] is False
