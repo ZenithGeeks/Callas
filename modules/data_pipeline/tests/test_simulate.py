@@ -11,7 +11,7 @@ from data_pipeline import simulate
 from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.finish import _scam_start
+from data_pipeline.finish import scam_start
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -431,16 +431,16 @@ def scam_record(asks, judge_at, reveal=2, holds=True):
 
 def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
     # reveal turn 2 = speaker turn 4: an ask on turn 0 or 2 is too early, so the judge decides
-    assert _scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
-    assert _scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
-    assert _scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
-    assert _scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
+    assert scam_start(scam_record({0, 2}, judge_at=4)) == (4, "judge")
+    assert scam_start(scam_record({0, 2}, judge_at=-1)) == (None, None)
+    assert scam_start(scam_record({0, 4}, judge_at=-1)) == (4, "caller")
+    assert scam_start(scam_record({0}, judge_at=-1, reveal=0)) == (0, "caller")
 
 
 def test_the_judge_fallback_must_point_at_a_caller_turn():
-    assert _scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
-    assert _scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
-    assert _scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
+    assert scam_start(scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
+    assert scam_start(scam_record(set(), judge_at=2)) == (2, "judge")
+    assert scam_start(scam_record(set(), judge_at=2, holds=False)) == (None, None)
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
@@ -492,7 +492,7 @@ def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
     assert id_card in turns[3]["text"]
-    view = turn_module._receiver_view(turns, call, CONFIG)
+    view = turn_module.receiver_view(turns, call, CONFIG)
     assert "{ID_CARD}" in view and id_card not in view
 
 

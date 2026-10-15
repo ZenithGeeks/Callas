@@ -12,15 +12,15 @@ from langgraph.runtime import Runtime
 from langgraph.types import RetryPolicy
 
 from .agents import Agents
-from .audio import _speak_turn
+from .audio import speak_turn
 from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
-from .finish import TOO_LONG_FOR_CONTEXT, _finish_call, _finish_leaks, _finish_text
+from .finish import TOO_LONG_FOR_CONTEXT, call_text, finish_call, leak_summary
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import _next_turn, _plan, is_model_error
+from .turns import is_model_error, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
 
@@ -60,16 +60,16 @@ class SimContext:
     filler: SlotFiller
 
 
-def plan_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
+def plan(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     """Scam calls only: write the caller's plan once, before the first turn."""
     ctx, record = runtime.context, state["record"]
     if ctx.call.label_scam and record["generation"]["briefing"] is None:
-        record["generation"]["briefing"] = _plan(ctx.agents, ctx.call, ctx.config, ctx.store)
+        record["generation"]["briefing"] = write_plan(ctx.agents, ctx.call, ctx.config, ctx.store)
     ctx.store.save(record)
     return {"record": record}
 
 
-def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
+def add_turn(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     """Add one turn (caller or receiver, by turn order), speak it, save the call.
 
     Safe to retry: the turn is built first, from the record as it was; only then is it added to
@@ -79,7 +79,7 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     ctx = runtime.context
     old = state["record"]["generation"]
     try:
-        turn = _next_turn(
+        turn = write_turn(
             ctx.agents,
             ctx.call,
             ctx.config,
@@ -93,8 +93,8 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
         log.warning("%s: %s", state["record"]["id"], exc)
         record = copy.deepcopy(state["record"])
         generation = record["generation"]
-        _finish_text(record)
-        _finish_leaks(record)
+        call_text(record)
+        leak_summary(record)
         generation["reasons"] = [TOO_LONG_FOR_CONTEXT]
         generation["status"] = "rejected"
         ctx.store.save(record)
@@ -103,16 +103,16 @@ def turn_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     turns = record["generation"]["turns"]
     turns.append(turn)
     if ctx.voices is not None:
-        _speak_turn(ctx.voices, record, len(turns) - 1, ctx.store.folder)
+        speak_turn(ctx.voices, record, len(turns) - 1, ctx.store.folder)
     ctx.store.save(record)
     return {"record": record}
 
 
-def finish_node(state: SimState, runtime: Runtime[SimContext]) -> SimState:
+def finish(state: SimState, runtime: Runtime[SimContext]) -> SimState:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx, record = runtime.context, state["record"]
     if record["generation"]["status"] == "in_progress":  # else it ended early (too long)
-        _finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
+        finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
     ctx.store.save(record)
     return {"record": record}
 
@@ -131,10 +131,10 @@ def next_step(
 
 def build_graph(retry: RetryPolicy = MODEL_RETRY):
     graph = StateGraph(SimState, context_schema=SimContext)
-    graph.add_node("plan", plan_node, retry_policy=retry)
-    graph.add_node("caller", turn_node, retry_policy=retry)
-    graph.add_node("receiver", turn_node, retry_policy=retry)
-    graph.add_node("finish", finish_node, retry_policy=retry)
+    graph.add_node("plan", plan, retry_policy=retry)
+    graph.add_node("caller", add_turn, retry_policy=retry)
+    graph.add_node("receiver", add_turn, retry_policy=retry)
+    graph.add_node("finish", finish, retry_policy=retry)
     graph.add_edge(START, "plan")
     # Each node lists only the moves it can make, so the drawing shows the real call and a
     # routing mistake fails loudly instead of taking a wrong turn.

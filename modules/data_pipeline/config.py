@@ -113,7 +113,7 @@ class ReceiverStage(_Strict):
 
     @model_validator(mode="after")
     def _formattable(self) -> ReceiverStage:
-        # simulate.stage passes only `turn`, so {turns} would fail there
+        # turns.stage passes only `turn`, so {turns} would fail there
         for name in ("stay", "free"):
             _check_format(getattr(self, name), f"receiver.stage.{name}", turn=1)
         return self

@@ -210,14 +210,14 @@ def test_a_call_that_ends_early_yields_an_ended_step_then_a_verdict(tmp_path, mo
     from data_pipeline import graph
     from data_pipeline.budget import ContextTooLong
 
-    real = graph._next_turn
+    real = graph.write_turn
 
     def next_turn(agents, call, config, written, *rest):
         if len(written) >= 2:
             raise ContextTooLong("scam_caller", 9000, 8000)
         return real(agents, call, config, written, *rest)
 
-    monkeypatch.setattr(graph, "_next_turn", next_turn)
+    monkeypatch.setattr(graph, "write_turn", next_turn)
     store, events = collect(live.CallSpec("romance", 0), tmp_path)
     kinds = [e.kind for e in events]
     assert kinds[-3:] == ["thinking", "ended", "verdict"]

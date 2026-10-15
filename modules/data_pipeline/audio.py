@@ -10,7 +10,7 @@ from .tts import Voices, join_call
 log = logging.getLogger("data_pipeline")
 
 
-def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None:
+def speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None:
     turn = record["generation"]["turns"][index]
     if not turn["text"]:
         return
@@ -25,7 +25,7 @@ def _speak_turn(voices: Voices, record: dict, index: int, out_dir: Path) -> None
         turn["problems"].append("tts_failed")
 
 
-def _join_audio(record: dict, out_dir: Path, gap_s: float) -> None:
+def join_audio(record: dict, out_dir: Path, gap_s: float) -> None:
     turns = record["generation"]["turns"]
     if not turns or any(turn["audio"] is None for turn in turns):
         return

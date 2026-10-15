@@ -9,7 +9,7 @@ from pathlib import Path
 import dspy
 
 from .agents import Agents
-from .audio import _join_audio
+from .audio import join_audio
 from .budget import prompt_budget, prompt_tokens
 from .config import Config
 from .tts import Voices
@@ -21,23 +21,23 @@ TOO_LONG_FOR_JUDGE = "too_long_for_judge"
 TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 
 
-def _finish_call(
+def finish_call(
     record: dict, agents: Agents, config: Config, voices: Voices | None, out_dir: Path
 ) -> None:
     generation = record["generation"]
-    _finish_text(record)
-    _finish_leaks(record)
+    call_text(record)
+    leak_summary(record)
     if voices is not None:
-        _join_audio(record, out_dir, config.agents.tts.gap_s)
-    generation["judge"] = _judge(agents, config, record)
+        join_audio(record, out_dir, config.agents.tts.gap_s)
+    generation["judge"] = ask_judge(agents, config, record)
     record["reference_summary"] = generation["judge"]["summary"]
     if record["label_scam"]:
-        record["scam_start_turn"], generation["scam_start_from"] = _scam_start(record)
-    generation["reasons"] = _verdict(record, config)
+        record["scam_start_turn"], generation["scam_start_from"] = scam_start(record)
+    generation["reasons"] = reasons_to_reject(record, config)
     generation["status"] = "rejected" if generation["reasons"] else "accepted"
 
 
-def _finish_text(record: dict) -> None:
+def call_text(record: dict) -> None:
     """Build text, speaker_turns and entity spans from the turns."""
     lines, spans, offset = [], [], 0
     turns = record["generation"]["turns"]
@@ -57,7 +57,7 @@ def _finish_text(record: dict) -> None:
     record["entities"] = spans
 
 
-def _finish_leaks(record: dict) -> None:
+def leak_summary(record: dict) -> None:
     """generation.receiver_leaked: every kind of detail the receiver gave away (sorted);
     generation.first_leak_turn: index of the first receiver turn that gave one, else None."""
     generation = record["generation"]
@@ -66,7 +66,7 @@ def _finish_leaks(record: dict) -> None:
     generation["first_leak_turn"] = next((i for i, t in enumerate(turns) if t.get("leaked")), None)
 
 
-def _judge(agents: Agents, config: Config, record: dict) -> dict:
+def ask_judge(agents: Agents, config: Config, record: dict) -> dict:
     speakers = config.agents.speakers
     tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
     transcript = "\n".join(
@@ -104,7 +104,7 @@ def _judge(agents: Agents, config: Config, record: dict) -> dict:
     }
 
 
-def _scam_start(record: dict) -> tuple[int | None, str | None]:
+def scam_start(record: dict) -> tuple[int | None, str | None]:
     """First turn where the scam shows: the caller's own flag, else the judge's answer.
 
     Callers often under-report their own ask (a link "to check the parcel" is an ask), while
@@ -133,7 +133,7 @@ def _scam_start(record: dict) -> tuple[int | None, str | None]:
     return None, None
 
 
-def _verdict(record: dict, config: Config) -> list[str]:
+def reasons_to_reject(record: dict, config: Config) -> list[str]:
     """Reasons to reject the call; empty means accepted."""
     generation, reasons = record["generation"], []
     turns = generation["turns"]

@@ -49,7 +49,7 @@ def speech_style(call: CallConfig, config: Config) -> str:
     return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
 
 
-def _plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> dict:
+def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> dict:
     """The scam caller's plan for this call, from its scenario and recent pattern notes."""
     notes = store.notes(call.call_type, limit=config.agents.planner.notes_limit)
     last = (call.max_turns - 1) // 2
@@ -83,7 +83,7 @@ def _plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> dic
     }
 
 
-def _next_turn(
+def write_turn(
     agents: Agents,
     call: CallConfig,
     config: Config,
@@ -129,9 +129,9 @@ def _speak(
     """Run the agent whose turn it is. Returns (speaker, agent name, prediction, estimated
     prompt tokens)."""
     if len(turns) % 2 == 1:
-        pred, tokens = _receiver_says(agents, call, config, turns)
+        pred, tokens = receiver_says(agents, call, config, turns)
         return RECEIVER, "receiver", pred, tokens
-    agent_name, pred, tokens = _caller_says(agents, call, config, turns, plan)
+    agent_name, pred, tokens = caller_says(agents, call, config, turns, plan)
     return CALLER, agent_name, pred, tokens
 
 
@@ -158,7 +158,7 @@ def _fit_conversation(
     return text, size
 
 
-def _receiver_says(
+def receiver_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[dict]
 ) -> tuple[dspy.Prediction, int]:
     own_turn = len(turns) // 2
@@ -169,13 +169,13 @@ def _receiver_says(
         stage=stage(config, own_turn),
     )
     conversation_text, tokens = _fit_conversation(
-        agents, config, "receiver", inputs, _receiver_lines(turns, call, config)
+        agents, config, "receiver", inputs, receiver_lines(turns, call, config)
     )
     with dspy.context(lm=agents.lms["receiver"]):
         return agents.receiver(**inputs, conversation=conversation_text), tokens
 
 
-def _receiver_lines(turns: list[dict], call: CallConfig, config: Config) -> list[str]:
+def receiver_lines(turns: list[dict], call: CallConfig, config: Config) -> list[str]:
     """The call as the receiver hears it, one line per turn: real values, except its own name
     and details, which stay the slots that its instructions call "your name", "your bank
     account" and so on."""
@@ -189,16 +189,16 @@ def _receiver_lines(turns: list[dict], call: CallConfig, config: Config) -> list
     return lines
 
 
-def _receiver_view(turns: list[dict], call: CallConfig, config: Config) -> str:
+def receiver_view(turns: list[dict], call: CallConfig, config: Config) -> str:
     """The call as the receiver hears it: real values, except its own name and details, which
     stay the slots that its instructions call "your name", "your bank account" and so on.
     Without this the receiver did not recognise its own name and answered "you have the wrong
     number"."""
-    lines = _receiver_lines(turns, call, config)
+    lines = receiver_lines(turns, call, config)
     return "\n".join(lines) if lines else config.agents.speakers.empty_call
 
 
-def _caller_says(
+def caller_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[dict], plan: list[str]
 ) -> tuple[str, dspy.Prediction, int]:
     own_turn = len(turns) // 2

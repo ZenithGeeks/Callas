@@ -42,7 +42,7 @@ RECEIVER_LEAK_SLOTS = {
     "ADDRESS": "ADDRESS",
 }
 # Slots whose value belongs to the receiver. The receiver reads them back as slots (see
-# simulate._receiver_view) so it recognises its own details.
+# turns.receiver_view) so it recognises its own details.
 RECEIVER_OWN_SLOTS = (
     "RECEIVER_NAME",
     "RECEIVER_PHONE",
@@ -52,7 +52,7 @@ RECEIVER_OWN_SLOTS = (
     "ADDRESS",
 )
 # Slots a caller cannot know: the person who answered owns these. A caller turn that uses one
-# is flagged (simulate._next_turn). {RECEIVER_NAME} is not here: a caller may know the name.
+# is flagged (turns.write_turn). {RECEIVER_NAME} is not here: a caller may know the name.
 RECEIVER_ONLY_SLOTS = ("RECEIVER_PHONE", "RECEIVER_ACCOUNT", "ID_CARD", "BIRTH_DATE", "ADDRESS")
 # The date ages are counted at. Fixed, so a seed always gives the same birth date.
 AGE_REFERENCE_DATE = date(2025, 7, 1)
