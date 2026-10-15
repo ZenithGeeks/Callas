@@ -6,6 +6,7 @@ import base64
 import logging
 import queue
 import threading
+from dataclasses import dataclass, field
 
 from asr_diarization.streaming import LiveTranscriber
 from asr_diarization.types import Turn
@@ -18,7 +19,15 @@ log = logging.getLogger(__name__)
 
 END_TIMEOUT_S = 30.0  # how long end() waits for queued turns
 REPLY_DELAY_S = 0.7  # extra quiet after a turn closes; a turn starting inside it is merged
-STOP_MARKER = (-1, None)  # put in LiveCall._held when end() arrived while turns were merging
+
+
+@dataclass
+class QueuedTurn:
+    """A closed turn for the worker: its number in the call, and the numbers folded into it."""
+
+    number: int
+    turn: Turn
+    merged: list[int] = field(default_factory=list)
 
 
 class LiveCall:
@@ -33,9 +42,10 @@ class LiveCall:
         self.transcriber = transcriber or LiveTranscriber()
         self.call_id = sessions.start()
         self._events: queue.Queue[dict] = queue.Queue()
-        self._turns: queue.Queue[tuple[int, Turn] | None] = queue.Queue()
+        self._turns: queue.Queue[QueuedTurn | None] = queue.Queue()  # None: end() was called
         self._turn_no = 0
-        self._held: tuple[int, Turn | None] | None = None
+        self._held: QueuedTurn | None = None  # read but not a continuation; goes next
+        self._stopping = False  # end() arrived while the last turn was merging
         self._paused = False
         self._ended = False
         self._lock = threading.Lock()
@@ -56,7 +66,7 @@ class LiveCall:
             if ev["type"] == "turn":
                 self._turn_no += 1
                 turn = Turn(ev["speaker"], ev["start"], ev["end"], ev["text"])
-                self._turns.put((self._turn_no, turn))
+                self._turns.put(QueuedTurn(self._turn_no, turn))
 
     def pause(self) -> None:
         """Drop audio until resume(); an open turn is closed first."""
@@ -94,39 +104,42 @@ class LiveCall:
         self.sessions.end(self.call_id)
         self._events.put({"type": "ended", "call_id": self.call_id})
 
-    # _next_turn returns (number, turn, folded numbers), or None when the call is over.
-    # Queue items: (number, turn), or None from end(). If end() arrives while merging, the
-    # current turn is returned first and STOP_MARKER is held so the next call returns None.
-    def _next_turn(self) -> tuple[int, Turn, list[int]] | None:
-        """Next turn to process. Waits REPLY_DELAY_S for the caller to go on and merges that."""
-        item = self._held or self._turns.get()  # a held turn goes first
-        self._held = None
-        if item is None or item[1] is None:  # end() sentinel, or the held stop marker
+    def _next_turn(self) -> QueuedTurn | None:
+        """Next turn to process, or None when the call is over.
+
+        Waits REPLY_DELAY_S for the same speaker to go on and merges that turn in. If end()
+        arrives while merging, the current turn is still returned and the next call stops.
+        """
+        if self._stopping:
             return None
-        n, turn = item
-        merged: list[int] = []  # numbers of the turns folded into this one
+        current = self._held or self._turns.get()  # a held turn goes first
+        self._held = None
+        if current is None:
+            return None
         while True:
             try:
                 following = self._turns.get(timeout=REPLY_DELAY_S)
             except queue.Empty:
-                return n, turn, merged
+                return current
             if following is None:
-                self._held = STOP_MARKER  # process this turn first, then stop
-                return n, turn, merged
-            following_n, following_turn = following
-            if following_turn.speaker != turn.speaker:
-                self._held = following  # not a continuation; handled on the next call
-                return n, turn, merged
-            text = f"{turn.text} {following_turn.text}"
-            merged.append(n)
-            n, turn = following_n, Turn(turn.speaker, turn.start, following_turn.end, text)
+                self._stopping = True
+                return current
+            if following.turn.speaker != current.turn.speaker:
+                self._held = following
+                return current
+            turn, more = current.turn, following.turn
+            current = QueuedTurn(
+                number=following.number,
+                turn=Turn(turn.speaker, turn.start, more.end, f"{turn.text} {more.text}"),
+                merged=[*current.merged, current.number],
+            )
 
     def _run(self) -> None:
         """Worker thread: run turns in order until end(). A failed turn is reported, not fatal."""
-        while (item := self._next_turn()) is not None:
-            n, turn, merged = item
+        while (queued := self._next_turn()) is not None:
+            n = queued.number
             try:
-                self._process(n, turn, merged)
+                self._process(n, queued.turn, queued.merged)
             except Exception as exc:  # keep the call alive; never put call text in the message
                 log.warning("turn %d failed (%s)", n, type(exc).__name__)
                 self._events.put(
