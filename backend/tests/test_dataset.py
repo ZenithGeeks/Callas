@@ -332,3 +332,10 @@ def test_static_references_are_versioned_paths(client, db_path, path):
     assert refs, path
     for ref in refs:
         assert ref.startswith("/static/") and "?v=" in ref, (path, ref)
+
+
+def test_reason_codes_from_the_simulator_have_words():
+    from backend import dataset
+
+    for code in ("stray_brace", "line_break", "number_without_slot", "no_scam_move"):
+        assert dataset.reason_text(code) != code

@@ -40,6 +40,8 @@ REASON_TEXT = {
     "number_without_slot": "Number written without a slot",
     "empty_line": "Empty line",
     "tts_failed": "Speech failed on a turn",
+    "stray_brace": "A slot was left unfilled (stray { or })",
+    "line_break": "A line had a line break or a speaker tag",
 }
 
 
