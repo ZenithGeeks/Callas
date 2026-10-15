@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from asr_diarization.types import Turn
 from llm_serving.base import LLM
@@ -35,8 +35,9 @@ def on_turn(
     state.add_entities(result.entities)
     decision = decide(result, state)
     if decision.auto_reply:
-        decision.reply_text, decision.template_used = safe_reply(result, state, llm)
-        state.add(Turn("agent", turn.end, turn.end, decision.reply_text))
+        text, template_used = safe_reply(result, state, llm)
+        decision = replace(decision, reply_text=text, template_used=template_used)
+        state.add(Turn("agent", turn.end, turn.end, text))
     log.info(
         "decision auto_reply=%s reason=%s template_used=%s",
         decision.auto_reply,

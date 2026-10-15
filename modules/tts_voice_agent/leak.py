@@ -13,6 +13,20 @@ from nlp_core.types import Entity
 
 from .constants import MIN_DIGIT_WORD_RUN
 
+
+class Reason:
+    """Codes leak_reasons returns. KEYWORD, NAME_WORD, ORG_WORD and ENTITY add ":<word|label>"."""
+
+    DIGIT = "digit"
+    DIGIT_WORD_RUN = "digit_word_run"
+    URL_OR_EMAIL = "url_or_email"
+    KEYWORD = "keyword"
+    NAME_WORD = "name_word"
+    ORG_WORD = "org_word"
+    LATIN_WORD = "latin_word"
+    ENTITY = "entity"
+
+
 _THAI_DIGITS = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 _ZERO_WIDTH = dict.fromkeys([*range(0x200B, 0x200E), 0xFEFF, 0x2060])
 
@@ -67,31 +81,31 @@ def leak_reasons(
     reasons: list[str] = []
     allowed = set(allowed_numbers)
     if any(run not in allowed for run in _DIGIT_RUN.findall(norm)):
-        reasons.append("digit")
+        reasons.append(Reason.DIGIT)
     if (
         SPOKEN_THAI_RUN.search(low)
         or SPOKEN_THAI_RUN.search(compact)
         or SPOKEN_ENGLISH_RUN.search(low)
     ):
-        reasons.append("digit_word_run")
+        reasons.append(Reason.DIGIT_WORD_RUN)
     if URL_OR_EMAIL.search(low) or URL_OR_EMAIL.search(compact):
-        reasons.append("url_or_email")
+        reasons.append(Reason.URL_OR_EMAIL)
     for word in _KEYWORDS:
         if word in compact:
-            reasons.append(f"keyword:{word}")
+            reasons.append(f"{Reason.KEYWORD}:{word}")
     no_thanks = compact.replace("ขอบคุณ", "")
     for word in _NAME_WORDS:
         if word in no_thanks:
-            reasons.append(f"name_word:{word}")
+            reasons.append(f"{Reason.NAME_WORD}:{word}")
     for word in _ORG_WORDS:
         if word in compact:
-            reasons.append(f"org_word:{word}")
+            reasons.append(f"{Reason.ORG_WORD}:{word}")
     if _LATIN_WORD.search(low):
-        reasons.append("latin_word")
+        reasons.append(Reason.LATIN_WORD)
     for ent in entities_seen:
         needle = compact_text(ent.text)
         if len(needle) >= 2 and needle in compact:
-            reasons.append(f"entity:{ent.label}")
+            reasons.append(f"{Reason.ENTITY}:{ent.label}")
     return reasons
 
 
