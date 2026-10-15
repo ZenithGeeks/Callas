@@ -135,6 +135,25 @@ def test_a_stopped_call_resumes_and_shows_its_earlier_turns(tmp_path):
     assert store.load("romance_00000")["generation"]["status"] == "accepted"
 
 
+def test_a_call_stopped_after_its_plan_resumes_with_the_plan_first(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    agents = live.fake_agents(CONFIG, "romance", 0.0)
+    capture = live.Capture(agents)
+    cancel = threading.Event()
+    with dspy.context(callbacks=[capture]):
+        for event in live.stream_call(
+            live.CallSpec("romance", 0), store, agents, CONFIG, None, capture, cancel
+        ):
+            if event.kind == "plan":
+                cancel.set()
+    assert store.load("romance_00000")["generation"]["turns"] == []  # stopped after the plan
+
+    _, events = collect(live.CallSpec("romance", 0), tmp_path)
+    kinds = [e.kind for e in events]
+    assert kinds[0] == "plan" and kinds.count("plan") == 1
+    assert kinds.index("plan") < kinds.index("turn")
+
+
 def test_a_finished_call_is_not_run_again(tmp_path):
     collect(live.CallSpec("benign", 0), tmp_path)
     with pytest.raises(ValueError, match="already finished"):

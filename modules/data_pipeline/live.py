@@ -195,7 +195,11 @@ def stream_call(
     call stays in the store as unfinished and a command line run can resume it."""
     context = _open_context(spec, store, agents, config, voices)
     record = context.record
-    for index, turn in enumerate(record.generation.turns):  # a resumed call: show what is there
+    # A resumed call shows what is already there, in call order: its plan, then its turns.
+    plan_shown = record.generation.briefing is not None
+    if plan_shown:
+        yield Event("plan", "planner", record.to_dict())
+    for index, turn in enumerate(record.generation.turns):
         yield Event("turn", turn.agent, record.to_dict(), index)
     if record.label_scam and record.generation.briefing is None:
         pending = Event("thinking", "planner", record.to_dict())
@@ -216,7 +220,7 @@ def stream_call(
         modules = capture.take()
         turns = record.generation.turns
         if node == "plan":
-            if record.generation.briefing is not None:
+            if record.generation.briefing is not None and not plan_shown:
                 yield Event("plan", "planner", record.to_dict(), modules=modules)
         elif node == "finish":
             yield Event("verdict", "judge", record.to_dict(), modules=modules)
