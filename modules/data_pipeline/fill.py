@@ -149,14 +149,20 @@ class SlotFiller:
             )
             text_len += len(value)
         pieces.append(raw[raw_pos:])
-        if _LOOSE_DIGITS.search(SLOT_RE.sub("|", raw)):  # "|" keeps digits next to a slot apart
-            problems.append("number_without_slot")
         text = "".join(pieces)
-        if "{" in text or "}" in text:  # {otp}, {OTP2}, {{OTP}}: a slot that did not fill
-            problems.append("stray_brace")
-        if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
-            problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
-        return text, spans, problems
+        return text, spans, problems + _line_problems(raw, text)
+
+
+def _line_problems(raw: str, text: str) -> list[str]:
+    """What is wrong with the line itself, as the model wrote it (`raw`) and as filled (`text`)."""
+    problems = []
+    if _LOOSE_DIGITS.search(SLOT_RE.sub("|", raw)):  # "|" keeps digits next to a slot apart
+        problems.append("number_without_slot")
+    if "{" in text or "}" in text:  # {otp}, {OTP2}, {{OTP}}: a slot that did not fill
+        problems.append("stray_brace")
+    if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
+        problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
+    return problems
 
 
 def receiver_leaks(raw: str) -> list[str]:
