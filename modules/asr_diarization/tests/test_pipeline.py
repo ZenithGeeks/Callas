@@ -72,6 +72,34 @@ def test_no_segments_fallback(caplog):
     assert t.model == "fake_asr"
 
 
+def test_fallback_turn_rounds_end_like_segment_turns():
+    backend = FakeBackend(["ทั้งไฟล์"])
+
+    def audio_loader(_path):
+        return np.zeros(16_001, dtype=np.float32)  # 1.0000625 s
+
+    t = pipeline.run("x.wav", backend, lambda _p: [], audio_loader)
+    assert t.turns[0].end == 1.0
+
+
+def test_only_the_missing_dependency_is_built(monkeypatch):
+    def no_real_model():
+        raise AssertionError("the real ASR model must not be built")
+
+    monkeypatch.setattr(pipeline, "get_default_backend", no_real_model)
+    monkeypatch.setattr(pipeline, "diarize", lambda _p: [Segment("A", 0, 1)])
+    backend = FakeBackend(["ครับ"])
+    t = pipeline.run("x.wav", backend=backend, audio_loader=loader(2))
+    assert [x.text for x in t.turns] == ["ครับ"]
+
+
+def test_missing_backend_gets_the_default_one(monkeypatch):
+    backend = FakeBackend(["ค่ะ"])
+    monkeypatch.setattr(pipeline, "get_default_backend", lambda: backend)
+    t = pipeline.run("x.wav", diarizer=lambda _p: [Segment("A", 0, 1)], audio_loader=loader(2))
+    assert t.model == "fake_asr"
+
+
 def test_zero_length_segment_skipped():
     backend = FakeBackend([])
     t = pipeline.run("x.wav", backend, lambda _p: [Segment("A", 1, 1)], loader())
@@ -94,9 +122,8 @@ def test_json_output(tmp_path):
 
 def test_main_writes_json(tmp_path, monkeypatch, capsys):
     backend = FakeBackend(["ทดสอบ"])
-    monkeypatch.setattr(
-        pipeline, "get_default_pipeline", lambda: (backend, lambda _p: [Segment("A", 0, 1)])
-    )
+    monkeypatch.setattr(pipeline, "get_default_backend", lambda: backend)
+    monkeypatch.setattr(pipeline, "diarize", lambda _p: [Segment("A", 0, 1)])
     import asr_diarization.backends as b
 
     monkeypatch.setattr(b, "load_audio", loader(2))

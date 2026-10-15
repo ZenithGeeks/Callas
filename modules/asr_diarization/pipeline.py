@@ -26,9 +26,9 @@ AudioLoader = Callable[[str], np.ndarray]  # audio_path -> mono float32 at SAMPL
 
 
 @lru_cache(maxsize=1)
-def get_default_pipeline() -> tuple[ASRBackend, Diarizer]:
-    """Build the real backend and diarizer once per process."""
-    return backends.PyThaiASR(), diarize
+def get_default_backend() -> ASRBackend:
+    """Build the real ASR backend once per process. Loading the model is the slow part."""
+    return backends.PyThaiASR()
 
 
 def run(
@@ -45,10 +45,8 @@ def run(
         diarizer: Splits the file by speaker. Default: the model from the DIARIZER setting.
         audio_loader: Reads the file into a 16 kHz mono array. Default: pythaiasr's loader.
     """
-    if backend is None or diarizer is None:
-        default_backend, default_diarizer = get_default_pipeline()
-        backend = backend or default_backend
-        diarizer = diarizer or default_diarizer
+    backend = backend or get_default_backend()
+    diarizer = diarizer or diarize
     # Look the loader up on the module at call time, so a patched backends.load_audio is used.
     audio_loader = audio_loader or backends.load_audio
 
@@ -100,7 +98,8 @@ def _single_turn(audio: np.ndarray, backend: ASRBackend) -> list[Turn]:
     text = backend.transcribe_array(audio, SAMPLE_RATE).strip()
     if not text:
         return []
-    return [Turn(speaker="A", start=0.0, end=len(audio) / SAMPLE_RATE, text=text)]
+    end = round(len(audio) / SAMPLE_RATE, 3)  # same rounding as _turns_from_segments
+    return [Turn(speaker="A", start=0.0, end=end, text=text)]
 
 
 def to_json_dict(transcript: Transcript) -> dict:
