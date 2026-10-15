@@ -21,7 +21,7 @@ START -> remember -> analyze -> decide --auto_reply--> reply -> speak -> END
 - remember: cleans the turn text (`clean_turn`) and adds it to `CallState`.
 - analyze: runs NER, summarizer and classifier from the registry on `CallState.context()`. The entities go into `entities_seen`.
 - decide: `tts_voice_agent.decision.decide`.
-- reply: `safe_reply` (leak check, template fallback) with the injected LLM. The reply is added to call memory as an `agent` turn, so the next reply can follow on.
+- reply: `safe_reply` (leak check, template fallback) with the injected LLM. It returns `reply_text` and `template_used`; the `Decision` from decide is not changed. The reply is added to call memory as an `agent` turn, so the next reply can follow on.
 - speak: `Speaker.synthesize_bytes`. The node exists only when a speaker is injected.
 - escalate: records the reason. Nothing else.
 

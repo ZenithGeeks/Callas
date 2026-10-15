@@ -195,9 +195,6 @@ def reply(state: TurnState, ctx: TurnContext) -> dict:
     text, template_used = safe_reply(
         state["nlp"], call, ctx.llm, writer=ctx.writer, judge=ctx.judge
     )
-    # The final state's Decision carries the reply, so it is filled in place (not in the update).
-    decision = state["decision"]
-    decision.reply_text, decision.template_used = text, template_used
     caller_turn = state["turn"]
     # Remember what we said, so the next reply can follow on from it.
     call.add(Turn("agent", caller_turn.end, caller_turn.end, text))
