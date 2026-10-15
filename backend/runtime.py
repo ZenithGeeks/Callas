@@ -26,7 +26,10 @@ def demo_enabled() -> bool:
 
 
 def last_transcription() -> tuple[Any, float] | None:
-    """(Transcript, seconds) of the last pipeline.run on this thread, or None."""
+    """(Transcript, seconds) of the last pipeline.run on this thread, or None.
+
+    _recording() stores it in a thread-local, so call this on the thread that ran ASR.
+    """
     return getattr(_local, "last", None)
 
 

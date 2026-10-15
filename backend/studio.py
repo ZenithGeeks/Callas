@@ -48,7 +48,8 @@ CUSTOM_KEY = "custom"  # the key in the call id of a call with a described recei
 MAX_SEED = 99_999
 MAX_TEXT = 200
 
-# Form field -> (label, ReceiverProfile pool). The pool fills the suggestions list.
+# (form field, label, ReceiverProfile pool). The form field is sent as r_<field>; the pool fills
+# the suggestions list.
 DETAIL_FIELDS = [
     ("occupation", "Job", "occupations"),
     ("education", "Education", "education"),

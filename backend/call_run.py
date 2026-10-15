@@ -42,6 +42,7 @@ class TurnView:
 
     @property
     def who(self) -> str:
+        """ "You" for the person called, "Caller" for everyone else."""
         return who(self.speaker)
 
     @property
@@ -307,6 +308,8 @@ def _log_outcome(turn: TurnView) -> tuple[str, str, str] | None:
 
 @dataclass
 class Run:
+    """One uploaded recording: its temp file, and the state of its event stream."""
+
     id: str
     path: str | None
     filename: str
@@ -360,8 +363,11 @@ async def iter_updates(app_rt, path: str, stop: threading.Event) -> AsyncIterato
     """Run CallSessions.simulate_call in one worker thread and yield what it produces.
 
     Yields ("transcript", (Transcript, seconds)) once, then ("item", update) per node, then
-    ("end", None). A failure arrives as ("error", exception). Setting `stop` ends the
-    generator early, which ends the call session.
+    ("end", None). A failure arrives as ("error", exception). Setting `stop` makes the worker
+    thread stop after its current update, which ends the call session.
+
+    The transcript is not part of the graph updates. runtime.py wraps the ASR function and
+    stores its result in a thread-local, so _simulate must read it on the worker thread.
     """
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue()
