@@ -13,8 +13,6 @@ from pathlib import Path
 # This is what lets `uvicorn backend.main:app` run without PYTHONPATH.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "modules"))
 
-from .web import ROOT  # noqa: E402
-
 import logging  # noqa: E402
 import os  # noqa: E402
 from collections.abc import AsyncIterator  # noqa: E402
@@ -28,6 +26,7 @@ from callas_settings import get_settings  # noqa: E402
 
 from . import basics, call, call_run, live, message, review, studio  # noqa: E402
 from . import runtime as rt_mod  # noqa: E402
+from .web import ROOT  # noqa: E402
 
 log = logging.getLogger("callas.web")
 
