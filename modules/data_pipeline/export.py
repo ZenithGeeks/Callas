@@ -14,7 +14,7 @@ Only calls the simulator accepted and a person approved on the /dataset page are
 whose text the notebook's cleaning would change or cut is skipped and counted under a reason,
 because the model would then train on something other than what was reviewed.
 
-The store is opened read-only, so this never changes calls.db.
+The store is opened read-only (Store(read_only=True)), so this never changes calls.db.
 """
 
 from __future__ import annotations
@@ -24,14 +24,15 @@ import hashlib
 import json
 import os
 import re
-import sqlite3
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from functools import partial
 from pathlib import Path
 
 from nlp_core.text import normalize_text
 from nlp_core.types import SCAM_TYPES
+
+from .store import Store
 
 ENCODING = "utf-8-sig"  # what the notebook reads and writes: Excel shows the Thai text correctly
 SOURCE = "simulated"
@@ -140,41 +141,42 @@ def notebook_cleaning(dialogue: str) -> list[tuple[str, str]]:
     return turns
 
 
-def build_row(call: dict, turns: list[dict], text_of: Callable[[dict], str]) -> dict:
+def build_row(record: dict, text_of: Callable[[int, dict], str]) -> dict:
     """One csv row for an approved call, or raise Refused.
 
-    `call` is the calls row (as a dict), `turns` its turns in order, and `text_of(turn)` the
-    text to write for a turn (the script, or its ASR transcript)."""
-    if call["label_scam"] and call["label_type"] not in TYPE_NAMES:
-        raise Refused(UNKNOWN_TYPE, str(call["label_type"]))
+    `record` is the call as Store.load gives it, and `text_of(index, turn)` the text to write
+    for a turn (the script, or its ASR transcript)."""
+    if record["label_scam"] and record["label_type"] not in TYPE_NAMES:
+        raise Refused(UNKNOWN_TYPE, str(record["label_type"]))
     pairs: list[tuple[str, str]] = []
-    for turn in turns:
+    for i, turn in enumerate(record["generation"]["turns"]):
         if turn["speaker"] not in TAGS:
-            raise Refused(UNKNOWN_SPEAKER, f"{call['id']} turn {turn['idx']}")
-        text = text_of(turn)
+            raise Refused(UNKNOWN_SPEAKER, f"{record['id']} turn {i}")
+        text = text_of(i, turn)
         if not normalize_text(text):
-            raise Refused(EMPTY_TURN, f"{call['id']} turn {turn['idx']}")
+            raise Refused(EMPTY_TURN, f"{record['id']} turn {i}")
         problem = turn_problem(turn["speaker"], text)
         if problem:
-            raise Refused(problem, f"{call['id']} turn {turn['idx']}")
+            raise Refused(problem, f"{record['id']} turn {i}")
         pairs.append((turn["speaker"], text))
     if len(pairs) < 2:
-        raise Refused(TOO_FEW_TURNS, call["id"])
+        raise Refused(TOO_FEW_TURNS, record["id"])
     dialogue = render_dialogue(pairs)
     # Last guard: run the notebook's cleaning and compare. Anything the checks above did not
     # name (two turns by one speaker, a turn the normalization empties) shows up here.
     expected = [(ROLES[TAGS[s]], normalize_text(t)) for s, t in pairs]
     if notebook_cleaning(dialogue) != expected:
-        raise Refused(CLEANING_CHANGES_CALL, call["id"])
-    scenario = json.loads(call["call"]).get("scenario", {}).get("key")
+        raise Refused(CLEANING_CHANGES_CALL, record["id"])
+    scenario = record["generation"]["call"].get("scenario", {}).get("key")
+    call_type = record["label_type"] or "benign"  # what the store's call_type column holds
     return {
         "dialogue": dialogue,
-        "scam_class": SCAM if call["label_scam"] else NOT_SCAM,
-        "scam_type": TYPE_NAMES[call["label_type"]] if call["label_scam"] else "",
+        "scam_class": SCAM if record["label_scam"] else NOT_SCAM,
+        "scam_type": TYPE_NAMES[record["label_type"]] if record["label_scam"] else "",
         "source": SOURCE,
-        "group_hint": f"{call['call_type']}/{scenario}" if scenario else call["id"],
-        "scam_start_turn": call["scam_start_turn"] if call["label_scam"] else None,
-        "call_id": call["id"],
+        "group_hint": f"{call_type}/{scenario}" if scenario else record["id"],
+        "scam_start_turn": record["scam_start_turn"] if record["label_scam"] else None,
+        "call_id": record["id"],
     }
 
 
@@ -214,14 +216,14 @@ class AsrText:
         self._asr = None
         self._unavailable = False
 
-    def __call__(self, call_id: str, turn: dict) -> str:
-        key, sig = f"{call_id}/{turn['idx']}", turn_signature(turn)
+    def __call__(self, call_id: str, index: int, turn: dict) -> str:
+        key, sig = f"{call_id}/{index}", turn_signature(turn)
         hit = self.cache.get(key)
         if hit and hit["sig"] == sig:
             return hit["text"]
         text = self._transcribe(turn.get("audio"))
         if text is None:
-            raise Refused(ASR_INCOMPLETE, f"{call_id} turn {turn['idx']}")
+            raise Refused(ASR_INCOMPLETE, f"{call_id} turn {index}")
         self.cache[key] = {"sig": sig, "text": text}
         self.transcribed += 1
         return text
@@ -251,73 +253,75 @@ class AsrText:
 # export
 
 
-def _connect(db: Path) -> sqlite3.Connection:
-    """A read-only connection, so the export can never change calls.db."""
-    con = sqlite3.connect(f"file:{db.resolve().as_posix()}?mode=ro", uri=True)
-    con.row_factory = sqlite3.Row
-    return con
-
-
 def export_notebook(
     db: Path,
     out: Path,
     text: str = "script",
-    asr: Callable[[str, dict], str] | None = None,
+    asr: Callable[[str, int, dict], str] | None = None,
 ) -> tuple[int, Counter]:
     """Write the csv. Returns (rows written, calls skipped by reason).
 
-    `asr(call_id, turn)` gives the ASR text of a turn for text="asr"."""
-    columns, calls, turns = _read_store(db)
-    leak = [c for c in LEAK_COLUMNS if c in columns]
-    rows: list[dict] = []
-    skipped: Counter = Counter()
-    for call in calls:
-        reason = _not_ready(call)
-        if reason:
-            skipped[reason] += 1
-            continue
-        text_of = partial(_turn_text, call_id=call["id"], text=text, asr=asr)
-        try:
-            row = build_row(call, turns.get(call["id"], []), text_of)
-        except Refused as exc:
-            skipped[exc.reason] += 1
-            continue
-        for name in leak:
-            row[name] = call[name]
-        rows.append(row)
+    `asr(call_id, index, turn)` gives the ASR text of a turn for text="asr"."""
+    store = Store(db, read_only=True)
+    try:
+        leak = [c for c in LEAK_COLUMNS if store.has_column("calls", c)]
+        rows, skipped = _rows(store.call_dicts(), leak, text, asr)
+    finally:
+        store.close()
     _write_csv(out, [*CSV_FIELDS, *leak], rows)
     return len(rows), skipped
 
 
-def _read_store(db: Path) -> tuple[list[str], list[dict], dict[str, list[dict]]]:
-    """(column names of calls, every call row, the turn rows of each call id)."""
-    con = _connect(db)
-    try:
-        columns = [r["name"] for r in con.execute("PRAGMA table_info(calls)")]
-        calls = [dict(r) for r in con.execute("SELECT * FROM calls ORDER BY id")]
-        turns: dict[str, list[dict]] = {}
-        for r in con.execute("SELECT * FROM turns ORDER BY call_id, idx"):
-            turns.setdefault(r["call_id"], []).append(dict(r))
-    finally:
-        con.close()
-    return columns, calls, turns
+def _rows(
+    records: Iterable[dict],
+    leak: list[str],
+    text: str,
+    asr: Callable[[str, int, dict], str] | None,
+) -> tuple[list[dict], Counter]:
+    """The csv rows of the calls that are ready, and the calls skipped by reason."""
+    rows: list[dict] = []
+    skipped: Counter = Counter()
+    for record in records:
+        reason = _not_ready(record)
+        if reason:
+            skipped[reason] += 1
+            continue
+        text_of = partial(_turn_text, call_id=record["id"], text=text, asr=asr)
+        try:
+            row = build_row(record, text_of)
+        except Refused as exc:
+            skipped[exc.reason] += 1
+            continue
+        generation = record["generation"]
+        if "receiver_leaked" in leak:  # as the column holds it: JSON text
+            row["receiver_leaked"] = json.dumps(generation["receiver_leaked"], ensure_ascii=False)
+        if "first_leak_turn" in leak:
+            row["first_leak_turn"] = generation["first_leak_turn"]
+        rows.append(row)
+    return rows, skipped
 
 
-def _not_ready(call: dict) -> str | None:
+def _not_ready(record: dict) -> str | None:
     """Why the call is not written before its turns are even looked at, or None if it is ready."""
-    if call["status"] != "accepted":
+    if record["generation"]["status"] != "accepted":
         return NOT_ACCEPTED
-    if call["review_status"] == "approved":
+    review = record["review"]["status"]
+    if review == "approved":
         return None
-    return REVIEW_REJECTED if call["review_status"] == "rejected" else REVIEW_PENDING
+    return REVIEW_REJECTED if review == "rejected" else REVIEW_PENDING
 
 
 def _turn_text(
-    turn: dict, *, call_id: str, text: str, asr: Callable[[str, dict], str] | None
+    index: int,
+    turn: dict,
+    *,
+    call_id: str,
+    text: str,
+    asr: Callable[[str, int, dict], str] | None,
 ) -> str:
     """The text to write for a turn: its ASR transcript for text="asr", else its script."""
     if text == "asr" and asr is not None:
-        return asr(call_id, turn)
+        return asr(call_id, index, turn)
     return turn["text"]
 
 

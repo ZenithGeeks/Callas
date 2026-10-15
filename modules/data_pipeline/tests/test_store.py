@@ -283,6 +283,30 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     Store(path)  # opening twice is fine
 
 
+def test_a_read_only_store_loads_an_old_database_without_changing_it(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "calls.db"
+    writer = Store(path)
+    writer.save(make_record())
+    expected = writer.load("phishing_otp_00001")
+    writer.close()
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
+    db.commit()
+    db.close()
+    before = path.read_bytes()
+
+    store = Store(path, read_only=True)
+    assert store.load("phishing_otp_00001") == expected  # the missing columns read as defaults
+    assert not store.has_column("calls", "receiver_leaked")
+    assert store.has_column("calls", "first_leak_turn")
+    store.close()
+    assert path.read_bytes() == before
+
+
 def test_spoken_text_and_style_round_trip(tmp_path):
     store = Store(tmp_path / "calls.db")
     record = make_record(turns=2)
