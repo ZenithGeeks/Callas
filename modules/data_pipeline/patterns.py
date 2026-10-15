@@ -65,12 +65,12 @@ def extract(
 
     `budget` is the prompt budget in tokens (budget.prompt_budget); the article is cut to the
     longest start that fits, and to MAX_ARTICLE_CHARS at most."""
+    # A program without predict.signature cannot be measured; then only MAX_ARTICLE_CHARS cuts.
     signature = getattr(getattr(program, "predict", None), "signature", None)
     if budget is not None and signature is not None:
 
         def fits(part: str) -> bool:
-            inputs = {"scam_type": scam_type, "article": part}
-            return prompt_tokens(signature, inputs) <= budget
+            return prompt_tokens(signature, {"scam_type": scam_type, "article": part}) <= budget
 
         article = cut_article(article, fits, MAX_ARTICLE_CHARS)
     with dspy.context(lm=lm):
@@ -95,7 +95,8 @@ def _add(args, store: Store) -> int:
     from .budget import prompt_budget
     from .config import load_config
 
-    settings = load_config(args.config).agents.pattern_extractor
+    config = load_config(args.config)
+    settings = config.agents.pattern_extractor
     program = dspy.ChainOfThought(configured("pattern_extractor", settings))
     lm = build_lm(
         model=settings.lm.model,
@@ -103,7 +104,6 @@ def _add(args, store: Store) -> int:
         temperature=settings.lm.temperature,
     )
     text = Path(args.file).read_text(encoding="utf-8") if args.file else sys.stdin.read()
-    config = load_config(args.config)
     note = extract(text, args.type, program, lm, prompt_budget(config, "pattern_extractor"))
     if note is None:
         print("not relevant to this scam type; nothing stored")
