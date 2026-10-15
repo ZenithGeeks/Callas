@@ -11,8 +11,9 @@ from data_pipeline import graph as graph_module
 from data_pipeline import simulate
 from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
+from data_pipeline.budget import prompt_tokens
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.finish import scam_start
+from data_pipeline.finish import drop_false_spelling, scam_start
 from data_pipeline.records import CallRecord, Generation, Judge, Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
@@ -458,6 +459,35 @@ def test_the_judge_fallback_must_point_at_a_caller_turn():
     assert scam_start(*scam_record(set(), judge_at=3)) == (None, None)  # turn 3 is the receiver
     assert scam_start(*scam_record(set(), judge_at=2)) == (2, "judge")
     assert scam_start(*scam_record(set(), judge_at=2, holds=False)) == (None, None)
+
+
+SPELLED = [
+    Turn(speaker="A", text="สวัสดีครับ ผม ธนพล จากฝ่ายสนับสนุน", spelling=["ธนพล"]),
+    Turn(speaker="B", text="ค่ะ มีอะไรคะ"),
+]
+
+
+def test_spelling_claims_the_spell_check_does_not_back_are_dropped():
+    issues = "Severe spelling errors (e.g., สวัสดี, ฝ่าย). The call ends early."
+    assert drop_false_spelling(issues, SPELLED) == "The call ends early."
+    assert drop_false_spelling('Typo in [0] "สวัสดี".', SPELLED) == "none"  # spelled correctly
+    assert drop_false_spelling('Typo in [1] "ธนพล".', SPELLED) == "none"  # not in turn 1
+    assert drop_false_spelling('Typo in [9] "ธนพล".', SPELLED) == "none"  # no turn 9
+
+
+def test_a_spelling_claim_the_spell_check_backs_is_kept():
+    assert drop_false_spelling('Typo in [0] "ธนพล".', SPELLED) == 'Typo in [0] "ธนพล".'
+    assert drop_false_spelling("", SPELLED) == ""
+    assert drop_false_spelling("none", SPELLED) == "none"
+
+
+def test_judge_prompt_stays_small():
+    """The judge's prompt without the call (#58 added about 65 tokens to 841)."""
+    tokens = prompt_tokens(
+        Agents(CONFIG, lms={}).signatures["judge"],
+        dict(intended="x", transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ"),
+    )
+    assert tokens <= 950
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

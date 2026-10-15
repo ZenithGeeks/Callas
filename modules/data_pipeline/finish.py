@@ -8,6 +8,7 @@ stored call gets once it is finished.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,11 @@ log = logging.getLogger("data_pipeline")
 
 TOO_LONG_FOR_JUDGE = "too_long_for_judge"
 TOO_LONG_FOR_CONTEXT = "too_long_for_context"
+
+# The judge reads clean typed text but still reports typos that are not there (#58).
+_SPELLING_TALK = re.compile(r"spell|typo|tone mark|สะกด", re.IGNORECASE)
+_SPELLING_CLAIM = re.compile(r'\[(\d+)\]\s*"([^"]+)"')  # [n] "word", as agents.yaml asks
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 
 @dataclass(kw_only=True)
@@ -150,8 +156,31 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         natural_thai=int(pred.natural_thai),
         giveaway=bool(pred.giveaway),
         summary=(pred.summary or "").strip(),
-        issues=(pred.issues or "").strip(),
+        issues=drop_false_spelling((pred.issues or "").strip(), turns),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
+    )
+
+
+def drop_false_spelling(issues: str, turns: list[Turn]) -> str:
+    """The judge's issues without the sentences about spelling that code does not back.
+
+    A sentence about spelling stays only if it quotes a word as [n] "word" and the spell check
+    flagged that word in turn n. Code checks spelling itself (Turn.spelling, tone_mark_order),
+    so a dropped claim loses nothing.
+    """
+    kept = [
+        sentence
+        for sentence in _SENTENCE_END.split(issues)
+        if not _SPELLING_TALK.search(sentence) or _backed_by_spell_check(sentence, turns)
+    ]
+    return " ".join(kept) if kept else "none"
+
+
+def _backed_by_spell_check(sentence: str, turns: list[Turn]) -> bool:
+    """True if a [n] "word" claim in the sentence names a word the spell check flagged in turn n."""
+    return any(
+        int(n) < len(turns) and word in turns[int(n)].spelling
+        for n, word in _SPELLING_CLAIM.findall(sentence)
     )
 
 
