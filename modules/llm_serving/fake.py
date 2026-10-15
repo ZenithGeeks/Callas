@@ -9,9 +9,9 @@ from .base import JOBS
 Response = str | list[str] | Callable[[str], str]
 
 DEFAULTS: dict[str, str] = {
-    "summary": "à¸ªà¸£à¸¸à¸›à¸à¸²à¸£à¸ªà¸™à¸—à¸™à¸²",
+    "summary": "สรุปการสนทนา",
     "classify": "normal",
-    "reply": "à¸‚à¸­à¸šà¸„à¸¸à¸“à¸—à¸µà¹ˆà¹‚à¸—à¸£à¸¡à¸²à¸„à¹ˆà¸°",
+    "reply": "ขอบคุณที่โทรมาค่ะ",
 }
 
 

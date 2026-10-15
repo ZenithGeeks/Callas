@@ -1,7 +1,7 @@
 """DSPy programs for the voice reply: DSPyReplyWriter and DSPyLeakJudge.
 
 Both run on the vLLM server and only see the REDACTED call context. Needs the optional
-extra: pip install -e ".[dspy]". Read the two signatures, then the two classes.
+extra: pip install -e ".[dspy]". They do not use LLMClient; they build their own dspy.LM.
 """
 
 from __future__ import annotations
@@ -93,17 +93,17 @@ class JudgeLeak(dspy.Signature):
 
 
 def _run_program(
-    name: str, program: dspy.Module, lm: Any, context: str, **inputs: str
+    name: str, program: dspy.Module, lm: Any, inputs: dict[str, str]
 ) -> dspy.Prediction:
     """Run a DSPy program on `lm`, turn connection errors into LLMUnavailable, log the timing.
 
-    `context` is only measured for the log line. It is also the call_context input.
+    `inputs` are the signature fields and must include `call_context` (only its length is logged).
     """
     started = time.perf_counter()
     try:
         # dspy.context per call, never dspy.configure: threads must not share one global LM
         with dspy.context(lm=lm):
-            return program(call_context=context, **inputs)
+            return program(**inputs)
     except _UNAVAILABLE as error:
         raise LLMUnavailable(
             f"cannot reach LLM server for {name}: {type(error).__name__}"
@@ -113,7 +113,7 @@ def _run_program(
         log.info(
             "dspy call=%s context_chars=%d latency_s=%.3f",
             name,
-            len(context),
+            len(inputs["call_context"]),
             time.perf_counter() - started,
         )
 
@@ -160,7 +160,9 @@ class DSPyReplyWriter:
         """Return the spoken reply for the redacted call context."""
         # `result` is accepted for the writer interface; the verdict is fixed because the
         # reply is only ever written for calls the decision step judged benign.
-        prediction = _run_program("reply", self.program, self.lm, context, verdict="benign")
+        prediction = _run_program(
+            "reply", self.program, self.lm, {"call_context": context, "verdict": "benign"}
+        )
         return (getattr(prediction, "reply", "") or "").strip()  # reasoning is dropped here
 
 
@@ -184,7 +186,9 @@ class DSPyLeakJudge:
     def blocks(self, reply: str, context: str) -> bool:
         """Return True when the reply must not be spoken (see the class docstring)."""
         try:
-            prediction = _run_program("judge", self.program, self.lm, context, reply=reply)
+            prediction = _run_program(
+                "judge", self.program, self.lm, {"reply": reply, "call_context": context}
+            )
         except LLMUnavailable:
             raise
         except Exception as exc:  # unparsable output, server error: block

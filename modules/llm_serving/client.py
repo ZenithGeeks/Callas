@@ -1,4 +1,4 @@
-"""OpenAI-compatible client for the vLLM server. Every LLM call goes through here."""
+"""OpenAI-compatible client for the vLLM server: the summary, classify and reply jobs."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The one interface every LLM call goes through."""
+"""The LLM interface used by the nlp, orchestrator and reply code (not by the DSPy programs)."""
 
 from __future__ import annotations
 
