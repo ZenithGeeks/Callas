@@ -53,6 +53,7 @@ def _digit_groups(value: str, style: str) -> str:
 
 
 def _money(value: str) -> str:
+    """49,500 บาท -> the amount by place value, then บาท."""
     match = re.search(r"\d[\d,]*", value)
     if not match:
         return value
@@ -60,6 +61,7 @@ def _money(value: str) -> str:
 
 
 def _birth_date(value: str) -> str:
+    """Day and year by place value; the month name is already a word."""
     day, month, year = value.split()  # e.g. "12 มีนาคม 2511"
     return f"{num_to_thaiword(int(day))} {month} {num_to_thaiword(int(year))}"
 

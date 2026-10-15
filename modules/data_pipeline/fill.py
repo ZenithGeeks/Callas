@@ -83,6 +83,8 @@ BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means 
 
 
 class SlotFiller:
+    """The made-up values of one call, one for each slot, and `fill` to put them in a line."""
+
     def __init__(self, call: CallConfig, details: DetailsFile) -> None:
         rng = random.Random(f"fill:{call.call_type}:{call.seed}")
         caller = rng.choice(details.names[call.caller_gender])
@@ -168,7 +170,7 @@ def receiver_leaks(raw: str) -> list[str]:
     return labels
 
 
-# ---- made-up values --------------------------------------------------------------------------
+# made-up values
 
 
 def _phone(rng: random.Random) -> str:

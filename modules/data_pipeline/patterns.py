@@ -84,10 +84,11 @@ def extract(
     }
 
 
-# ---- command line -----------------------------------------------------------------------------
+# command line
 
 
 def _add(args, store: Store) -> int:
+    """`add`: extract a note from article text, append it to the wiki page and sync that type."""
     from llm_serving.dspy_programs import build_lm
 
     from .agents import configured
@@ -115,12 +116,14 @@ def _add(args, store: Store) -> int:
 
 
 def _sync(args, store: Store) -> int:
+    """`sync`: make the store's notes match every wiki page."""
     for scam_type, n in sync(store, args.wiki).items():
         print(f"{scam_type}: {n['notes']} notes, {n['active']} active")
     return 0
 
 
 def _list(args, store: Store) -> int:
+    """`list`: print the numbered notes of one wiki page."""
     notes = read_wiki(args.wiki)[args.type]
     for number, n in enumerate(notes[: args.limit], start=1):
         state = "" if n["active"] else " (inactive)"
@@ -132,6 +135,7 @@ def _list(args, store: Store) -> int:
 
 
 def _disable(args, store: Store) -> int:
+    """`disable`: set `active: no` on one note of a wiki page and sync that type."""
     summary = set_active(args.wiki, args.type, args.number, False)
     sync(store, args.wiki, (args.type,))
     print(f"note {args.number} of {args.type} set to 'active: no' and synced: {summary}")
@@ -139,6 +143,8 @@ def _disable(args, store: Store) -> int:
 
 
 def _add_options(parser: argparse.ArgumentParser, given: bool) -> None:
+    """Add --db, --wiki and --config. With given=False they only override when typed."""
+
     def default(value):
         return value if given else argparse.SUPPRESS
 

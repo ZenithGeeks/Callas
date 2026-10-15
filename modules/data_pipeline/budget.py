@@ -30,6 +30,7 @@ KEEP_FIRST_TURNS = 2  # a trimmed conversation always keeps its opening turns
 
 
 def estimate_tokens(text: str) -> int:
+    """The most tokens this text can be, from its UTF-8 size (see BYTES_PER_TOKEN)."""
     return math.ceil(len(text.encode("utf-8")) / BYTES_PER_TOKEN)
 
 
@@ -51,6 +52,7 @@ def prompt_budget(config: Config, agent: str) -> int:
 
 
 def hidden_marker(count: int) -> str:
+    """The line that stands in for the turns that were cut from the middle."""
     noun = "turn" if count == 1 else "turns"
     return f"(... {count} earlier {noun} not shown ...)"
 

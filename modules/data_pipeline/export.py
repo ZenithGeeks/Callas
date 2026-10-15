@@ -40,7 +40,8 @@ SCAM, NOT_SCAM = "Scam", "Not a Scam"
 TAGS = {"A": "ผู้โทร", "B": "ผู้รับ"}
 ROLES = {"ผู้โทร": "caller", "ผู้รับ": "receiver"}
 
-# Leak columns written by another branch. Exported when the store has them, skipped when not.
+# Columns an older calls.db may not have yet (the store adds them when it opens the file). They
+# are exported when the file has them.
 LEAK_COLUMNS = ("receiver_leaked", "first_leak_turn")
 
 # These copy the cleaning rules of the notebook (cells 3 and 9). A test reads the notebook and
@@ -167,7 +168,7 @@ def build_row(call: dict, turns: list[dict], text_of: Callable[[dict], str]) -> 
     }
 
 
-# ---- ASR text ------------------------------------------------------------------------------
+# ASR text
 
 
 def default_asr_cache() -> Path:
@@ -229,15 +230,17 @@ class AsrText:
         return str(self._asr(str(self.folder / audio)))
 
     def save(self) -> None:
+        """Write the cache file, only when this run transcribed something new."""
         if self.transcribed:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(json.dumps(self.cache, ensure_ascii=False), encoding="utf-8")
 
 
-# ---- export --------------------------------------------------------------------------------
+# export
 
 
 def _connect(db: Path) -> sqlite3.Connection:
+    """A read-only connection, so the export can never change calls.db."""
     con = sqlite3.connect(f"file:{db.resolve().as_posix()}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     return con

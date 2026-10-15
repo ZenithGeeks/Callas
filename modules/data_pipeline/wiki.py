@@ -57,6 +57,7 @@ class WikiError(ValueError):
 
 
 def _fail(name: str, line: int, message: str) -> WikiError:
+    """A WikiError that starts with `file:line`, the way compilers write it."""
     return WikiError(f"{name}:{line}: {message}")
 
 
@@ -140,6 +141,7 @@ def _is_date(value: str) -> bool:
 
 
 def _one_line(value: str) -> str:
+    """Collapse line breaks and repeated spaces, so a value stays on its page line."""
     return " ".join(value.split())
 
 
@@ -153,6 +155,7 @@ def render_page(title: str, notes: list[dict], intro: str = "") -> str:
 
 
 def _render_note(note: dict) -> str:
+    """One note as the page text that parse_page reads."""
     lines = [
         f"## {_one_line(note['summary'])}",
         f"- source: {_one_line(note.get('source') or '')}".rstrip(),
@@ -169,12 +172,14 @@ def _render_note(note: dict) -> str:
 
 
 def page_path(folder: Path | str, scam_type: str) -> Path:
+    """The file of one scam type's page."""
     if scam_type not in SCAM_TYPES:
         raise ValueError(f"unknown scam type: {scam_type}")
     return Path(folder) / f"{scam_type}.md"
 
 
 def _write(path: Path, text: str) -> None:
+    """Write a page with LF line endings, so a Windows run does not rewrite every line."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as f:
         f.write(text)

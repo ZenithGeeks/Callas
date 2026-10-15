@@ -41,6 +41,7 @@ from .wiki import sync as sync_wiki
 
 
 def main(argv: list[str] | None = None) -> int:
+    """The command line. Returns the exit code: 0 done, 1 some calls hit an error, 2 bad input."""
     parser = _build_parser()
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -224,6 +225,7 @@ def _export(store: Store, path: Path, approved_only: bool) -> int:
 
 
 def _load_checked_config(folder: Path | None) -> Config:
+    """Load the config and check that each agent's fields match the signatures in agents.py."""
     config = load_config(folder)
     for name in SIGNATURES:  # field names must match the code
         configured(name, getattr(config.agents, name))

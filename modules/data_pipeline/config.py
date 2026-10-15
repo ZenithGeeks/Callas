@@ -48,10 +48,12 @@ _SLOT_IN_TEXT = re.compile(r"\{([A-Z_]+)\}")
 
 
 class ConfigError(ValueError):
-    pass
+    """The config cannot be used. The message names the file and what to fix."""
 
 
 class _Strict(BaseModel):
+    """Base for every config section: an unknown key is an error, and values never change."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -61,16 +63,20 @@ def _check_slots(text: str, where: str) -> None:
         raise ValueError(f"{where}: unknown slot(s) {bad}; known slots are {list(SLOT_NAMES)}")
 
 
-# ---- agents.yaml ---------------------------------------------------------------------------
+# agents.yaml
 
 
 class LMSettings(_Strict):
+    """The model settings of one agent."""
+
     model: str | None = None  # empty: VLLM_MODEL from .env (or the first served model)
     temperature: float = Field(0.0, ge=0.0, le=2.0)
     max_tokens: int = Field(1000, ge=64)
 
 
 class Agent(_Strict):
+    """One DSPy agent: its instructions, the description of each field, and its model."""
+
     instructions: str
     fields: dict[str, str]  # field name -> description shown to the model
     lm: LMSettings = LMSettings()
@@ -104,10 +110,14 @@ class Pacing(_Strict):
 
 
 class ScamCaller(Agent):
+    """The scam caller, with the pacing text it gets on each turn."""
+
     pacing: Pacing
 
 
 class ReceiverStage(_Strict):
+    """What the receiver is told about staying on the line. {turn} is filled in."""
+
     stay: str  # while it must stay on the line; {turn} is filled in
     free: str
 
@@ -120,15 +130,21 @@ class ReceiverStage(_Strict):
 
 
 class Receiver(Agent):
+    """The person who answers: how many turns it must stay on the line, and its stage text."""
+
     stay_on_line: int = Field(ge=0)
     stage: ReceiverStage
 
 
 class Planner(Agent):
+    """The agent that plans a scam call from recent pattern notes."""
+
     notes_limit: int = Field(6, ge=0)  # newest pattern notes the planner reads per call
 
 
 class Judge(Agent):
+    """The agent that checks a finished call, with what each call type is meant to show."""
+
     intended: dict[str, str]  # call type -> what the call is meant to show
 
     @field_validator("intended")
@@ -140,6 +156,8 @@ class Judge(Agent):
 
 
 class Speakers(_Strict):
+    """How the two speakers are labelled and addressed in the conversation text."""
+
     caller_tag: str  # how caller lines are labelled in the conversation the agents read
     receiver_tag: str
     empty_call: str  # the conversation text before anyone has spoken
@@ -147,6 +165,8 @@ class Speakers(_Strict):
 
 
 class TTS(_Strict):
+    """The voices for the call audio and the silence between two turns."""
+
     voices: dict[str, list[str]]  # gender -> VachanaTTS2 voice ids
     gap_s: float = Field(0.45, ge=0.0)
 
@@ -178,6 +198,8 @@ AGENT_NAMES = ("scam_caller", "legit_caller", "receiver", "planner", "pattern_ex
 
 
 class AgentsFile(_Strict):
+    """agents.yaml as a whole."""
+
     slot_rule: str = ""  # shared text, reused through a YAML anchor; not read by the code
     speakers: Speakers
     scam_caller: ScamCaller
@@ -204,10 +226,12 @@ class AgentsFile(_Strict):
         return self
 
 
-# ---- scenarios.yaml ------------------------------------------------------------------------
+# scenarios.yaml
 
 
 class Scenario(_Strict):
+    """What one kind of call is about. Text may use {SLOTS}."""
+
     key: str
     role: str  # who the caller says they are
     org: str = ""  # named organisation; "*" = a made-up company, "" = none
@@ -295,6 +319,8 @@ class Receivers(_Strict):
 
 
 class Calls(_Strict):
+    """How long calls run and when a scam caller makes its first ask."""
+
     slow_types: list[str]  # scam types that build trust before asking
     reveal_turn_slow: list[int] = Field(min_length=1)  # caller's own turn of the first ask
     reveal_turn_fast: list[int] = Field(min_length=1)
@@ -311,6 +337,8 @@ def shortest_call(calls: Calls, reveal: int) -> int:
 
 
 class ScenariosFile(_Strict):
+    """scenarios.yaml as a whole."""
+
     scams: dict[str, list[Scenario]]
     legit: list[Scenario] = Field(min_length=1)
     receivers: Receivers
@@ -327,16 +355,20 @@ class ScenariosFile(_Strict):
         return scams
 
 
-# ---- details.yaml --------------------------------------------------------------------------
+# details.yaml
 
 
 class Money(_Strict):
+    """The amounts a caller can ask for."""
+
     big_types: list[str]  # call types that use the big amounts
     big: list[int] = Field(min_length=1)
     small: list[int] = Field(min_length=1)
 
 
 class Urls(_Strict):
+    """The pieces of a made-up link."""
+
     words: list[str] = Field(min_length=1)
     tlds: list[str] = Field(min_length=1)
 
@@ -366,6 +398,8 @@ DEFAULT_ADDRESS_PARTS = AddressParts(
 
 
 class DetailsFile(_Strict):
+    """details.yaml as a whole."""
+
     names: dict[str, list[str]]  # gender -> first names
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
@@ -374,7 +408,7 @@ class DetailsFile(_Strict):
     addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
 
 
-# ---- the whole config ----------------------------------------------------------------------
+# the whole config
 
 
 @dataclass(eq=False)
@@ -393,6 +427,7 @@ class Config:
 
 
 def _read(folder: Path, name: str) -> dict:
+    """One YAML file as a dict, or a ConfigError that names the file."""
     path = folder / name
     if not path.exists():
         raise ConfigError(f"missing {path}")
@@ -444,6 +479,11 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
 
 
 def load_config(folder: Path | str | None = None) -> Config:
+    """Read and check the three YAML files in `folder` (default: data_pipeline/config).
+
+    Raises:
+        ConfigError: a file is missing or not valid; the message says what to fix.
+    """
     folder = Path(folder) if folder else DEFAULT_DIR
     raw = {name: _read(folder, name) for name in FILES}
     try:
@@ -453,7 +493,8 @@ def load_config(folder: Path | str | None = None) -> Config:
     except ValidationError as exc:
         raise ConfigError(f"config in {folder} is not valid:\n{exc}") from exc
     _cross_check(agents, scenarios, details)
-    # Hash the parsed content, not the bytes: comments and spacing do not change the data.
+    # Hash the parsed content, not the bytes, so a comment or spacing change keeps the same hash
+    # and a stopped run still resumes.
     digest = hashlib.sha256(
         yaml.safe_dump([raw[n] for n in FILES], sort_keys=True, allow_unicode=True).encode()
     ).hexdigest()[:12]

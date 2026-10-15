@@ -39,13 +39,16 @@ class CallConfig:
 
     @property
     def label_scam(self) -> bool:
+        """Whether this is a scam call. Decided by the call type, never by a model."""
         return self.call_type != BENIGN
 
     @property
     def label_type(self) -> str | None:
+        """The scam type of a scam call, None for a normal call."""
         return self.call_type if self.label_scam else None
 
     def to_dict(self) -> dict:
+        """The call as plain JSON-ready dicts, as stored in generation.call."""
         data = asdict(self)
         data["scenario"] = self.scenario.model_dump()
         data["receiver"] = self.receiver.model_dump()

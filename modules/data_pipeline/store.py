@@ -148,6 +148,7 @@ def _add_missing_columns(db: sqlite3.Connection) -> None:
 
 
 def now() -> str:
+    """The current UTC time as an ISO string, to the second."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
@@ -167,9 +168,10 @@ class Store:
                 (str(SCHEMA_VERSION),),
             )
 
-    # ---- connections ----------------------------------------------------------------------
+    # connections
 
     def _conn(self) -> sqlite3.Connection:
+        """This thread's connection, opened on first use."""
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = sqlite3.connect(self.path, timeout=30)
@@ -185,12 +187,13 @@ class Store:
         return self._conn()
 
     def close(self) -> None:
+        """Close this thread's connection. Other threads keep theirs."""
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()
             self._local.conn = None
 
-    # ---- calls ----------------------------------------------------------------------------
+    # calls
 
     def save(self, record: dict) -> None:
         """Write a whole call record (call row and all its turns) in one transaction.
@@ -296,6 +299,7 @@ class Store:
             yield CallRecord.from_dict(record)
 
     def exists(self, call_id: str) -> bool:
+        """Whether a call with this id is stored."""
         return (
             self._conn().execute("SELECT 1 FROM calls WHERE id = ?", (call_id,)).fetchone()
             is not None
@@ -328,6 +332,7 @@ class Store:
         )
 
     def set_review(self, call_id: str, status: str, note: str) -> bool:
+        """Record a human review (pending, approved or rejected). False if there is no such call."""
         reviewed_at = None if status == "pending" else now()
         with self._tx() as db:
             cur = db.execute(
@@ -338,10 +343,11 @@ class Store:
         return cur.rowcount == 1
 
     def delete(self, call_id: str) -> None:
+        """Delete a call and, through the foreign key, its turns."""
         with self._tx() as db:
             db.execute("DELETE FROM calls WHERE id = ?", (call_id,))
 
-    # ---- pattern notes --------------------------------------------------------------------
+    # pattern notes
 
     def add_note(
         self,
@@ -352,6 +358,7 @@ class Store:
         source: str = "",
         published: str | None = None,
     ) -> int:
+        """Store one pattern note and return its id."""
         with self._tx() as db:
             cur = db.execute(
                 """INSERT INTO pattern_notes
@@ -432,18 +439,21 @@ class Store:
         return int(row[0]), int(row[1])
 
     def set_note_active(self, note_id: int, active: bool) -> None:
+        """Turn a note on or off for the planner. The note stays in the store."""
         with self._tx() as db:
             db.execute("UPDATE pattern_notes SET active = ? WHERE id = ?", (int(active), note_id))
 
 
-# ---- row <-> record -----------------------------------------------------------------------
+# row <-> record
 
 
 def _dump_or_none(value: Any) -> str | None:
+    """JSON text for a column that may be NULL."""
     return None if value is None else json.dumps(value, ensure_ascii=False)
 
 
 def _turn_value(turn: dict, column: str) -> Any:
+    """The turn's value for one turns column, in the form the column stores."""
     value = turn.get(column)
     if column in _JSON_TURN_FIELDS:
         return json.dumps(value or [], ensure_ascii=False)
@@ -455,6 +465,7 @@ def _turn_value(turn: dict, column: str) -> Any:
 
 
 def _turn(row: sqlite3.Row) -> dict:
+    """A turns row as the turn dict of a record."""
     turn = {c: row[c] for c in _TURN_COLUMNS}
     for c in _JSON_TURN_FIELDS:
         turn[c] = json.loads(turn[c])
@@ -478,6 +489,7 @@ def _text(turns: list[sqlite3.Row]) -> tuple[str, list[dict]]:
 
 
 def _record(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
+    """A calls row and its turns rows as the call record the web pages and the export read."""
     text, entities = _text(turns)
     return {
         "id": row["id"],

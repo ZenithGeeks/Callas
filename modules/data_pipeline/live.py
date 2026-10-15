@@ -45,7 +45,7 @@ from .store import Store
 __all__ = ["CallSpec", "Capture", "Event", "ModuleRun", "fake_agents", "stream_call"]
 
 
-# ---- what the DSPy callbacks collect ---------------------------------------------------------
+# what the DSPy callbacks collect
 
 
 @dataclass
@@ -148,7 +148,7 @@ def _answer_text(outputs: Any) -> str:
     return "\n".join(p for p in parts if p)
 
 
-# ---- one call, step by step ------------------------------------------------------------------
+# one call, step by step
 
 
 class CallConflict(ValueError):
@@ -289,7 +289,7 @@ def mark_model_error(store: Store, record_id: str, exc: BaseException) -> None:
     store.save_call(replace(record, generation=generation))
 
 
-# ---- demo mode: a scripted LM and silent voices ----------------------------------------------
+# demo mode: a scripted LM and silent voices
 
 FAKE_MODEL = "scripted-demo"
 
@@ -378,6 +378,7 @@ class SilentVoices:
     """Stands in for tts.Voices in demo mode: writes a quiet WAV about as long as the line."""
 
     def speak(self, text: str, voice: str, path: Path) -> float:
+        """Write the quiet WAV to `path` and return its length in seconds."""
         seconds = max(0.5, round(len(text) * 0.07, 2))
         path.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(path), "wb") as wav:
