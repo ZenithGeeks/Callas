@@ -147,3 +147,26 @@ def test_optimize_with_dummy_lm(tmp_path):
     before, after = dspy_optimize.optimize(ex, out, lm=lm)
     assert (before, after) == (100.0, 100.0)
     assert out.exists()
+
+
+def test_optimizer_tunes_at_the_writers_temperature(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_build_lm(temperature=None, **kwargs):
+        seen.setdefault("writer", temperature)
+        return object()
+
+    monkeypatch.setattr(dspy_programs, "build_lm", fake_build_lm)
+    _ = DSPyReplyWriter(compiled_path=tmp_path / "missing.json").lm  # builds the LM
+
+    def fake_optimize(trainset, out, lm=None, temperature=None):
+        seen["optimizer"] = temperature
+        return 0.0, 0.0
+
+    monkeypatch.setattr(dspy_optimize, "optimize", fake_optimize)
+    monkeypatch.setattr(dspy_optimize, "load_trainset", lambda path: [])
+    dspy_optimize.main(["--out", str(tmp_path / "out.json")])
+    assert seen["optimizer"] == seen["writer"] == dspy_programs.DSPY_REPLY_TEMPERATURE
+
+    dspy_optimize.main(["--out", str(tmp_path / "out.json"), "--temperature", "0.3"])
+    assert seen["optimizer"] == 0.3

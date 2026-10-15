@@ -39,6 +39,9 @@ _UNAVAILABLE: tuple[type[BaseException], ...] = (
 # reply budget the output was cut off, failed to parse, and every reply became a template.
 # The reply text itself is still capped by MAX_REPLY_CHARS in safe_reply.
 DSPY_MAX_TOKENS = 512
+# The DSPy reply writer samples at 0: at 0.3 qwen3.8 produced garbled Thai spelling.
+# dspy_optimize tunes at the same value, so the compiled demos match how the writer runs.
+DSPY_REPLY_TEMPERATURE = 0.0
 
 
 def build_lm(
@@ -152,8 +155,7 @@ class DSPyReplyWriter:
     def lm(self):
         """The language model, built on first use."""
         if self._lm is None:
-            # Temperature 0: sampling at 0.3 produced garbled Thai spelling on qwen3.8.
-            self._lm = build_lm(temperature=0.0)
+            self._lm = build_lm(temperature=DSPY_REPLY_TEMPERATURE)
         return self._lm
 
     def write(self, context: str, result: Any = None) -> str:
