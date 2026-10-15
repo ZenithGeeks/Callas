@@ -136,11 +136,29 @@ def _load_reply_program(compiled_path: Path | None) -> dspy.Module:
     return program
 
 
-class DSPyReplyWriter:
+class _LazyLM:
+    """Holds the language model of a DSPy program. The default one is built on first use."""
+
+    lm_temperature: float  # sampling temperature of the default model
+
+    def __init__(self, lm: Any | None = None) -> None:
+        self._lm = lm
+
+    @property
+    def lm(self):
+        """The language model, built on first use."""
+        if self._lm is None:
+            self._lm = build_lm(temperature=self.lm_temperature)
+        return self._lm
+
+
+class DSPyReplyWriter(_LazyLM):
     """write(context, result) -> reply text. `context` must already be redacted.
 
     The ChainOfThought `reasoning` field is dropped: `write()` returns the reply text only.
     """
+
+    lm_temperature = DSPY_REPLY_TEMPERATURE
 
     def __init__(
         self,
@@ -148,15 +166,8 @@ class DSPyReplyWriter:
         lm: Any | None = None,
         compiled_path: Path | None = None,
     ) -> None:
-        self._lm = lm
+        super().__init__(lm)
         self.program = program if program is not None else _load_reply_program(compiled_path)
-
-    @property
-    def lm(self):
-        """The language model, built on first use."""
-        if self._lm is None:
-            self._lm = build_lm(temperature=DSPY_REPLY_TEMPERATURE)
-        return self._lm
 
     def write(self, context: str, result: Any = None) -> str:
         """Return the spoken reply for the redacted call context."""
@@ -168,22 +179,17 @@ class DSPyReplyWriter:
         return (getattr(prediction, "reply", "") or "").strip()  # reasoning is dropped here
 
 
-class DSPyLeakJudge:
+class DSPyLeakJudge(_LazyLM):
     """blocks(reply, context) -> True if the reply must not be spoken. Only a real False
     from the model means "no leak"; every other outcome is a block."""
 
+    lm_temperature = 0.0
+
     def __init__(self, lm: Any | None = None) -> None:
-        self._lm = lm
+        super().__init__(lm)
         # Chain of thought: the judge reasons about the reply against the redacted call before
         # answering. Its reasoning is dropped like the writer's; only `leaks` is read.
         self.program = dspy.ChainOfThought(JudgeLeak)
-
-    @property
-    def lm(self):
-        """The language model, built on first use."""
-        if self._lm is None:
-            self._lm = build_lm(temperature=0.0)
-        return self._lm
 
     def blocks(self, reply: str, context: str) -> bool:
         """Return True when the reply must not be spoken (see the class docstring)."""
