@@ -30,7 +30,15 @@ from .agents import SIGNATURES, Agents
 from .config import Config, ReceiverProfile, Scenario
 from .fill import SlotFiller
 from .scenarios import sample_config
-from .simulate import CALL_GRAPH, SimContext, _open_record, call_id, is_model_error, next_step
+from .simulate import (
+    CALL_GRAPH,
+    SimContext,
+    _open_record,
+    call_id,
+    initial_state,
+    is_model_error,
+    next_speaker,
+)
 from .store import Store
 
 __all__ = ["CallSpec", "Capture", "Event", "ModuleRun", "fake_agents", "stream_call"]
@@ -193,11 +201,11 @@ def stream_call(
     filler = SlotFiller(call, config.details)
     if name:
         filler.values["RECEIVER_NAME"] = name
-    context = SimContext(agents, config, call, store, voices, filler)
+    context = SimContext(agents, config, call, store, voices, filler, record)
     caller = "scam_caller" if call.label_scam else "legit_caller"
 
     def whose_turn(rec: dict) -> Event:
-        step = next_step({"record": rec}, SimpleNamespace(context=context))
+        step = next_speaker(initial_state(rec), SimpleNamespace(context=context))
         agent = {"caller": caller, "receiver": "receiver", "finish": "judge"}[step]
         return Event("thinking", agent, rec)
 
@@ -208,14 +216,14 @@ def stream_call(
     written = len(generation["turns"])
 
     updates = CALL_GRAPH.stream(
-        {"record": record},
+        initial_state(record),
         context=context,
         config={"recursion_limit": call.max_turns + 5},
         stream_mode="updates",
     )
     for update in updates:
-        ((node, result),) = update.items()
-        record = result["record"]
+        (node,) = update
+        record = store.load(record["id"])  # as the node saved it
         modules = capture.take()
         if node == "plan":
             if record["generation"]["briefing"] is not None:

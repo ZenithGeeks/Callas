@@ -130,7 +130,7 @@ def test_cut_article_takes_the_longest_start_that_fits():
 def test_a_long_conversation_is_trimmed_with_a_marker(tmp_path):
     call = sample_config("phishing_otp", 1, CONFIG)
     turns = long_call(40)
-    lines = simulate.conversation_lines(turns, CONFIG, raw=True)
+    lines = turn_module.conversation_lines(turns, CONFIG, raw=True)
     answer = dict(line="ครับ", asks_now=False, end_call=False)
 
     roomy = make_agents([answer], [], judge())

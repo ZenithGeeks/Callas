@@ -1,11 +1,18 @@
-"""The call graph (LangGraph): START -> plan -> caller <-> receiver -> finish -> END."""
+"""The call graph: one simulated phone call, turn by turn.
+
+    START -> plan -> caller <-> receiver -> finish -> END
+
+Read this file first. turns.py writes a turn, finish.py checks the finished call, audio.py
+speaks it, and simulate.run_call loads the call from the store and runs this graph.
+"""
 
 from __future__ import annotations
 
 import copy
 import logging
+import operator
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -16,13 +23,124 @@ from .audio import speak_turn
 from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
-from .finish import TOO_LONG_FOR_CONTEXT, call_text, finish_call, leak_summary
+from .finish import RECORD_FIELDS, Ending, ended_early, finish_call
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import is_model_error, write_plan, write_turn
+from .turns import CALLER, RECEIVER, Briefing, Turn, is_model_error, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
+
+
+class CallState(TypedDict):
+    """What changes while a call runs. Each node returns only the fields it changed."""
+
+    briefing: Briefing | None  # the scam caller's plan; None for a normal call
+    turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
+    status: Literal["in_progress", "accepted", "rejected"]
+    ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
+
+
+@dataclass
+class SimContext:
+    """What the nodes need that is not state, read as `runtime.context`."""
+
+    agents: Agents
+    config: Config
+    call: CallConfig
+    store: Store
+    voices: Voices | None  # None: text only
+    filler: SlotFiller  # this call's values for the {SLOTS}
+    record: dict  # the call as loaded or created; to_record() lays the state over it
+
+
+def initial_state(record: dict) -> CallState:
+    """The state of a stored call that is new or still in progress."""
+    generation = record["generation"]
+    return {
+        "briefing": generation["briefing"],
+        "turns": generation["turns"],
+        "status": generation["status"],
+        "ending": None,
+    }
+
+
+def to_record(record: dict, state: CallState) -> dict:
+    """The call as the store keeps it: a copy of `record` with the state written into it."""
+    record = copy.deepcopy(record)
+    generation = record["generation"]
+    generation.update(briefing=state["briefing"], turns=state["turns"], status=state["status"])
+    for key, value in (state["ending"] or {}).items():
+        (record if key in RECORD_FIELDS else generation)[key] = value
+    return record
+
+
+def plan(state: CallState, runtime: Runtime[SimContext]) -> dict:
+    """Scam calls only: write the caller's plan once, before the first turn."""
+    ctx = runtime.context
+    update = {}
+    if ctx.call.label_scam and state["briefing"] is None:
+        update["briefing"] = write_plan(ctx.agents, ctx.call, ctx.config, ctx.store)
+    ctx.store.save(to_record(ctx.record, {**state, **update}))
+    return update
+
+
+def caller(state: CallState, runtime: Runtime[SimContext]) -> dict:
+    """Add the caller's next line."""
+    return _add_turn(CALLER, state, runtime.context)
+
+
+def receiver(state: CallState, runtime: Runtime[SimContext]) -> dict:
+    """Add the receiver's next line."""
+    return _add_turn(RECEIVER, state, runtime.context)
+
+
+def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
+    """Write the speaker's turn, speak it and save the call.
+
+    Safe to retry: the call is saved with the new turn before the node returns, and LangGraph
+    adds the turn to the state only once the node has returned. If the save fails and the node
+    runs again, the state still has the old turns, so a turn is never added twice.
+    """
+    turns = state["turns"]
+    plan_steps = (state["briefing"] or {}).get("plan", [])
+    try:
+        turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
+    except ContextTooLong as exc:
+        # The prompt cannot be made to fit, so the model is not asked. The call ends here,
+        # rejected, with the turns it has.
+        log.warning("%s: %s", ctx.record["id"], exc)
+        update = {"status": "rejected", "ending": ended_early(turns)}
+        ctx.store.save(to_record(ctx.record, {**state, **update}))
+        return update
+    if ctx.voices is not None:
+        turn = speak_turn(ctx.voices, turn, len(turns), ctx.record, ctx.store.folder)
+    ctx.store.save(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
+    return {"turns": [turn]}
+
+
+def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
+    """Build the text, join the audio, ask the judge, and set accepted or rejected."""
+    ctx = runtime.context
+    update = {}
+    if state["status"] == "in_progress":  # else a turn already ended the call
+        record = to_record(ctx.record, state)
+        ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
+        update = {"ending": ending, "status": "rejected" if ending["reasons"] else "accepted"}
+    ctx.store.save(to_record(ctx.record, {**state, **update}))
+    return update
+
+
+def next_speaker(
+    state: CallState, runtime: Runtime[SimContext]
+) -> Literal["caller", "receiver", "finish"]:
+    """Whose turn it is, or "finish" when the call ended, someone hung up or it is long enough."""
+    turns = state["turns"]
+    if state["status"] != "in_progress":
+        return "finish"
+    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
+        return "finish"
+    return "caller" if len(turns) % 2 == 0 else "receiver"
 
 
 def retry_policy(initial_interval: float = 5.0) -> RetryPolicy:
@@ -40,112 +158,22 @@ def retry_policy(initial_interval: float = 5.0) -> RetryPolicy:
 MODEL_RETRY = retry_policy()
 
 
-class SimState(TypedDict):
-    """Graph state: the call record. Nodes change it in place and return it, so the default
-    overwrite reducer is all that is needed."""
-
-    record: dict
-
-
-@dataclass
-class SimContext:
-    """What every node needs that is not state: passed to invoke(context=...) and read in a
-    node through its `runtime: Runtime[SimContext]` parameter."""
-
-    agents: Agents
-    config: Config
-    call: CallConfig
-    store: Store
-    voices: Voices | None
-    filler: SlotFiller
-
-
-def plan(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Scam calls only: write the caller's plan once, before the first turn."""
-    ctx, record = runtime.context, state["record"]
-    if ctx.call.label_scam and record["generation"]["briefing"] is None:
-        record["generation"]["briefing"] = write_plan(ctx.agents, ctx.call, ctx.config, ctx.store)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def add_turn(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Add one turn (caller or receiver, by turn order), speak it, save the call.
-
-    Safe to retry: the turn is built first, from the record as it was; only then is it added to
-    a copy of the record, which becomes the new state once the node returns. If anything after
-    the model answer fails and LangGraph runs the node again, the state still has the old
-    turns, so a turn is never added twice or given the wrong speaker."""
-    ctx = runtime.context
-    old = state["record"]["generation"]
-    try:
-        turn = write_turn(
-            ctx.agents,
-            ctx.call,
-            ctx.config,
-            old["turns"],
-            ctx.filler,
-            (old["briefing"] or {}).get("plan", []),
-        )
-    except ContextTooLong as exc:
-        # The prompt cannot be made to fit, so the model is not asked. The call ends here,
-        # rejected, with the turns it has.
-        log.warning("%s: %s", state["record"]["id"], exc)
-        record = copy.deepcopy(state["record"])
-        generation = record["generation"]
-        call_text(record)
-        leak_summary(record)
-        generation["reasons"] = [TOO_LONG_FOR_CONTEXT]
-        generation["status"] = "rejected"
-        ctx.store.save(record)
-        return {"record": record}
-    record = copy.deepcopy(state["record"])
-    turns = record["generation"]["turns"]
-    turns.append(turn)
-    if ctx.voices is not None:
-        speak_turn(ctx.voices, record, len(turns) - 1, ctx.store.folder)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def finish(state: SimState, runtime: Runtime[SimContext]) -> SimState:
-    """Build the text, join the audio, ask the judge, and set accepted or rejected."""
-    ctx, record = runtime.context, state["record"]
-    if record["generation"]["status"] == "in_progress":  # else it ended early (too long)
-        finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
-    ctx.store.save(record)
-    return {"record": record}
-
-
-def next_step(
-    state: SimState, runtime: Runtime[SimContext]
-) -> Literal["caller", "receiver", "finish"]:
-    """Whose turn it is, or "finish" when someone hung up or the call reached its length."""
-    turns = state["record"]["generation"]["turns"]
-    if state["record"]["generation"]["status"] != "in_progress":
-        return "finish"
-    if len(turns) >= runtime.context.call.max_turns or (turns and turns[-1]["end_call"]):
-        return "finish"
-    return "caller" if len(turns) % 2 == 0 else "receiver"
-
-
 def build_graph(retry: RetryPolicy = MODEL_RETRY):
-    graph = StateGraph(SimState, context_schema=SimContext)
-    graph.add_node("plan", plan, retry_policy=retry)
-    graph.add_node("caller", add_turn, retry_policy=retry)
-    graph.add_node("receiver", add_turn, retry_policy=retry)
-    graph.add_node("finish", finish, retry_policy=retry)
-    graph.add_edge(START, "plan")
+    """Wire the call graph. It has no checkpointer: every node saves the call to the store."""
+    builder = StateGraph(CallState, context_schema=SimContext)
+    builder.add_node(plan, retry_policy=retry)
+    builder.add_node(caller, retry_policy=retry)
+    builder.add_node(receiver, retry_policy=retry)
+    builder.add_node(finish, retry_policy=retry)
+    builder.add_edge(START, "plan")
     # Each node lists only the moves it can make, so the drawing shows the real call and a
-    # routing mistake fails loudly instead of taking a wrong turn.
-    # plan can lead to any of them: a resumed call goes straight to whoever speaks next
-    graph.add_conditional_edges(
-        "plan", next_step, {"caller": "caller", "receiver": "receiver", "finish": "finish"}
-    )
-    graph.add_conditional_edges("caller", next_step, {"receiver": "receiver", "finish": "finish"})
-    graph.add_conditional_edges("receiver", next_step, {"caller": "caller", "finish": "finish"})
-    graph.add_edge("finish", END)
-    return graph.compile()  # no checkpointer: the store already saves the call every step
+    # routing mistake fails loudly. plan can lead to any of them: a resumed call goes straight
+    # to whoever speaks next.
+    builder.add_conditional_edges("plan", next_speaker, ["caller", "receiver", "finish"])
+    builder.add_conditional_edges("caller", next_speaker, ["receiver", "finish"])
+    builder.add_conditional_edges("receiver", next_speaker, ["caller", "finish"])
+    builder.add_edge("finish", END)
+    return builder.compile()
 
 
 CALL_GRAPH = build_graph()

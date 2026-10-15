@@ -20,52 +20,32 @@ from .config import Config, ConfigError
 from .fill import SlotFiller
 from .graph import (
     CALL_GRAPH,
-    MODEL_RETRY,
     SimContext,
-    SimState,
     build_graph,
-    next_step,
+    initial_state,
+    next_speaker,
     retry_policy,
+    to_record,
 )
 from .scenarios import CallConfig, ReceiverProfile, sample_config
 from .store import RECORD_SCHEMA, Store
 from .tts import Voices, pick_voices
-from .turns import (
-    CALLER,
-    RECEIVER,
-    conversation,
-    conversation_lines,
-    is_model_error,
-    pacing,
-    speech_style,
-    spelling,
-    stage,
-)
+from .turns import CALLER, RECEIVER, is_model_error, speech_style
 
+# Names other modules and the tests import from here, although they live in graph.py or turns.py.
 __all__ = [
-    "CALLER",
     "CALL_GRAPH",
-    "MODEL_RETRY",
-    "RECEIVER",
     "SimContext",
-    "SimState",
-    "SlotFiller",
     "build_graph",
     "call_id",
-    "conversation",
-    "conversation_lines",
+    "initial_state",
     "is_model_error",
     "new_record",
-    "next_step",
-    "pacing",
+    "next_speaker",
     "receiver_hash",
     "record_id",
     "retry_policy",
     "run_call",
-    "sample_config",
-    "speech_style",
-    "spelling",
-    "stage",
 ]
 
 
@@ -90,20 +70,14 @@ def run_call(
     record = _open_record(store, call, config, agents, receiver)
     if record["generation"]["status"] != "in_progress":
         return record
-    context = SimContext(
-        agents=agents,
-        config=config,
-        call=call,
-        store=store,
-        voices=voices,
-        filler=SlotFiller(call, config.details),
-    )
+    filler = SlotFiller(call, config.details)
+    context = SimContext(agents, config, call, store, voices, filler, record)
     # One step per turn plus plan and finish; a call that runs past this is a bug.
     limit = call.max_turns + 5
-    result = CALL_GRAPH.invoke(
-        {"record": record}, context=context, config={"recursion_limit": limit}
+    state = CALL_GRAPH.invoke(
+        initial_state(record), context=context, config={"recursion_limit": limit}
     )
-    return result["record"]
+    return to_record(record, state)
 
 
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:
@@ -133,8 +107,11 @@ def new_record(
     agents: Agents,
     receiver: ReceiverProfile | None = None,
 ) -> dict[str, Any]:
-    """`receiver` is the hand-chosen receiver, if any: it decides the id and is remembered
-    (as a hash in generation.call) so a resume can tell it from a different one."""
+    """A new, empty call record for `call`.
+
+    `receiver` is the hand-chosen receiver, if any: it decides the id and is remembered (as a
+    hash in generation.call) so a resume can tell it from a different one.
+    """
     caller_voice, receiver_voice = pick_voices(
         config.agents.tts.voices,
         call.caller_gender,
