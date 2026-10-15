@@ -488,7 +488,7 @@ def _turn_html(event: live.Event) -> str:
         "partials/studio_turn.html",
         n=event.index + 1,
         turn=turn,
-        side="left" if turn["speaker"] == "A" else "right",
+        side="left" if turn["speaker"] == dataset.GENERATED_CALLER else "right",
         who=dataset.SPEAKER_NAMES[turn["speaker"]],
         flags=dataset.turn_flags(turn),
         leaked=dataset.leaked_text(turn),

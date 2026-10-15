@@ -27,7 +27,12 @@ REVIEW_STATES = ("pending", "approved", "rejected")
 MAX_NOTE_CHARS = 500
 
 CALL_TYPE_NAMES = {**{k: v for k, v in views.TYPE_NAMES.items() if k}, "benign": "Normal call"}
-SPEAKER_NAMES = {"A": "Caller", "B": "Receiver"}
+# Generated calls and recordings use opposite letters. In a generated call (this page and the
+# studio) A is the scam caller and B the receiver. In a recording (the call page, the live
+# page, demo.DEMO_TURNS) A is the person being called: views.CALLED_PERSON. The templates
+# dataset_call.html and studio_turn.html test the letter "A" for the generated caller too.
+GENERATED_CALLER = "A"
+SPEAKER_NAMES = {GENERATED_CALLER: "Caller", "B": "Receiver"}
 
 # Why the generator rejected a call, in words. Unknown codes are shown as they are.
 REASON_TEXT = {
