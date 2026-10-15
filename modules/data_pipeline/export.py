@@ -27,6 +27,7 @@ import re
 import sqlite3
 from collections import Counter
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from nlp_core.text import normalize_text
@@ -43,6 +44,15 @@ ROLES = {"ผู้โทร": "caller", "ผู้รับ": "receiver"}
 # Columns an older calls.db may not have yet (the store adds them when it opens the file). They
 # are exported when the file has them.
 LEAK_COLUMNS = ("receiver_leaked", "first_leak_turn")
+CSV_FIELDS = (
+    "dialogue",
+    "scam_class",
+    "scam_type",
+    "source",
+    "group_hint",
+    "scam_start_turn",
+    "call_id",
+)
 
 # These copy the cleaning rules of the notebook (cells 3 and 9). A test reads the notebook and
 # fails if any of them differs, so a change there cannot go unnoticed here.
@@ -255,57 +265,68 @@ def export_notebook(
     """Write the csv. Returns (rows written, calls skipped by reason).
 
     `asr(call_id, turn)` gives the ASR text of a turn for text="asr"."""
+    columns, calls, turns = _read_store(db)
+    leak = [c for c in LEAK_COLUMNS if c in columns]
+    rows: list[dict] = []
+    skipped: Counter = Counter()
+    for call in calls:
+        reason = _not_ready(call)
+        if reason:
+            skipped[reason] += 1
+            continue
+        text_of = partial(_turn_text, call_id=call["id"], text=text, asr=asr)
+        try:
+            row = build_row(call, turns.get(call["id"], []), text_of)
+        except Refused as exc:
+            skipped[exc.reason] += 1
+            continue
+        for name in leak:
+            row[name] = call[name]
+        rows.append(row)
+    _write_csv(out, [*CSV_FIELDS, *leak], rows)
+    return len(rows), skipped
+
+
+def _read_store(db: Path) -> tuple[list[str], list[dict], dict[str, list[dict]]]:
+    """(column names of calls, every call row, the turn rows of each call id)."""
     con = _connect(db)
     try:
         columns = [r["name"] for r in con.execute("PRAGMA table_info(calls)")]
-        leak = [c for c in LEAK_COLUMNS if c in columns]
         calls = [dict(r) for r in con.execute("SELECT * FROM calls ORDER BY id")]
         turns: dict[str, list[dict]] = {}
         for r in con.execute("SELECT * FROM turns ORDER BY call_id, idx"):
             turns.setdefault(r["call_id"], []).append(dict(r))
     finally:
         con.close()
+    return columns, calls, turns
 
-    rows: list[dict] = []
-    skipped: Counter = Counter()
-    for call in calls:
-        if call["status"] != "accepted":
-            skipped[NOT_ACCEPTED] += 1
-        elif call["review_status"] != "approved":
-            skipped[REVIEW_REJECTED if call["review_status"] == "rejected" else REVIEW_PENDING] += 1
-        else:
 
-            def text_of(turn: dict, call_id: str = call["id"]) -> str:
-                if text == "asr" and asr is not None:
-                    return asr(call_id, turn)
-                return turn["text"]
+def _not_ready(call: dict) -> str | None:
+    """Why the call is not written before its turns are even looked at, or None if it is ready."""
+    if call["status"] != "accepted":
+        return NOT_ACCEPTED
+    if call["review_status"] == "approved":
+        return None
+    return REVIEW_REJECTED if call["review_status"] == "rejected" else REVIEW_PENDING
 
-            try:
-                row = build_row(call, turns.get(call["id"], []), text_of)
-            except Refused as exc:
-                skipped[exc.reason] += 1
-                continue
-            for name in leak:
-                row[name] = call[name]
-            rows.append(row)
 
-    fields = [
-        "dialogue",
-        "scam_class",
-        "scam_type",
-        "source",
-        "group_hint",
-        "scam_start_turn",
-        "call_id",
-        *leak,
-    ]
+def _turn_text(
+    turn: dict, *, call_id: str, text: str, asr: Callable[[str, dict], str] | None
+) -> str:
+    """The text to write for a turn: its ASR transcript for text="asr", else its script."""
+    if text == "asr" and asr is not None:
+        return asr(call_id, turn)
+    return turn["text"]
+
+
+def _write_csv(out: Path, fields: list[str], rows: list[dict]) -> None:
+    """Write the rows with a header line. A None value becomes an empty cell."""
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding=ENCODING, newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({k: "" if v is None else v for k, v in row.items()})
-    return len(rows), skipped
 
 
 def run_export(out: Path, store: Path, text: str = "script") -> int:
