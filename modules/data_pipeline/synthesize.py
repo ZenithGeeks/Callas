@@ -222,7 +222,7 @@ def _export(store: Store, path: Path, approved_only: bool) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
     with path.open("w", encoding="utf-8", newline="\n") as out:
-        for record in store.records():
+        for record in store.call_dicts():
             generation = record["generation"]
             if generation["status"] != "accepted":
                 continue
@@ -338,7 +338,7 @@ def _run_one(
             print(f"{wanted_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return wanted_id, "error"
         return wanted_id, "rejected" if store.reject_after_model_error(wanted_id, exc) else "error"
-    return record["id"], record["generation"]["status"]
+    return record.id, record.generation.status
 
 
 if __name__ == "__main__":

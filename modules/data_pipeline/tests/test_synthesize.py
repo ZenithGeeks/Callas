@@ -9,6 +9,7 @@ from dspy.utils import DummyLM
 from data_pipeline import simulate, synthesize
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.config import ConfigError, load_config
+from data_pipeline.records import CallRecord
 from data_pipeline.scenarios import sample_config
 from data_pipeline.store import Store
 
@@ -51,7 +52,7 @@ def test_ctrl_c_cancels_the_queued_jobs(tmp_path, monkeypatch, no_llm, capsys):
         if seed == 1:
             second_running.set()
             release.wait(timeout=10)
-        return make_record(call_type, seed, status="accepted")
+        return CallRecord.from_dict(make_record(call_type, seed, status="accepted"))
 
     real_as_completed = synthesize.as_completed
 
@@ -121,7 +122,7 @@ def test_error_count_is_printed_and_the_exit_code_is_not_zero(
             raise KeyError("bug")
         record = make_record(call_type, seed, status="accepted")
         store.save(record)
-        return record
+        return CallRecord.from_dict(record)
 
     monkeypatch.setattr(synthesize, "run_call", fake_run_call)
     argv = ["--type", "romance", "--n", "3", "--db", str(tmp_path / "c.db")]
@@ -139,7 +140,7 @@ def test_the_printed_id_is_the_one_the_call_used(tmp_path, monkeypatch, no_llm, 
     def fake_run_call(call_type, seed, store, agents, config, voices=None, receiver=None):
         record = make_record(call_type, seed, status="accepted", receiver=receiver)
         store.save(record)
-        return record
+        return CallRecord.from_dict(record)
 
     monkeypatch.setattr(synthesize, "run_call", fake_run_call)
     assert synthesize.main(argv) == 0
@@ -161,7 +162,7 @@ def test_finished_calls_are_counted_and_other_configs_warned_about(
         ran.append(seed)
         record = make_record(call_type, seed, status="accepted")
         store.save(record)
-        return record
+        return CallRecord.from_dict(record)
 
     monkeypatch.setattr(synthesize, "run_call", fake_run_call)
     argv = ["--type", "romance", "--n", "3", "--db", str(tmp_path / "calls.db")]
@@ -175,7 +176,8 @@ def test_finished_calls_are_counted_and_other_configs_warned_about(
 
 
 def test_no_skip_message_when_nothing_was_finished(tmp_path, monkeypatch, no_llm, capsys):
-    monkeypatch.setattr(synthesize, "run_call", lambda *a, **kw: make_record(status="accepted"))
+    accepted = CallRecord.from_dict(make_record(status="accepted"))
+    monkeypatch.setattr(synthesize, "run_call", lambda *a, **kw: accepted)
     argv = ["--type", "romance", "--n", "1", "--db", str(tmp_path / "calls.db")]
     argv += ["--wiki", str(tmp_path / "no_wiki"), "--no-tts"]
     synthesize.main(argv)
