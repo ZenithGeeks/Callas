@@ -13,12 +13,16 @@ from .types import Entity
 
 @runtime_checkable
 class NERModel(Protocol):
-    def extract(self, text: str) -> list[Entity]: ...
+    def extract(self, text: str) -> list[Entity]:
+        """Return the entities found in the text."""
+        ...
 
 
 @runtime_checkable
 class Summarizer(Protocol):
-    def summarize(self, text: str) -> str: ...
+    def summarize(self, text: str) -> str:
+        """Return a short summary of the text."""
+        ...
 
 
 @runtime_checkable

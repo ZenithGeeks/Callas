@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# label_type values. None means not a scam.
+# label_type values. None means a normal call, or a scam check that was unsure.
 SCAM_TYPES: tuple[str, ...] = (
     "fake_authority",
     "romance",
@@ -30,6 +30,8 @@ ENTITY_LABELS: tuple[str, ...] = (
 
 @dataclass
 class Entity:
+    """A span of the text with its label; start and end index the original text."""
+
     text: str
     label: str
     start: int
@@ -38,6 +40,8 @@ class Entity:
 
 @dataclass
 class NLPResult:
+    """What analyze() returns. label_type is None for normal calls and for unsure answers."""
+
     entities: list[Entity] = field(default_factory=list)
     summary: str = ""
     label_scam: bool = False

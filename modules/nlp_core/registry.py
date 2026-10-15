@@ -31,7 +31,7 @@ DEFAULT_NAMES: dict[str, str] = {"ner": "rules", "classifier": "llm", "summarize
 
 _FACTORIES: dict[str, dict[str, Callable[[], Any]]] = {k: {} for k in KINDS}
 _INSTANCES: dict[tuple[str, str], Any] = {}
-_LOCK = threading.RLock()
+_LOCK = threading.RLock()  # re-entrant: a factory may call get() for another part
 
 
 def _check_kind(kind: str) -> None:
@@ -48,34 +48,37 @@ def register(kind: str, name: str, factory: Callable[[], Any]) -> None:
 
 
 def available(kind: str) -> list[str]:
+    """Names registered for this kind, sorted."""
     _check_kind(kind)
     return sorted(_FACTORIES[kind])
 
 
 def default_name(kind: str) -> str:
+    """Name chosen by the environment variable, then .env, then the built-in default."""
     _check_kind(kind)
     from callas_settings import get_settings
 
-    from_env = os.environ.get(ENV_VARS[kind], "").strip()
-    return from_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
+    # Settings has one field per kind: nlp_ner, nlp_classifier, nlp_summarizer.
+
+    from_process_env = os.environ.get(ENV_VARS[kind], "").strip()
+    return from_process_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
 
 
 def get(kind: str, name: str | None = None) -> Any:
+    """Return the part registered under `name`, or the default for `kind`. Built once."""
     _check_kind(kind)
     name = name or default_name(kind)
     with _LOCK:
-        if (kind, name) not in _INSTANCES:
-            factory = _FACTORIES[kind].get(name)
-            if factory is None:
-                raise KeyError(
-                    f"no {kind} named {name!r}; available: {available(kind)}. "
-                    f"Register it with nlp_core.registry.register({kind!r}, {name!r}, factory)."
-                )
-            _INSTANCES[(kind, name)] = factory()
+        if (kind, name) in _INSTANCES:
+            return _INSTANCES[(kind, name)]
+        factory = _FACTORIES[kind].get(name)
+        if factory is None:
+            raise KeyError(
+                f"no {kind} named {name!r}; available: {available(kind)}. "
+                f"Register it with nlp_core.registry.register({kind!r}, {name!r}, factory)."
+            )
+        _INSTANCES[(kind, name)] = factory()
         return _INSTANCES[(kind, name)]
-
-
-# ---- built-in parts --------------------------------------------------------------------
 
 
 class RulesNER:
@@ -85,11 +88,8 @@ class RulesNER:
         return extract_entities(text)
 
 
-class LLMClassifier:
-    """Scam label from the vLLM "classify" job.
-
-    Unknown or unparseable answers map to (True, None, 0.0): never treated as safe.
-    """
+class _LLMPart:
+    """Base for the parts that call the LLM. The default client is built on first use."""
 
     def __init__(self, llm: LLM | None = None) -> None:
         self._llm = llm
@@ -101,6 +101,13 @@ class LLMClassifier:
 
             self._llm = LLMClient()
         return self._llm
+
+
+class LLMClassifier(_LLMPart):
+    """Scam label from the vLLM "classify" job.
+
+    Unknown or unparseable answers map to (True, None, 0.0): never treated as safe.
+    """
 
     def predict(self, text: str) -> tuple[bool, str | None, float]:
         label = parse_label(self.llm.complete("classify", text))
@@ -111,19 +118,8 @@ class LLMClassifier:
         return True, None, 0.0
 
 
-class LLMSummarizer:
+class LLMSummarizer(_LLMPart):
     """Summary from the vLLM "summary" job."""
-
-    def __init__(self, llm: LLM | None = None) -> None:
-        self._llm = llm
-
-    @property
-    def llm(self) -> LLM:
-        if self._llm is None:
-            from llm_serving.client import LLMClient
-
-            self._llm = LLMClient()
-        return self._llm
 
     def summarize(self, text: str) -> str:
         return self.llm.complete("summary", text).strip()
@@ -143,7 +139,11 @@ def analyze_with_tools(
     """Run the selected NER, summarizer and classifier and combine them into an NLPResult."""
     entities = get("ner", ner).extract(text)
     summary = get("summarizer", summarizer).summarize(text)
-    scam, kind, conf = get("classifier", classifier).predict(text)
+    label_scam, label_type, confidence = get("classifier", classifier).predict(text)
     return NLPResult(
-        entities=entities, summary=summary, label_scam=scam, label_type=kind, confidence=conf
+        entities=entities,
+        summary=summary,
+        label_scam=label_scam,
+        label_type=label_type,
+        confidence=confidence,
     )
