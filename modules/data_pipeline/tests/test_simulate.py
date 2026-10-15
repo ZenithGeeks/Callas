@@ -14,7 +14,7 @@ from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.budget import prompt_tokens
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.finish import drop_false_spelling, scam_start
-from data_pipeline.records import CallRecord, Generation, Judge, Turn
+from data_pipeline.records import Judge, Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -67,7 +67,7 @@ REPLIES = [
 def test_scam_call_record(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
 
     assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
     assert rec["label_scam"] and rec["label_type"] == "phishing_otp"
@@ -99,7 +99,7 @@ def test_judge_supplies_start_turn_when_caller_does_not_flag(tmp_path):
     caller = [dict(d, asks_now=False) for d in SCAM]
     agents = make_agents(caller, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     assert rec["scam_start_turn"] == 2
     assert rec["generation"]["scam_start_from"] == "judge"
 
@@ -108,7 +108,7 @@ def test_scam_without_any_ask_is_rejected(tmp_path):
     caller = [dict(d, asks_now=False) for d in SCAM]
     agents = make_agents(caller, REPLIES, judge(holds=False, start=-1))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     assert rec["generation"]["status"] == "rejected"
     assert {"no_scam_move", "judge_label_does_not_hold"} <= set(rec["generation"]["reasons"])
 
@@ -117,7 +117,7 @@ def test_normal_call_the_judge_calls_a_scam_is_rejected(tmp_path):
     legit = [dict(line="สวัสดีครับ", end_call=False), dict(line="ขอบคุณครับ", end_call=True)]
     agents = make_agents(legit, [dict(line="ค่ะ", end_call=False)], judge(start=0))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("benign", 1, store, agents, CONFIG)
+    rec = run_call("benign", 1, store, agents, CONFIG).to_dict()
     assert rec["label_scam"] is False and rec["scam_start_turn"] is None
     assert "judge_saw_scam_in_normal_call" in rec["generation"]["reasons"]
     assert "too_short" in rec["generation"]["reasons"]
@@ -142,7 +142,7 @@ def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
     assert len(saved["generation"]["turns"]) == 2
 
     monkeypatch.setattr(graph_module, "write_turn", real_speak)
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     assert len(rec["generation"]["turns"]) == 5
     assert rec["generation"]["status"] == "accepted"
 
@@ -182,7 +182,7 @@ def test_each_turn_is_spoken_and_joined(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
     voices = FakeVoices()
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG, voices=voices)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG, voices=voices).to_dict()
 
     caller_voice, receiver_voice = (rec["generation"]["voices"][s] for s in "AB")
     assert caller_voice != receiver_voice
@@ -198,7 +198,7 @@ def test_each_turn_is_spoken_and_joined(tmp_path):
 def test_scam_call_is_planned_once(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     plan = ["build trust", "ask for the OTP", "push for a transfer"]
     assert rec["generation"]["briefing"]["plan"] == plan
     assert len(agents.planner.calls) == 1
@@ -209,7 +209,7 @@ def test_normal_call_has_no_plan(tmp_path):
     legit = [dict(line="สวัสดีครับ", end_call=False), dict(line="ขอบคุณครับ", end_call=True)]
     agents = make_agents(legit, [dict(line="ค่ะ", end_call=False)], judge(start=-1))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("benign", 1, store, agents, CONFIG)
+    rec = run_call("benign", 1, store, agents, CONFIG).to_dict()
     assert rec["generation"]["briefing"] is None
     assert len(agents.planner.calls) == 0
 
@@ -236,7 +236,7 @@ def test_planner_reads_pattern_notes(tmp_path):
         ["มีคนพยายามเข้าบัญชีของคุณ"],
     )
     agents = make_agents(SCAM, REPLIES, judge(start=2))
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     assert "Callers pose as bank security" in agents.planner.calls[0]["pattern_notes"]
     assert rec["generation"]["briefing"]["notes_used"] == ["Callers pose as bank security"]
 
@@ -245,7 +245,7 @@ def test_receiver_hears_its_own_name_as_the_slot(tmp_path):
     store = Store(tmp_path / "calls.db")
     greet = [dict(line="สวัสดีค่ะ คุณ{RECEIVER_NAME} ผมจาก {ORG}", asks_now=False, end_call=False)]
     agents = make_agents(greet + SCAM[1:], REPLIES, judge(start=2))
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     name = rec["generation"]["turns"][0]["entities"][0]["text"]  # the filled receiver name
     heard = agents.receiver.calls[0]["conversation"]
     assert "{RECEIVER_NAME}" in heard and name not in heard
@@ -297,7 +297,7 @@ def test_resume_after_an_odd_number_of_turns(tmp_path, monkeypatch, fast_graph, 
     monkeypatch.setattr(graph_module, "write_turn", real_speak)
     callers_done, receivers_done = (saved + 1) // 2, saved // 2
     second = make_agents(SCAM[callers_done:], REPLIES[receivers_done:], judge(start=2))
-    rec = run_call("phishing_otp", 1, store, second, CONFIG)
+    rec = run_call("phishing_otp", 1, store, second, CONFIG).to_dict()
     turns = rec["generation"]["turns"]
     assert [t["speaker"] for t in turns] == ["A", "B", "A", "B", "A"]
     assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
@@ -319,7 +319,7 @@ def test_a_failed_save_inside_a_turn_does_not_add_the_turn_twice(tmp_path, fast_
     # the receiver is asked twice for its first answer: once before the failed save, once after
     receiver = [REPLIES[0], REPLIES[0], REPLIES[1]]
     agents = make_agents(SCAM, receiver, judge(start=2))
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
 
     assert failures == [1]
     saved = store.load(record_id("phishing_otp", 1))
@@ -356,7 +356,7 @@ def test_rate_limit_is_retried(tmp_path, fast_graph):
             return real(**kw)
 
     agents.receiver = Flaky()
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     assert Flaky.calls == 3 and len(rec["generation"]["turns"]) == 5
 
 
@@ -391,7 +391,7 @@ def test_a_sampled_hand_written_profile_keeps_the_plain_id(tmp_path):
     seed = sampled_with_a_named_profile()
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", seed, store, agents, CONFIG)
+    rec = run_call("phishing_otp", seed, store, agents, CONFIG).to_dict()
     assert rec["id"] == f"phishing_otp_{seed:05d}"
     assert store.exists(rec["id"])
     assert rec["generation"]["call"]["receiver_override"] == ""
@@ -412,7 +412,7 @@ def test_a_chosen_receiver_gets_its_own_id_and_a_resume_must_match(tmp_path):
     changed = mine.model_copy(update={"age": 99})
     with pytest.raises(ConfigError, match="different receiver"):
         run_call("phishing_otp", 1, store, again, CONFIG, receiver=changed)
-    rec = run_call("phishing_otp", 1, store, again, CONFIG, receiver=mine)
+    rec = run_call("phishing_otp", 1, store, again, CONFIG, receiver=mine).to_dict()
     assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
 
 
@@ -420,21 +420,9 @@ def test_a_chosen_receiver_gets_its_own_id_and_a_resume_must_match(tmp_path):
 
 
 def scam_record(asks, judge_at, reveal=2, holds=True):
-    """A record with turns A,B,A,B,A,B and the judge's answer; `asks` are the turn indexes
+    """Turns A,B,A,B,A,B, the reveal turn and the judge's answer; `asks` are the turn indexes
     with asks_now set."""
     turns = [Turn(speaker="AB"[i % 2], asks_now=i in asks) for i in range(6)]
-    generation = Generation(
-        schema=1,
-        config_name="",
-        config_hash="",
-        models={},
-        created_at="",
-        call={"reveal_turn": reveal},
-        voices={},
-        speech_style="",
-        turns=turns,
-    )
-    record = CallRecord(id="x", label_scam=True, label_type="phishing_otp", generation=generation)
     verdict = Judge(
         label_holds=holds,
         scam_start_turn=judge_at,
@@ -444,7 +432,7 @@ def scam_record(asks, judge_at, reveal=2, holds=True):
         issues="",
         reasoning="",
     )
-    return record, verdict
+    return turns, reveal, verdict
 
 
 def test_an_ask_before_the_reveal_turn_is_not_a_scam_move():
@@ -509,7 +497,7 @@ def test_receiver_prompt_stays_small():
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):
     agents = make_agents(SCAM, LEAKY, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     turns = rec["generation"]["turns"]
     assert [t["leaked"] for t in turns] == [[], [], [], ["OTP", "ID_CARD"], []]
     assert rec["generation"]["receiver_leaked"] == ["ID_CARD", "OTP"]
@@ -522,7 +510,7 @@ def test_receiver_leaks_are_recorded_by_code(tmp_path):
 def test_a_call_without_leaks_records_none(tmp_path):
     quiet = [dict(line="ค่ะ มีอะไรคะ", end_call=False), dict(line="ไม่ให้ค่ะ", end_call=False)]
     agents = make_agents(SCAM, quiet, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     assert rec["generation"]["receiver_leaked"] == []
     assert rec["generation"]["first_leak_turn"] is None
 
@@ -535,7 +523,7 @@ def test_only_receiver_turns_count_as_leaks(tmp_path):
     ]
     quiet = [dict(line="ค่ะ {RECEIVER_NAME} พูดค่ะ {PHONE}", end_call=False)] * 2
     agents = make_agents(caller, quiet, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     assert rec["generation"]["receiver_leaked"] == []
     assert rec["generation"]["first_leak_turn"] is None
     assert all(t["leaked"] == [] for t in rec["generation"]["turns"])
@@ -543,7 +531,7 @@ def test_only_receiver_turns_count_as_leaks(tmp_path):
 
 def test_the_receiver_sees_its_own_details_as_slots(tmp_path):
     agents = make_agents(SCAM, LEAKY, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     call = simulate.sample_config("phishing_otp", 1, CONFIG)
     id_card = simulate.SlotFiller(call, CONFIG.details).values["ID_CARD"]
     turns = rec["generation"]["turns"]
@@ -590,7 +578,7 @@ def test_a_caller_using_a_receiver_only_slot_is_flagged_and_rejected(tmp_path):
     caller = [dict(d) for d in SCAM]
     caller[1] = dict(line="บัญชี {RECEIVER_ACCOUNT} ใช่ไหมครับ", asks_now=True, end_call=False)
     agents = make_agents(caller, REPLIES, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     turns = rec["generation"]["turns"]
     assert "caller_used_receiver_slot" not in turns[0]["problems"]
     assert "caller_used_receiver_slot" in turns[2]["problems"]
@@ -601,7 +589,7 @@ def test_a_caller_using_a_receiver_only_slot_is_flagged_and_rejected(tmp_path):
 def test_a_caller_may_use_the_receivers_name(tmp_path):
     greet = dict(line="สวัสดีครับ คุณ{RECEIVER_NAME}", asks_now=False, end_call=False)
     agents = make_agents([greet, *SCAM[1:]], REPLIES, judge(start=2))
-    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     assert rec["generation"]["turns"][0]["problems"] == []
 
 
@@ -637,7 +625,7 @@ def test_a_command_line_resume_keeps_the_studio_scenario_and_name(tmp_path):
         dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
     ]
     resumed = make_agents(caller, [dict(line="ค่ะ", end_call=False)], judge(start=2))
-    rec = run_call("romance", 3, store, resumed, CONFIG)
+    rec = run_call("romance", 3, store, resumed, CONFIG).to_dict()
     assert all(kw["goal"] == chosen.goal for kw in resumed.scam_caller.calls)
     assert "คุณสมหญิงครับ" in rec["generation"]["turns"][2]["text"]
     assert rec["generation"]["call"]["scenario"]["key"] == chosen.key

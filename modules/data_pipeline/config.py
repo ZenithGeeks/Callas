@@ -74,12 +74,12 @@ class LMSettings(_Strict):
     max_tokens: int = Field(1000, ge=64)
 
 
-class Agent(_Strict):
+class AgentSettings(_Strict):
     """One DSPy agent: its instructions, the description of each field, and its model."""
 
     instructions: str
     fields: dict[str, str]  # field name -> description shown to the model
-    lm: LMSettings = LMSettings()
+    lm: LMSettings = LMSettings()  # the agents.yaml key; agents.Agents.lms holds the dspy.LMs
 
 
 def _check_format(text: str, where: str, **values: int) -> None:
@@ -109,7 +109,7 @@ class Pacing(_Strict):
         return self
 
 
-class ScamCaller(Agent):
+class ScamCallerSettings(AgentSettings):
     """The scam caller, with the pacing text it gets on each turn."""
 
     pacing: Pacing
@@ -129,20 +129,20 @@ class ReceiverStage(_Strict):
         return self
 
 
-class Receiver(Agent):
+class ReceiverSettings(AgentSettings):
     """The person who answers: how many turns it must stay on the line, and its stage text."""
 
     stay_on_line: int = Field(ge=0)
     stage: ReceiverStage
 
 
-class Planner(Agent):
+class PlannerSettings(AgentSettings):
     """The agent that plans a scam call from recent pattern notes."""
 
     notes_limit: int = Field(6, ge=0)  # newest pattern notes the planner reads per call
 
 
-class Judge(Agent):
+class JudgeSettings(AgentSettings):
     """The agent that checks a finished call, with what each call type is meant to show."""
 
     intended: dict[str, str]  # call type -> what the call is meant to show
@@ -202,12 +202,12 @@ class AgentsFile(_Strict):
 
     slot_rule: str = ""  # shared text, reused through a YAML anchor; not read by the code
     speakers: Speakers
-    scam_caller: ScamCaller
-    legit_caller: Agent
-    receiver: Receiver
-    planner: Planner
-    pattern_extractor: Agent
-    judge: Judge
+    scam_caller: ScamCallerSettings
+    legit_caller: AgentSettings
+    receiver: ReceiverSettings
+    planner: PlannerSettings
+    pattern_extractor: AgentSettings
+    judge: JudgeSettings
     tts: TTS
     speech: Speech = Speech()
     context: Context = Context()
@@ -416,6 +416,7 @@ class Config:
     """The three checked files, the folder they came from, and a hash of their parsed data."""
 
     folder: Path
+    # agents.yaml: each agent's settings. The programs themselves are agents.Agents.
     agents: AgentsFile
     scenarios: ScenariosFile
     details: DetailsFile

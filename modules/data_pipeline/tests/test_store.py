@@ -131,9 +131,9 @@ def test_records_filter_by_type(tmp_path):
     store.save(make_record("phishing_otp_00001"))
     store.save(make_record("benign_00002", call_type="benign", seed=2))
     store.save(make_record("phishing_otp_00003", seed=3))
-    ids = [r["id"] for r in store.records("phishing_otp")]
+    ids = [r["id"] for r in store.call_dicts("phishing_otp")]
     assert ids == ["phishing_otp_00001", "phishing_otp_00003"]
-    assert len(list(store.records())) == 3
+    assert len(list(store.call_dicts())) == 3
     benign = store.load("benign_00002")
     assert benign["label_type"] is None
     assert benign["label_scam"] is False
@@ -281,6 +281,30 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     assert loaded["generation"]["first_leak_turn"] is None
     assert loaded["generation"]["turns"][0]["leaked"] == []
     Store(path)  # opening twice is fine
+
+
+def test_a_read_only_store_loads_an_old_database_without_changing_it(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "calls.db"
+    writer = Store(path)
+    writer.save(make_record())
+    expected = writer.load("phishing_otp_00001")
+    writer.close()
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE calls DROP COLUMN receiver_leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN leaked")
+    db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
+    db.commit()
+    db.close()
+    before = path.read_bytes()
+
+    store = Store(path, read_only=True)
+    assert store.load("phishing_otp_00001") == expected  # the missing columns read as defaults
+    assert not store.has_column("calls", "receiver_leaked")
+    assert store.has_column("calls", "first_leak_turn")
+    store.close()
+    assert path.read_bytes() == before
 
 
 def test_spoken_text_and_style_round_trip(tmp_path):
