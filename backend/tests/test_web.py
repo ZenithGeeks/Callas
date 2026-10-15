@@ -279,3 +279,22 @@ def test_iter_updates_ends_with_call_failed_when_the_call_raises(client, monkeyp
     monkeypatch.setattr(client.app.state.app_runtime.sessions, "simulate_call", boom)
     (failed,) = asyncio.run(collect_events(client))
     assert isinstance(failed, call_run.CallFailed) and str(failed.error) == "no call"
+
+
+def test_the_app_imports_without_pythonpath():
+    # `uvicorn backend.main:app` from the repo root, as the README says, with no PYTHONPATH.
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    result = subprocess.run(
+        [sys.executable, "-c", "import backend.main"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-500:]

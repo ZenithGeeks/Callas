@@ -7,10 +7,11 @@ This file builds the app; each page's routes are in its own router module.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
-from .web import ROOT
-
-sys.path.insert(0, str(ROOT.parent / "modules"))  # run without PYTHONPATH
+# Put modules/ on the path before importing any backend module, because they import from it.
+# This is what lets `uvicorn backend.main:app` run without PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "modules"))
 
 import logging  # noqa: E402
 import os  # noqa: E402
@@ -24,6 +25,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from callas_settings import get_settings  # noqa: E402
 
 from . import basics, call, call_run, live, message, review, runtime, studio  # noqa: E402
+from .web import ROOT  # noqa: E402
 
 log = logging.getLogger("callas.web")
 
