@@ -47,7 +47,8 @@ class Capture(BaseCallback):
     """DSPy callback that records agent calls. Install it with `dspy.context(callbacks=[cap])`.
 
     Only the outermost module of a call is kept (ChainOfThought, not the Predict inside it).
-    `take()` hands over what finished since the last time.
+    One Capture serves one call, where agents run one at a time, so an LM call belongs to the
+    one open module. `take()` hands over what finished since the last time.
     """
 
     def __init__(self, agents: Agents | None = None) -> None:

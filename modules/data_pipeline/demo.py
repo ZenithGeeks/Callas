@@ -1,7 +1,7 @@
 """Demo mode: a scripted LM and silent voices, so the studio runs without a model server.
 
-`fake_agents` builds real DSPy programs on a scripted LM, so demo mode runs the whole stack
-(prompt, parsing, callbacks) without a model server. `SilentVoices` stands in for tts.Voices.
+`fake_agents` builds real DSPy programs on a scripted LM, so demo mode still runs the whole
+stack: prompt, parsing and callbacks. `SilentVoices` stands in for tts.Voices.
 """
 
 from __future__ import annotations

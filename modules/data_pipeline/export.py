@@ -261,7 +261,8 @@ def export_notebook(
 ) -> tuple[int, Counter]:
     """Write the csv. Returns (rows written, calls skipped by reason).
 
-    `asr(call_id, index, turn)` gives the ASR text of a turn for text="asr"."""
+    The store is opened read-only. `asr(call_id, index, turn)` gives the ASR text of a turn for
+    text="asr"."""
     store = Store(db, read_only=True)
     try:
         leak = [c for c in LEAK_COLUMNS if store.has_column("calls", c)]
