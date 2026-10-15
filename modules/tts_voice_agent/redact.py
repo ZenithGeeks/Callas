@@ -98,25 +98,33 @@ def _has_digit(ch: str) -> bool:
     return any(unicodedata.decimal(c, None) is not None for c in normalize(ch))
 
 
+def _end_of_digit_run(text: str, start: int) -> int:
+    """Index after the last digit of the run that begins at `start`.
+
+    Separators (- . / and zero-width characters) may sit between digits, but a run never ends
+    on one.
+    """
+    end = start + 1
+    pos = end
+    while pos < len(text):
+        ch = text[pos]
+        pos += 1
+        if _has_digit(ch):
+            end = pos
+        elif ch not in _DIGIT_SEPARATORS and normalize(ch):  # empty after normalize = zero-width
+            break
+    return end
+
+
 def _digit_spans(text: str) -> list[Span]:
     """Every run of digit characters (any script), joined across separators like - . /"""
     spans: list[Span] = []
-    i, n = 0, len(text)
-    while i < n:
+    i = 0
+    while i < len(text):
         if not _has_digit(text[i]):
             i += 1
             continue
-        end = i + 1
-        j = end
-        while j < n:
-            ch = text[j]
-            if _has_digit(ch):
-                j += 1
-                end = j
-            elif ch in _DIGIT_SEPARATORS or not normalize(ch):  # not normalize: zero-width
-                j += 1
-            else:
-                break
+        end = _end_of_digit_run(text, i)
         spans.append((i, end, NUMBER))
         i = end
     return spans

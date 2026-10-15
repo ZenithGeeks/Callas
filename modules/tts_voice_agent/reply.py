@@ -14,10 +14,10 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
 
 from llm_serving.base import LLM
-from nlp_core.types import NLPResult
+from nlp_core.types import Entity, NLPResult
 
 from .constants import MAX_REPLY_CHARS
 from .facts import current_facts, fact_numbers
@@ -31,14 +31,32 @@ log = logging.getLogger(__name__)
 
 
 class ReplyWriter(Protocol):
+    """Writes the reply from the redacted context, instead of llm.complete (for example DSPy)."""
+
     def write(self, context: str, result: NLPResult) -> str: ...
 
 
 class LeakJudge(Protocol):
+    """Optional second check. It can only add blocks to the rule check, never remove one."""
+
     def blocks(self, reply: str, context: str) -> bool: ...
 
 
-def _judge_verdict(judge: Any, text: str, context: str) -> str | None:
+def _rule_failure(text: str, entities_seen: list[Entity], now: datetime | None) -> str | None:
+    """Log message if `text` fails a fixed rule (empty, long, leak, spelling), else None."""
+    if not text:
+        return "reply LLM returned empty text, using template"
+    if len(text) > MAX_REPLY_CHARS:
+        return f"reply too long ({len(text)} chars), using template"
+    reasons = leak_reasons(text, entities_seen, fact_numbers(now))
+    if reasons:
+        return f"reply blocked by leak check: {','.join(reasons)}"
+    if looks_misspelled(text):
+        return "reply blocked: garbled Thai spelling, using template"
+    return None
+
+
+def _judge_verdict(judge: LeakJudge, text: str, context: str) -> str | None:
     """Reason code if the judge blocks, None only for a clear "no leak" (a real False)."""
     try:
         verdict = judge.blocks(text, context)
@@ -73,18 +91,9 @@ def safe_reply(
         return pick_template(result), True
     write_s = time.perf_counter() - t0
     text = (text or "").strip()
-    if not text:
-        log.warning("reply LLM returned empty text, using template")
-        return pick_template(result), True
-    if len(text) > MAX_REPLY_CHARS:
-        log.warning("reply too long (%d chars), using template", len(text))
-        return pick_template(result), True
-    reasons = leak_reasons(text, state.entities_seen, fact_numbers(now))
-    if reasons:
-        log.warning("reply blocked by leak check: %s", ",".join(reasons))
-        return pick_template(result), True
-    if looks_misspelled(text):
-        log.warning("reply blocked: garbled Thai spelling, using template")
+    failure = _rule_failure(text, state.entities_seen, now)
+    if failure:
+        log.warning(failure)
         return pick_template(result), True
     if judge is not None:
         t1 = time.perf_counter()
