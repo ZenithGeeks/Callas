@@ -180,7 +180,7 @@ Before you edit:
 
 ## Receiver leaks
 
-A real victim sometimes gives personal details away. Those are the calls a scam classifier most needs to see. The receiver may do this when the person it plays would. It gives details only through its own slots, so no real data appears:
+A real victim sometimes gives personal details away. Those are the calls a scam classifier most needs to see. The receiver may do this when the person it plays would: its instructions say a trusting or unsure person who knows little about scams often goes along, and a skeptical one refuses. In a test of 20 phishing_otp and fake_authority calls with trusting or unsure profiles, 4 leaked an OTP; 10 skeptical calls leaked nothing. It gives details only through its own slots, so no real data appears:
 
 | Slot | Value | Entity label |
 |---|---|---|

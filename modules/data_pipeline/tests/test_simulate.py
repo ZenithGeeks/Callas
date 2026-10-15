@@ -498,6 +498,14 @@ LEAKY = [
 ]
 
 
+def test_receiver_prompt_stays_small():
+    """The receiver's prompt without the call (#64 added about 30 tokens to 776)."""
+    from data_pipeline.budget import prompt_tokens
+
+    inputs = dict(persona="{}", voice="v", stage="s", conversation="[0] ผู้โทร: สวัสดีครับ")
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 850
+
+
 def test_receiver_leaks_are_recorded_by_code(tmp_path):
     agents = make_agents(SCAM, LEAKY, judge(start=2))
     rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
