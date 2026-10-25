@@ -73,6 +73,7 @@ def test_page_has_the_form_and_a_nav_link(client):
     assert "teacher_cm" in html  # a saved profile
     assert 'list="dl-occupation"' in html  # suggestions for a described person
     assert "No call yet" in html
+    assert 'data-start-all' in html and "Generate all six kinds" in html
 
 
 def test_start_shows_the_run_and_the_call_is_saved(client, tmp_path):
