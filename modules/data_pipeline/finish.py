@@ -145,6 +145,7 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
             label_holds=False,
             scam_start_turn=-1,
             giveaway=False,
+            confidence=0.0,
             summary="",
             issues="not judged: the call does not fit the judge's context window",
             reasoning="",
@@ -152,11 +153,18 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
             prompt_tokens=tokens,
         )
     pred = ask(agents, "judge", intended=intended, transcript=transcript)
+    raw_conf = getattr(pred, "confidence", 0.95)
+    try:
+        conf_val = float(raw_conf)
+        conf_val = max(0.0, min(1.0, conf_val))
+    except (TypeError, ValueError):
+        conf_val = 0.95
     return Judge(
         prompt_tokens=tokens,
         label_holds=bool(pred.label_holds),
         scam_start_turn=int(pred.scam_start_turn),
         giveaway=bool(pred.giveaway),
+        confidence=conf_val,
         summary=(pred.summary or "").strip(),
         issues=drop_false_spelling((pred.issues or "").strip(), turns),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),

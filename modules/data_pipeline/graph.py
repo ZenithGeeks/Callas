@@ -89,6 +89,27 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
         judge=ending.judge,
         reasons=ending.reasons,
     )
+    review = record.review
+    if state["status"] in ("accepted", "rejected"):
+        auto_status = "approved" if state["status"] == "accepted" else "rejected"
+        conf = (
+            ending.judge.confidence
+            if ending.judge and ending.judge.confidence is not None
+            else 0.95
+        )
+        conf_pct = f"{int(round(conf * 100))}%"
+        if auto_status == "approved":
+            note = f"Auto-approved by Judge (confidence: {conf_pct})"
+        else:
+            reasons_str = ", ".join(ending.reasons) if ending.reasons else "Failed checks"
+            issues = (
+                f" - {ending.judge.issues}"
+                if ending.judge and ending.judge.issues and ending.judge.issues != "none"
+                else ""
+            )
+            note = f"Auto-rejected by Judge (confidence: {conf_pct}): {reasons_str}{issues}"
+        review = replace(review, status=auto_status, note=note)
+
     return replace(
         record,
         text=ending.text,
@@ -98,6 +119,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
         reference_summary=ending.reference_summary,
         scam_start_turn=ending.scam_start_turn,
         generation=generation,
+        review=review,
     )
 
 
@@ -154,7 +176,10 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
         record = to_record(ctx.record, state)
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
-    ctx.store.save_call(to_record(ctx.record, {**state, **update}))
+    finished = to_record(ctx.record, {**state, **update})
+    ctx.store.save_call(finished)
+    if finished.generation.status in ("accepted", "rejected"):
+        ctx.store.set_review(finished.id, finished.review.status, finished.review.note)
     return update
 
 

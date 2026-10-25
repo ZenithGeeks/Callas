@@ -2,12 +2,41 @@
 {% import "partials/_ui.html" as ui %}
 {% import "partials/_studio.html" as st %}
 <li id="msg-verdict" class="studio-card" data-tone="{{ 'safe' if accepted else 'unsure' }}">
-  <h3 class="sec-h">Judge's verdict</h3>
+  <div class="flex items-center justify-between">
+    <h3 class="sec-h">Judge's verdict</h3>
+    {% if call_id %}
+    <a href="/dataset?id={{ call_id }}&view=all" class="btn-link text-[14px] font-medium" target="_blank" rel="noopener">
+      View in Dataset &rarr;
+    </a>
+    {% endif %}
+  </div>
   <p class="mt-2 font-display text-[22px] font-semibold text-ink">
-    {% if accepted %}{{ ui.check_icon("inline h-[14px] w-[16px]") }} Passed the checks{% else %}{{ ui.warn_icon("inline h-[14px] w-[16px]") }} Failed the checks{% endif %}
+    {% if accepted %}
+      {{ ui.check_icon("inline h-[14px] w-[16px]") }} Passed the checks &mdash; Auto-Approved
+    {% else %}
+      {{ ui.warn_icon("inline h-[14px] w-[16px]") }} Failed the checks &mdash; Auto-Rejected
+    {% endif %}
   </p>
   {% if judge %}
   <dl class="facts mt-4">
+    <div>
+      <dt>Decision</dt>
+      <dd class="font-semibold {{ 'text-safe' if accepted else 'text-alarm' }}">
+        {{ 'Auto-Approved (in dataset)' if accepted else 'Auto-Rejected (excluded)' }}
+      </dd>
+    </div>
+    <div>
+      <dt>Confidence rate</dt>
+      <dd class="tabular-nums font-semibold">
+        {% if confidence is not none %}
+          {{ (confidence * 100)|round|int }}%
+        {% elif judge.confidence is defined and judge.confidence is not none %}
+          {{ (judge.confidence * 100)|round|int }}%
+        {% else %}
+          95%
+        {% endif %}
+      </dd>
+    </div>
     <div><dt>Shows the intended call</dt><dd>{{ 'Yes' if judge.label_holds else 'No' }}</dd></div>
     <div><dt>Scam starts</dt><dd>{% if scam_start is not none %}Turn {{ scam_start + 1 }}{% elif label_scam %}Not found{% else %}None{% endif %}</dd></div>
   </dl>
@@ -15,10 +44,22 @@
   <p class="mt-2 text-[15px] text-muted">The call ended early, so the judge did not read it.</p>
   {% endif %}
   {% if reasons %}
-  <ul class="mt-4 flex flex-wrap gap-2">{% for x in reasons %}<li class="reason">{{ x }}</li>{% endfor %}</ul>
+  <div class="mt-4">
+    <span class="text-[14px] font-medium text-muted">Rejection reasons:</span>
+    <ul class="mt-1 flex flex-wrap gap-2">{% for x in reasons %}<li class="reason">{{ x }}</li>{% endfor %}</ul>
+  </div>
   {% endif %}
   {% if summary %}<p class="mt-4 text-[16px] leading-[1.6]" lang="th">{{ summary }}</p>{% endif %}
-  {% if judge and judge.issues and judge.issues != 'none' %}<p class="mt-2 text-[15px] text-muted">{{ judge.issues }}</p>{% endif %}
+  {% if judge and judge.issues and judge.issues != 'none' %}
+  <p class="mt-2 text-[15px] text-muted"><strong>Judge issues:</strong> {{ judge.issues }}</p>
+  {% endif %}
+  {% if call_id %}
+  <div class="mt-4 pt-3 border-t border-[var(--border)]">
+    <a href="/dataset?id={{ call_id }}&view=all" class="btn btn-secondary text-[14px]">
+      Open chat history on Dataset page &rarr;
+    </a>
+  </div>
+  {% endif %}
   {{ st.tag(tag) }}
   {% if judge and judge.reasoning %}<details class="why msg-why mt-2"><summary>Judge reasoning</summary><p>{{ judge.reasoning }}</p></details>{% endif %}
   {{ st.trace(tag) }}

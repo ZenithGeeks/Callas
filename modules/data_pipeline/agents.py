@@ -110,6 +110,7 @@ class JudgeCall(dspy.Signature):
     label_holds: bool = dspy.OutputField()
     scam_start_turn: int = dspy.OutputField()
     giveaway: bool = dspy.OutputField()
+    confidence: float = dspy.OutputField()
     summary: str = dspy.OutputField()
     issues: str = dspy.OutputField()
 

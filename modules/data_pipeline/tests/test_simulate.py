@@ -476,12 +476,12 @@ def test_the_judge_gives_no_natural_thai_score(tmp_path):
 
 def test_judge_prompt_stays_small():
     """The judge's prompt without the call (#58 added about 65 tokens to 841; #98 dropped
-    natural_thai, about 115)."""
+    natural_thai, about 115; confidence field adds about 60)."""
     tokens = prompt_tokens(
         Agents(CONFIG, lms={}).signatures["judge"],
         dict(intended="x", transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ"),
     )
-    assert tokens <= 820
+    assert tokens <= 900
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

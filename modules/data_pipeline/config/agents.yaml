@@ -153,6 +153,7 @@ judge:
     giveaway: >-
       true if the text names the label outright in a way a real call would not: narration, or
       the caller admitting it is a scam
+    confidence: "score between 0.0 and 1.0: how confident you are in this verdict"
     summary: 1-2 sentence Thai summary of what happened in the call
     issues: >-
       short English note of problems, or 'none'. A spelling claim must quote the exact word and

@@ -47,7 +47,9 @@
       <dt>Judge</dt>
       {% if j and not j.skipped %}
       <dd>{{ 'Shows the call' if j.label_holds else 'Does not show it' }}</dd>
-      {% if j.natural_thai is defined and j.natural_thai is not none %}
+      {% if j.confidence is defined and j.confidence is not none %}
+      <dd class="facts-note tabular-nums">Confidence {{ (j.confidence * 100)|round|int }}%</dd>
+      {% elif j.natural_thai is defined and j.natural_thai is not none %}
       <dd class="facts-note">Natural score {{ j.natural_thai }} / 5 (not used to reject)</dd>
       {% endif %}
       {% else %}
@@ -177,7 +179,12 @@
       {{ ui.summary_box(d.record.reference_summary, empty="No summary.") }}
       {% if j %}
       <section aria-labelledby="judge-h">
-        <h2 id="judge-h" class="sec-h">Judge's note</h2>
+        <div class="flex items-center justify-between">
+          <h2 id="judge-h" class="sec-h">Judge's note</h2>
+          {% if j.confidence is defined and j.confidence is not none %}
+          <span class="text-[14px] font-semibold text-muted tabular-nums">Confidence: {{ (j.confidence * 100)|round|int }}%</span>
+          {% endif %}
+        </div>
         <p class="mt-3 text-[16px] leading-[1.6]">{{ j.issues if j.issues and j.issues != 'none' else 'No problems noted.' }}</p>
         {% if j.reasoning %}
         <details class="why mt-3"><summary>Judge reasoning</summary><p>{{ j.reasoning }}</p></details>

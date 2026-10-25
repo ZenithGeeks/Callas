@@ -90,6 +90,7 @@ class Judge:
     summary: str
     issues: str
     reasoning: str
+    confidence: float | None = None
     # 1 to 5, how natural the Thai sounds. Only in answers stored before #98: the judge scored
     # calls down for spelling mistakes that were not there, so it is no longer asked.
     natural_thai: int | None = None
@@ -107,6 +108,7 @@ class Judge:
             "scam_start_turn": self.scam_start_turn,
             **({} if self.natural_thai is None else {"natural_thai": self.natural_thai}),
             "giveaway": self.giveaway,
+            **({} if self.confidence is None else {"confidence": self.confidence}),
             "summary": self.summary,
             "issues": self.issues,
             "reasoning": self.reasoning,

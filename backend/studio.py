@@ -521,14 +521,19 @@ def _ended_html(event: live.Event) -> str:
 def _verdict_html(event: live.Event) -> str:
     record = event.record
     generation = record["generation"]
+    judge = generation.get("judge")
+    confidence = judge.get("confidence") if judge else None
     return render(
         "partials/studio_verdict.html",
-        judge=generation["judge"],  # None when the call ended early and was not judged
+        call_id=record.get("id"),
+        judge=judge,  # None when the call ended early and was not judged
         accepted=generation["status"] == "accepted",
-        reasons=[dataset.reason_text(r) for r in generation["reasons"]],
-        scam_start=record["scam_start_turn"],
-        summary=record["reference_summary"],
-        label_scam=record["label_scam"],
+        confidence=confidence,
+        review=record.get("review"),
+        reasons=[dataset.reason_text(r) for r in generation.get("reasons", [])],
+        scam_start=record.get("scam_start_turn"),
+        summary=record.get("reference_summary"),
+        label_scam=record.get("label_scam"),
         tag=_tag(event.modules, "judge"),
     )
 

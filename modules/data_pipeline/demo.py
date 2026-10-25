@@ -84,6 +84,7 @@ def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
         label_holds=True,
         scam_start_turn=2 if scam else -1,
         giveaway=False,
+        confidence=0.95,
         summary="ผู้โทรขอรหัสจากผู้รับสาย" if scam else "ผู้โทรแจ้งเรื่องการส่งพัสดุ",
         issues="none",
     )
