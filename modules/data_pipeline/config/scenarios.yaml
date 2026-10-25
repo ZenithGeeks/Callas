@@ -132,6 +132,12 @@ scams:
     goal: get the receiver to click a link to cancel rights for a government project
     tactics: Call the victim claiming to be from the Ministry of Finance; Inform about a government project;
       Ask to click a link to cancel rights
+  - key: gov_stimulus_data_scam
+    role: Ministry of Finance official
+    org: กระทรวงการคลัง
+    goal: get the victim to provide ID card number and bank account number
+    tactics: Call the victim from a mobile number; Claim to be from the Ministry of Finance; Ask for ID
+      card and bank account numbers to disburse stimulus money
   romance:
   - key: engineer_abroad
     role: someone met on a dating app who says they are an engineer working abroad
@@ -263,12 +269,6 @@ scams:
     org: '*'
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
     tactics: the receiver's number won a lucky draw, tone friendly then urgent
-  - key: gov_stimulus_data_scam
-    role: Ministry of Finance official
-    org: กระทรวงการคลัง
-    goal: get the victim to provide ID card number and bank account number
-    tactics: Call the victim from a mobile number; Claim to be from the Ministry of Finance; Ask for ID
-      card and bank account numbers to disburse stimulus money
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
@@ -477,5 +477,5 @@ calls:
   max_turns:
   - 6
   - 14
-  caller_knows_name: 0.5
+  caller_knows_name: 1.0  # always: every caller greets the receiver by name in its first line
   min_turns: 4

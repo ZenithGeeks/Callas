@@ -111,3 +111,13 @@ Tactics:
 - Impersonate a government official using their name and photo on LINE
 - Send a message asking for a loan for a specific reason (e.g., public works, personal need)
 - Exploit the victim's trust in the official's status
+
+## Caller poses as a Ministry of Finance official to ask for personal data for economic stimulus money
+- source: https://www.antifakenewscenter.com/?p=23533
+- published: 2022-06-06
+- active: no
+
+Tactics:
+- Call the victim from a mobile number
+- Claim to be from the Ministry of Finance
+- Ask for ID card and bank account numbers to disburse stimulus money
