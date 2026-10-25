@@ -17,3 +17,14 @@ Phrases:
 - ที่รัก พัสดุของขวัญที่ส่งไปให้ติดอยู่ที่ศุลกากรนะ
 - ต้องจ่ายค่าธรรมเนียมปล่อยของ {MONEY} โอนเข้า {BANK_ACCOUNT}
 - อย่าเพิ่งบอกใครนะ เป็นความลับของเรา
+
+## Scammer hijacks identity to create a fake account and contacts the victim's friends or family claiming an emergency need for money.
+- source: https://www.antifakenewscenter.com/?p=92287
+- published: 2026-09-15
+- active: yes
+
+Tactics:
+- Collect personal data and photos from social media
+- Create a fake account using the victim's identity
+- Contact the victim's friends or family
+- Claim to be in an emergency and ask for financial help

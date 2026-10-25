@@ -53,6 +53,85 @@ scams:
     org: กรมศุลกากร
     goal: get the receiver to pay a 'customs fee' of {MONEY} to {BANK_ACCOUNT}
     tactics: says a parcel from abroad is held, adds pressure that it will be seized tomorrow
+  - key: ransom_isolation
+    role: police officer, teacher, or government official
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to pay a 'ransom' or avoid consequences
+    tactics: Claim to be a police officer, teacher, or official; Order the victim to keep the matter secret
+      and isolate them from family or friends; Create various reasons or use psychological pressure to force
+      a quick transfer; Threaten or persuade the victim to send money immediately
+  - key: fake_mea_meter_change
+    role: Officer of the Metropolitan Electricity Authority (MEA)
+    org: การไฟฟ้านครหลวง
+    goal: get the receiver to provide ID card, house registration, and meter number to 'refund' meter insurance
+    tactics: Call the victim claiming to be an MEA officer; State the need to change the electricity meter;
+      Ask for personal documents (ID, house registration, meter number); Promise a refund for meter insurance
+  - key: fake_deposit_protection_line
+    role: fake Deposit Protection Fund official
+    org: สถาบันคุ้มครองเงินฝาก
+    goal: get the receiver to provide personal information or transfer money via a fake LINE account
+    tactics: Create a fake LINE account named 'ข่าวสารประชาสัมพันธ์'; Impersonate the Deposit Protection
+      Fund and its officials; Request personal data, invite to LINE groups, or send fake links to steal
+      data or money
+  - key: fake_appliance_service
+    role: appliance service company staff
+    goal: get the receiver to provide personal details or pay {MONEY} in advance for service
+    tactics: Call victims citing hot weather and potential appliance issues; Offer to check, replace, or
+      repair appliances; Ask for personal details or advance payment; Schedule a home visit without verifying
+      identity
+  - key: fake_loan_verification_fee
+    role: Loan officer or credit institution staff
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'verify the account' and get loan approval
+    tactics: Contact victims who have been rejected for loans; Claim that credit history needs to be fixed
+      or account verified; Ask for a transfer to prove the account is active
+  - key: official_line_loan
+    role: high-ranking government official (e.g., Minister, MP, Mayor)
+    org: กระทรวงเกษตรและสหกรณ์
+    goal: get the victim to transfer {MONEY} to {BANK_ACCOUNT} as a loan
+    tactics: Impersonate a government official using their name and photo on LINE; Send a message asking
+      for a loan for a specific reason (e.g., public works, personal need); Exploit the victim's trust in
+      the official's status
+  - key: post_illegal_parcel_case
+    role: Thailand Post officer
+    org: บริษัท ไปรษณีย์ไทย จำกัด
+    goal: get the receiver to transfer {MONEY} to 'close the case' regarding illegal goods
+    tactics: Call the victim using a spoofed official number; Claim the victim received illegal items in
+      a parcel; Offer to close the legal case in exchange for a payment; Request a bank transfer to settle
+      the matter
+  - key: fake_ministry_link_call
+    role: Digital Ministry officer
+    goal: get the receiver to click a malicious link sent via phone
+    tactics: Call the victim claiming to be from the Digital Ministry; Send a link via SMS or message; Instruct
+      the victim to click the link
+  - key: vaccine_followup_scam
+    role: vaccine center staff
+    org: สำนักงานปลัดกระทรวงสาธารณสุข
+    goal: get the victim to provide personal information such as ID card number and bank account
+    tactics: Call the victim claiming to be from a vaccine center; Ask about post-vaccination symptoms to
+      build trust; Request personal data like ID card and bank account numbers
+  - key: post_parcel_issue
+    role: Thailand Post officer
+    org: บริษัท ไปรษณีย์ไทย จำกัด
+    goal: get the receiver to pay a fee or provide personal details to resolve the 'parcel problem'
+    tactics: Call the victim using a fake number; Claim the victim's parcel has an issue or problem; Create
+      urgency to resolve the issue immediately; Ask for payment or personal information
+  - key: bank_account_closure_threat
+    role: Krungthai Bank officer
+    org: ธนาคารกรุงไทย
+    goal: get the receiver to comply with the threat to close the account or provide information
+    tactics: Call the victim claiming to be from Krungthai Bank; Threaten to close the bank account; Use
+      a non-bank phone number
+  - key: fake_bank_phone_inquiry
+    role: Bangkok Bank officer
+    org: ธนาคารกรุงเทพ
+    goal: get the receiver to disclose personal information over the phone
+    tactics: Call the victim claiming to be from Bangkok Bank; Ask for personal details; Use a non-bank
+      phone number
+  - key: fake_gov_project
+    role: Officer from the Ministry of Finance
+    org: กระทรวงการคลัง
+    goal: get the receiver to click a link to cancel rights for a government project
+    tactics: Call the victim claiming to be from the Ministry of Finance; Inform about a government project;
+      Ask to click a link to cancel rights
   romance:
   - key: engineer_abroad
     role: someone met on a dating app who says they are an engineer working abroad
@@ -71,6 +150,12 @@ scams:
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
+  - key: identity_hijack_emergency
+    role: victim's friend or family member (impersonated)
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
+    tactics: Collect personal data and photos from social media; Create a fake account using the victim's
+      identity; Contact the victim's friends or family; Claim to be in an emergency and ask for financial
+      help
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -118,6 +203,45 @@ scams:
     org: '*'
     goal: get the OTP to 'move the SIM to a new card'
     tactics: says the SIM will be cut off today unless re-registered
+  - key: dbd_business_data_update
+    role: officer of the Department of Business Development
+    org: กรมพัฒนาธุรกิจการค้า
+    goal: get the receiver to open {URL} and update their business registration data to 'verify identity'
+      or avoid penalties
+    tactics: Call the victim or send a fake official letter via social media; Claim that the business registration
+      data needs to be updated urgently; Direct the victim to a fake website resembling the official DBD
+      site; Ask for personal or business details to 'complete the update'
+  - key: pea_meter_upgrade_line
+    role: officer of the Provincial Electricity Authority (PEA)
+    org: การไฟฟ้าส่วนภูมิภาค
+    goal: get the receiver to confirm their full name via LINE to 'verify identity' for a digital meter
+      upgrade
+    tactics: Call the victim claiming to be from PEA; Inform them that their electricity meter is being
+      upgraded to a digital one; Ask the victim to add a LINE contact and confirm their full name
+  - key: fake_pension_verification
+    role: government official (impersonated)
+    goal: get the receiver to reveal personal data or click {URL} to 'verify pension details'
+    tactics: Call the victim claiming to be an official; State that the pension has a problem or needs urgent
+      verification; Use the name of a trusted agency to build credibility; Ask the victim to reveal important
+      data or click a fake link
+  - key: fake_land_dept_line_contact
+    role: fake Land Department official
+    org: กรมที่ดิน
+    goal: get the receiver to provide personal information via LINE chat
+    tactics: Contact the victim via a fake LINE account named '{URL} เอกสาร'; Impersonate a Land Department
+      official; Request personal data or documents
+  - key: mof_stimulus_data_collection
+    role: Ministry of Finance officer
+    org: กระทรวงการคลัง
+    goal: get the receiver to provide ID card number and bank account number to 'receive' stimulus money
+    tactics: Call the victim using a fake number; Claim to be from the Ministry of Finance; Ask for ID card
+      number and bank account number; Use the data for identity theft or further fraud
+  - key: fake_store_refund_otp
+    role: HomePro account department staff
+    goal: get the receiver to add a LINE contact and provide {OTP} or PIN to access their bank account
+    tactics: Contact victims via LINE posing as HomePro staff; Claim to refund or compensate for service
+      issues; Ask for personal details, bank account number, and PIN/OTP; Use credentials to drain the bank
+      account
   lottery:
   - key: gov_lottery
     role: staff of a lottery prize office
@@ -139,6 +263,12 @@ scams:
     org: '*'
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
     tactics: the receiver's number won a lucky draw, tone friendly then urgent
+  - key: gov_stimulus_data_scam
+    role: Ministry of Finance official
+    org: กระทรวงการคลัง
+    goal: get the victim to provide ID card number and bank account number
+    tactics: Call the victim from a mobile number; Claim to be from the Ministry of Finance; Ask for ID
+      card and bank account numbers to disburse stimulus money
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:

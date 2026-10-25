@@ -25,15 +25,10 @@ When a post fits several types, the first match in this order wins:
 4. `phishing_otp`: the main harm is stolen credentials, data or device control.
 5. `fake_authority`: everything else that uses impersonation to get paid.
 
-## Scam method fields
+## Channel field
 
-Three columns of the dataset describe how each scam works, in short Thai phrases.
-
-| Column | What it holds | Example (post 78875) |
-|---|---|---|
-| `method_channel` | Where it happens, from a fixed list, comma separated | เพจเฟซบุ๊ก |
-| `method_scammer_action` | The story or offer used to hook the victim | เปิดสอนเทรดหุ้นและหลักสูตรพื้นฐานตลาดการเงิน |
-| `method_victim_action` | What the victim is pushed to do | ถูกชักชวนให้ลงทุน |
+`method_channel` says where the scam happens, from a fixed list, comma separated
+(e.g. post 78875: เพจเฟซบุ๊ก).
 
 Channel values: เพจเฟซบุ๊ก, กลุ่มเฟซบุ๊ก, Messenger, TikTok, LINE, SMS, โทรศัพท์, เว็บไซต์, อีเมล, เอกสาร,
 แอปพลิเคชัน, โซเชียลมีเดีย (social media, platform not named), พอดแคสต์, QR Code, Google Form.

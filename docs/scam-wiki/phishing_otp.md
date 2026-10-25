@@ -5,7 +5,7 @@ Callers pose as a bank or service and try to get an OTP, a PIN or card details.
 ## Caller from bank security says the account is at risk and asks for the OTP
 - source: general public warnings (seed example)
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Calls as bank security and says there is a suspicious transaction on the victim's account.
@@ -17,3 +17,76 @@ Phrases:
 - ธนาคารตรวจพบรายการผิดปกติ ขอรหัส OTP ที่ส่งไปยกเลิกรายการค่ะ
 - บัญชีของคุณจะถูกระงับภายใน 10 นาที
 - กรุณากรอกข้อมูลบัตรที่ {URL}
+
+## Caller poses as the Department of Business Development and asks the victim to update business registration data via a fake online link.
+- source: https://www.antifakenewscenter.com/?p=53870
+- published: 2024-03-17
+- active: yes
+
+Tactics:
+- Call the victim or send a fake official letter via social media
+- Claim that the business registration data needs to be updated urgently
+- Direct the victim to a fake website resembling the official DBD site
+- Ask for personal or business details to 'complete the update'
+
+Phrases:
+- กรมพัฒนาธุรกิจการค้า ให้ทำการอัปเดตข้อมูลนิติบุคคลผ่าน DBD e-Service
+
+## Caller poses as the Provincial Electricity Authority and asks the victim to confirm their name via LINE for a digital meter upgrade.
+- source: https://www.antifakenewscenter.com/?p=53287
+- published: 2024-02-29
+- active: yes
+
+Tactics:
+- Call the victim claiming to be from PEA
+- Inform them that their electricity meter is being upgraded to a digital one
+- Ask the victim to add a LINE contact and confirm their full name
+
+Phrases:
+- กฟภ. โทรแจ้งลูกค้าเพื่อเปลี่ยนมิเตอร์ไฟฟ้าดิจิตอล โดยให้ยืนยันชื่อ-นามสกุล ผ่านไลน
+
+## Caller poses as an official, claiming the victim's pension has a problem or needs urgent verification, to trick them into revealing data or clicking a fake link.
+- source: https://www.antifakenewscenter.com/?p=88697
+- published: 2026-06-23
+- active: yes
+
+Tactics:
+- Call the victim claiming to be an official
+- State that the pension has a problem or needs urgent verification
+- Use the name of a trusted agency to build credibility
+- Ask the victim to reveal important data or click a fake link
+
+Phrases:
+- ต้องยืนยันข้อมูลด่วน
+
+## Scammer poses as a Land Department official on LINE to request personal data.
+- source: https://www.antifakenewscenter.com/?p=85057
+- published: 2026-03-30
+- active: yes
+
+Tactics:
+- Contact the victim via a fake LINE account named '{URL} เอกสาร'
+- Impersonate a Land Department official
+- Request personal data or documents
+
+## Caller poses as a Ministry of Finance officer and asks for ID and bank account numbers to distribute economic stimulus money.
+- source: https://www.antifakenewscenter.com/?p=7012
+- published: 2020-11-20
+- active: yes
+
+Tactics:
+- Call the victim using a fake number
+- Claim to be from the Ministry of Finance
+- Ask for ID card number and bank account number
+- Use the data for identity theft or further fraud
+
+## Fake HomePro account staff contact via LINE to offer refunds or compensation, asking for OTP or PIN.
+- source: https://www.antifakenewscenter.com/?p=86301
+- published: 2026-04-25
+- active: yes
+
+Tactics:
+- Contact victims via LINE posing as HomePro staff
+- Claim to refund or compensate for service issues
+- Ask for personal details, bank account number, and PIN/OTP
+- Use credentials to drain the bank account

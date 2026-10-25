@@ -22,13 +22,19 @@ speakers:
   empty_call: (สายเพิ่งต่อติด ยังไม่มีใครพูด)
   voice:
     male: "male: say ผม and ครับ"
-    female: "female: say ดิฉัน or ฉัน and ค่ะ / คะ"
+    female: "female: end sentences with ค่ะ / คะ; rarely say ดิฉัน or ฉัน, as on a real phone call"
 
 scam_caller:
   instructions: >-
-    You play a phone scammer in a training simulation for a scam-detection system. Stay in
-    character and sound like a real caller, not like a villain: real scammers are polite,
-    confident and specific. Never say you are a scammer.
+    You play a smart Thai phone scammer; stay in character, never admit it. Polite, confident,
+    specific, like an office worker on a routine job. From the first line you are on the
+    receiver's side, warm and helping ("ไม่ต้องตกใจนะคะ ทางเราโทรมาช่วยดูแลให้") against an outside
+    problem, never their fault. Pressure follows your pacing: calm, concerned, then urgent, still
+    as help ("ต้องโอนภายในวันนี้นะคะ ไม่งั้นจะช่วยไม่ทัน"). Everyday spoken Thai, short sentences,
+    polite particles, an occasional เอ่อ or คือ; no formal sentences or lists. No ผม, ดิฉัน, ฉัน;
+    say ทางเรา every 2-3 sentences. Open with a greeting, where you call from and why ("สวัสดีค่ะ
+    ติดต่อจาก {ORG} นะคะ ติดต่อเรื่อง..."), a department and a case reference (no number). Answer
+    what they just said; if they doubt you, stay calm and give a reason. Think briefly.
   fields:
     role: who you claim to be
     voice: your gender and the pronoun and polite particle to use
@@ -37,9 +43,7 @@ scam_caller:
     tactics: how you get there
     receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
     pacing: where you are in the call and what you may do now
-    plan: >-
-      your plan for this call, one step per turn, written before the call from recent reports
-      of real scams of this type; follow it, but react to what the receiver actually says
+    plan: your plan for this call, one step per turn; follow it, but react to the receiver
     conversation: the call so far, in Thai
     line: *slot_rule
     asks_now: >-
@@ -49,10 +53,10 @@ scam_caller:
     end_call: true if you hang up after this line
   # {turn} = this turn (from 1), {turns} = the caller's last possible turn
   pacing:
-    before: "This is your turn {turn} in a call of at most {turns} turns. Do not ask for anything yet: set up the situation and build trust."
-    start: "This is your turn {turn} in a call of at most {turns} turns. Now start moving the receiver toward your goal."
-    push: "This is your turn {turn} in a call of at most {turns} turns. Keep pushing toward your goal, adapting to what the receiver said."
-    last: "This is your turn {turn} in a call of at most {turns} turns. The call is almost over: make your ask now, clearly."
+    before: "Turn {turn} of at most {turns}. No asks yet: warm and calm, on their side, set up the situation."
+    start: "Turn {turn} of at most {turns}. Gently move toward your goal: concerned, acting soon helps them."
+    push: "Turn {turn} of at most {turns}. More urgent: time is short and you want to help them in time."
+    last: "Turn {turn} of at most {turns}. Make your ask now, clearly and urgently, as their last chance."
   lm: {temperature: 0.0, max_tokens: 1000}
 
 legit_caller:
@@ -107,10 +111,12 @@ receiver:
 # the scam caller reads on every turn. With no notes it plans from the scenario alone.
 planner:
   instructions: >-
-    Plan a phone scam call for a training simulation of a scam-detection system. Use the
-    pattern notes from recent real cases when there are any: copy their order of steps and
-    pressure tactics, not their details. One step per caller turn. Do not ask for anything
-    before the reveal turn. Never include real names, numbers or links; use slots like {MONEY}.
+    Plan a phone scam call for a scam-detection training simulation: one step per caller turn,
+    each under 15 words. Copy the notes' step order and pressure tactics, not their details. No
+    ask before the reveal turn; slots like {MONEY}, never real names, numbers or links. First
+    steps only build trust, on the receiver's side (no deadline, threat or secrecy, even with an
+    early reveal turn); then concern about an outside problem; urgency, deadlines and secrecy
+    only in the last one or two steps. Think briefly.
   fields:
     scam_type: the kind of scam this call is
     role: who the caller claims to be

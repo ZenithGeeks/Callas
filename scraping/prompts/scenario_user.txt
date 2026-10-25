@@ -1,0 +1,9 @@
+# One post inside the batch message of the scenario pass (llm_labeler.py). Lines starting with #
+# are comments and are not sent. {post_id}, {scam_type}, {org}, {title} and {content} come from
+# the dataset (org is the ORG column, empty when no listed organization was found).
+# All posts of one batch are joined with a blank line and sent as a single user message.
+[{post_id}]
+scam_type: {scam_type}
+Organization: {org}
+Title: {title}
+Content: {content}
