@@ -19,6 +19,8 @@ node_modules/
 # (data/processed/{train,valid,test}.csv is committed so the split stays fixed)
 data/raw/
 data/synthetic/
+# VachanaTTS2 voice models (about 240 MB), downloaded into ./voices of the folder you run from
+voices/
 *.wav
 checkpoints/
 models/
@@ -36,3 +38,4 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 CLAUDE.md
+eval/results/asr_cache/

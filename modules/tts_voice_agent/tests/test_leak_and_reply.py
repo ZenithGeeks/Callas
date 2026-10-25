@@ -1,12 +1,19 @@
 import logging
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from asr_diarization.types import Turn
 from nlp_core.types import Entity, NLPResult
 from tts_voice_agent.leak import leak_reasons, leaks_sensitive
 from tts_voice_agent.memory import CallState
-from tts_voice_agent.reply import safe_reply
-from tts_voice_agent.templates import TEMPLATES, pick_template
+from tts_voice_agent.reply import current_facts, fact_numbers, safe_reply
+from tts_voice_agent.templates import TEMPLATES, check_templates, pick_template
 
 
 class FakeLLM:
@@ -101,7 +108,8 @@ def test_llm_called_with_reply_job_and_context():
     state.add(Turn("A", 0, 1, "สวัสดี"), [])
     llm = FakeLLM("ขอบคุณค่ะ")
     safe_reply(NLPResult(), state, llm)
-    assert llm.calls == [("reply", "A: สวัสดี")]
+    ((job, ctx),) = llm.calls
+    assert job == "reply" and ctx.startswith("[ข้อมูลปัจจุบัน] ") and ctx.endswith("\nA: สวัสดี")
 
 
 def test_llm_exception_gives_template():
@@ -127,3 +135,42 @@ def test_templates_clean_and_pick_deterministic():
     for t in ("fake_authority", "romance", "investment", "phishing_otp", "lottery", None, "zzz"):
         r = NLPResult(label_type=t)
         assert pick_template(r) == pick_template(r) and pick_template(r) in TEMPLATES
+
+
+def test_leaky_template_is_refused():
+    with pytest.raises(ValueError, match=r"template fails leak check \(digit\)"):
+        check_templates((*TEMPLATES, "โทรกลับ 0812345678 ค่ะ"))
+
+
+def test_template_check_runs_under_python_O():
+    code = "from tts_voice_agent.templates import check_templates; check_templates(('otp',))"
+    run = subprocess.run(
+        [sys.executable, "-O", "-c", code],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[2])},
+    )
+    assert run.returncode != 0 and "template fails leak check" in run.stderr
+
+
+NOW = datetime(2026, 10, 14, 20, 48, tzinfo=ZoneInfo("Asia/Bangkok"))
+
+
+def test_current_facts_is_thai_with_buddhist_year():
+    assert current_facts(NOW) == "วันนี้วันพุธที่ 14 ตุลาคม 2569 เวลา 20:48 น."
+
+
+def test_date_reply_passes_but_numbers_not_from_facts_are_blocked():
+    allowed = fact_numbers(NOW)
+    assert leak_reasons("วันนี้วันที่ 14 ตุลาคมค่ะ เวลา 20:49 น.", [], allowed) == []  # minute ticked
+    assert leak_reasons("โทรกลับ 0812345678 ค่ะ", [], allowed) == ["digit"]
+    assert leak_reasons("วันนี้วันที่ 14 ตุลาคมค่ะ", []) == ["digit"]  # no facts, no digits
+
+
+def test_safe_reply_answers_the_date_and_gives_the_llm_the_facts():
+    llm = FakeLLM("วันนี้วันที่ 14 ตุลาคมค่ะ โทรมาเรื่องอะไรคะ")
+    state = CallState()
+    state.add(Turn("A", 0, 1, "วันนี้วันที่เท่าไหร่"))
+    text, template_used = safe_reply(NLPResult(), state, llm, now=NOW)
+    assert not template_used and "14" in text
+    assert "[ข้อมูลปัจจุบัน] " + current_facts(NOW) in llm.calls[0][1]

@@ -37,7 +37,7 @@ Turn-by-turn call memory: a scam that starts late in a normal-sounding call is s
 - Five scam types: fake authority / call center, romance, investment, phishing / OTP, lottery / prize.
 - Escalation is sticky for the rest of the call. The LLM never decides reply vs warn.
 - No connection to LINE, Messenger, Instagram or real phone lines. Demo only.
-- The classifier is an interim LLM version until WangchanBERTa is trained; confidence may be coarse.
+- The scam check is done by the LLM today, until the fine-tuned PhayaThaiBERT classifier is connected; its confidence is only 1.0 or 0.0.
 
 ## Brand Commitments
 

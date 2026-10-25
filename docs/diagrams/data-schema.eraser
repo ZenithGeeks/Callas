@@ -1,0 +1,110 @@
+// Callas data schema (Eraser entity-relationship diagram)
+// Blue: the SQLite store written by data_pipeline (modules/data_pipeline/store.py).
+// Purple: held in memory during a call and deleted when it ends.
+title Callas data schema
+colorMode bold
+styleMode plain
+typeface clean
+
+// Stored on disk: data/synthetic/calls.db
+calls [icon: phone, color: blue] {
+  id string pk
+  call_type string
+  seed int
+  label_scam int
+  label_type string
+  status string
+  reasons json
+  config_name string
+  config_hash string
+  models json
+  call json
+  voices json
+  briefing json
+  judge json
+  scam_start_turn int
+  scam_start_from string
+  receiver_leaked json
+  first_leak_turn int
+  speech_style string
+  reference_summary string
+  audio_path string
+  review_status string
+  review_note string
+  reviewed_at string
+  created_at string
+  updated_at string
+}
+
+turns [icon: message-circle, color: blue] {
+  call_id string pk fk
+  idx int pk
+  speaker string
+  agent string
+  raw string
+  text string
+  spoken_text string
+  entities json
+  asks_now int
+  end_call int
+  reasoning string
+  problems json
+  leaked json
+  spelling json
+  latency_s float
+  prompt_tokens int
+  audio string
+  audio_s float
+  start_s float
+  end_s float
+}
+
+pattern_notes [icon: book-open, color: blue] {
+  id int pk
+  scam_type string
+  source string
+  published string
+  summary string
+  tactics json
+  phrases json
+  active int
+  added_at string
+}
+
+meta [icon: settings, color: blue] {
+  key string pk
+  value string
+}
+
+// In memory during a call (tts-voice-agent, nlp-core)
+CallState [icon: layers, color: purple] {
+  turns Turn[]
+  older_summary string
+  entities_seen Entity[]
+  escalated bool
+}
+
+Entity [icon: tag, color: purple] {
+  text string
+  label string
+  start int
+  end int
+}
+
+NLPResult [icon: cpu, color: purple] {
+  entities Entity[]
+  summary string
+  label_scam bool
+  label_type string
+  confidence float
+}
+
+Decision [icon: git-merge, color: purple] {
+  auto_reply bool
+  reason string
+  reply_text string
+  template_used bool
+}
+
+// Relationships
+turns.call_id > calls.id

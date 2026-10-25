@@ -21,11 +21,15 @@ _local = threading.local()
 
 
 def demo_enabled() -> bool:
+    """True when CALLAS_FAKE is set to 1, true, yes or on."""
     return os.environ.get("CALLAS_FAKE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def last_transcription() -> tuple[Any, float] | None:
-    """(Transcript, seconds) of the last pipeline.run on this thread, or None."""
+    """(Transcript, seconds) of the last pipeline.run on this thread, or None.
+
+    _recording() stores it in a thread-local, so call this on the thread that ran ASR.
+    """
     return getattr(_local, "last", None)
 
 
@@ -47,6 +51,8 @@ def _recording(run):
 
 @dataclass
 class AppRuntime:
+    """The orchestrator Runtime plus what the web app needs around it."""
+
     mode: str
     runtime: Runtime
     sessions: CallSessions
@@ -80,18 +86,20 @@ class AppRuntime:
         return agents.explain(text, agent=self._agent)
 
     def close(self) -> None:
+        """End every call still in memory and put the original ASR function back."""
         for call_id in list(self.runtime.states):
             self.sessions.end(call_id)
         asr_pipeline.run = self.original_run
 
 
 def build(force_demo: bool | None = None) -> AppRuntime:
+    """Build the runtime for demo mode (CALLAS_FAKE, or force_demo) or real mode."""
     is_demo = demo_enabled() if force_demo is None else force_demo
     original = getattr(asr_pipeline.run, "_callas_wrapped", asr_pipeline.run)
     if is_demo:
         llm = demo.make_llm()
         demo.register_demo_parts(llm)
-        rt = Runtime(
+        runtime = Runtime(
             llm=llm, speaker=demo.FakeSpeaker(), ner="demo", classifier="demo", summarizer="demo"
         )
         asr_pipeline.run = _recording(demo.fake_pipeline_run)
@@ -99,6 +107,6 @@ def build(force_demo: bool | None = None) -> AppRuntime:
         from llm_serving.client import LLMClient
         from tts_voice_agent.speech import Speaker
 
-        rt = Runtime(llm=LLMClient(), speaker=Speaker())
+        runtime = Runtime(llm=LLMClient(), speaker=Speaker())
         asr_pipeline.run = _recording(original)
-    return AppRuntime("demo" if is_demo else "real", rt, CallSessions(rt), original)
+    return AppRuntime("demo" if is_demo else "real", runtime, CallSessions(runtime), original)

@@ -29,6 +29,15 @@ def test_benign_turn_replies_and_speaks(fakes):
     assert "escalate" not in out["timings"]
 
 
+def test_reply_returns_its_text_and_leaves_the_decision_alone(fakes):
+    s, _, _ = make()
+    items = list(s.stream_turn(s.start(), turn("hello")))
+    decision = next(i["update"]["decision"] for i in items if i["node"] == "decide")
+    reply = next(i["update"] for i in items if i["node"] == "reply")
+    assert reply["reply_text"] == "สวัสดีค่ะ มีอะไรให้ช่วยคะ" and reply["template_used"] is False
+    assert decision.reply_text is None and decision.template_used is False
+
+
 def test_no_speaker_skips_speak(fakes):
     s, _, _ = make(speaker=False)
     out = s.on_turn(s.start(), turn("hello"))
@@ -123,7 +132,7 @@ def test_unparseable_llm_classifier_escalates(monkeypatch):
     from nlp_core.registry import LLMClassifier, LLMSummarizer
 
     for var in registry.ENV_VARS.values():
-        monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv(var, "")  # the built-in defaults, whatever .env says
     llm = FakeLLM({"classify": "auto_reply please"})
     saved = dict(registry._INSTANCES)
     registry._INSTANCES[("classifier", "llm")] = LLMClassifier(llm)

@@ -397,6 +397,10 @@
     var t = turnFor(ev);
     if (!t) return;
     if (ev.node === "analyze") setStage(3, "busy", null, "…");
+    if (ev.node === "remember" && ev.data && ev.data.turn && ev.data.turn.text !== t.text) {
+      t.text = ev.data.turn.text; // the cleaned text (normalized, maybe autocorrected)
+      fillText(slot(t.row, "text"), t.text, S.entities);
+    }
   }
 
   // ---- reply audio ----------------------------------------------------------------------

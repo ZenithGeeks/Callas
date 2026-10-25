@@ -1,0 +1,117 @@
+# Made-up values that fill the slots the agents write ({PHONE}, {URL}, ...).
+#
+# Each call draws its own values from its seed and keeps them for the whole call. Phone numbers,
+# account numbers and OTPs are random digits (see fill.py); links are built from the words
+# below, so no real number or link from the model's memory reaches the data.
+#
+#   names         first names by gender, for {CALLER_NAME} and {RECEIVER_NAME}
+#   banks         {ORG} when a scenario's org is "ธนาคาร"
+#   made_up_orgs  {ORG} when a scenario's org is "*"
+#   urls          {URL} = https://<word>-<word><2 digits>.<tld>
+#   money         {MONEY} in baht; big_types use the big amounts
+#   addresses     the receiver's {ADDRESS} = <house number> ซอย<soi> <district> <province>
+#
+# The receiver also has its own made-up {RECEIVER_PHONE}, {RECEIVER_ACCOUNT}, {ID_CARD}
+# (random digits, never a valid real ID number) and {BIRTH_DATE} (matches its age); these
+# are random too, and the receiver agent may give them away (see README, Receiver leaks).
+
+names:
+  male:
+  - สมชาย
+  - วิชัย
+  - ประเสริฐ
+  - อนันต์
+  - ธนพล
+  - ณัฐวุฒิ
+  - เกียรติศักดิ์
+  - ชัยวัฒน์
+  - สุรเชษฐ์
+  - ปิยะพงษ์
+  female:
+  - สมศรี
+  - มาลี
+  - สุภาพร
+  - กัญญา
+  - พิมพ์ชนก
+  - ศิริพร
+  - อรุณี
+  - จันทร์เพ็ญ
+  - วราภรณ์
+  - นภัสสร
+banks:
+- ธนาคารกสิกรไทย
+- ธนาคารไทยพาณิชย์
+- ธนาคารกรุงเทพ
+- ธนาคารกรุงไทย
+- ธนาคารกรุงศรีอยุธยา
+- ธนาคารออมสิน
+- ธนาคารทหารไทยธนชาต
+made_up_orgs:
+- บริษัท เอเชียโกลด์ เทรดดิ้ง
+- สยามพลัส อินเวสต์
+- ไทยเอ็กซ์เพรส โลจิสติกส์
+- โกลบอลวิน กรุ๊ป
+- ทรัพย์ทวี แคปปิตอล
+urls:
+  words:
+  - secure
+  - refund
+  - gift
+  - verify
+  - promo
+  - service
+  - update
+  - member
+  tlds:
+  - com
+  - net
+  - online
+  - xyz
+  - co
+money:
+  big_types:
+  - fake_authority
+  - investment
+  - romance
+  big:
+  - 15000
+  - 30000
+  - 49500
+  - 85000
+  - 120000
+  small:
+  - 350
+  - 1290
+  - 2500
+  - 9900
+addresses:
+  # house numbers and sois are invented; the districts are invented too (so they never clash
+  # with a province); the provinces are real names, and any pairing is made up
+  house_numbers:
+  - 12/3
+  - "45"
+  - 88/21
+  - "107"
+  - 9/14
+  - "233"
+  - 56/7
+  sois:
+  - สุขสันต์ 4
+  - ร่มเย็น 12
+  - ประชาสุข 7
+  - เจริญใจ 2
+  - บ้านสวน 15
+  - ทรัพย์มั่งมี 9
+  districts:
+  - อำเภอบ้านใหม่
+  - อำเภอท่าช้าง
+  - อำเภอหนองแสง
+  - อำเภอเมืองเก่า
+  - อำเภอวังทอง
+  provinces:
+  - จังหวัดขอนแก่น
+  - จังหวัดเชียงใหม่
+  - จังหวัดนครราชสีมา
+  - จังหวัดสงขลา
+  - จังหวัดชลบุรี
+  - จังหวัดพิษณุโลก

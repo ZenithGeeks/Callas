@@ -1,4 +1,4 @@
-"""LangChain tools over the nlp-core registry. Sub-agents call these.
+"""LangChain tools over the nlp-core registry. The analyst agent calls these.
 
 Each tool returns a JSON-serialisable dict. Which model sits behind a tool is decided by the
 registry (env vars NLP_NER / NLP_CLASSIFIER / NLP_SUMMARIZER), so replacing a model needs
@@ -14,6 +14,7 @@ from langchain_core.tools import tool
 from nlp_core import registry
 
 
+# Each docstring is sent to the model as the tool description. Edit it like a prompt.
 @tool
 def extract_entities(text: str) -> dict:
     """Find phone numbers, bank accounts, OTPs, URLs and amounts in Thai text."""

@@ -18,7 +18,16 @@ from collections.abc import Iterable
 
 from nlp_core.types import Entity
 
-from .leak import _EN_RUN, _STRIP_FOR_COMPARE, _THAI_RUN, _URL_EMAIL, leak_reasons, normalize
+from .leak import (
+    SPOKEN_ENGLISH_RUN,
+    SPOKEN_THAI_RUN,
+    STRIP_FOR_COMPARE,
+    URL_OR_EMAIL,
+    Reason,
+    compact_text,
+    leak_reasons,
+    normalize,
+)
 
 NUMBER = "[NUMBER]"
 LINK = "[LINK]"
@@ -26,9 +35,14 @@ FALLBACK = "[REDACTED]"
 _MAX_PASSES = 3
 _DIGIT_SEPARATORS = " \t\r\n-.,/"
 _THAI_RANGE = re.compile(r"[฀-๿]")
-_BLOCKING = ("digit", "digit_word_run", "url_or_email", "entity:")
 
 Span = tuple[int, int, str]  # start, end (exclusive) in the original text, replacement
+
+# The leak reasons redaction removes. The others (keyword, name, organisation, Latin word)
+# are left for the reply check.
+REDACTED_REASONS = frozenset(
+    {Reason.DIGIT, Reason.DIGIT_WORD_RUN, Reason.URL_OR_EMAIL, Reason.ENTITY}
+)
 
 
 def _view(text: str, compact: bool) -> tuple[str, list[int]]:
@@ -39,7 +53,7 @@ def _view(text: str, compact: bool) -> tuple[str, list[int]]:
     for i, ch in enumerate(text):
         piece = normalize(ch).lower()
         if compact:
-            piece = _STRIP_FOR_COMPARE.sub("", piece)
+            piece = STRIP_FOR_COMPARE.sub("", piece)
         for c in piece:
             chars.append(c)
             origin.append(i)
@@ -71,9 +85,9 @@ def _is_token_char(ch: str) -> bool:
 def _entity_spans(text: str, entities: Iterable[Entity]) -> list[Span]:
     view, origin = _view(text, compact=True)
     spans: list[Span] = []
-    ordered = sorted(entities, key=lambda e: len(_compact_entity(e.text)), reverse=True)
+    ordered = sorted(entities, key=lambda e: len(compact_text(e.text)), reverse=True)
     for ent in ordered:  # longest first, so a short name inside a long one cannot split it
-        needle = _compact_entity(ent.text)
+        needle = compact_text(ent.text)
         if len(needle) < 2:  # same floor as the leak check
             continue
         pos = view.find(needle)
@@ -83,33 +97,37 @@ def _entity_spans(text: str, entities: Iterable[Entity]) -> list[Span]:
     return spans
 
 
-def _compact_entity(text: str) -> str:
-    return _STRIP_FOR_COMPARE.sub("", normalize(text)).lower()
-
-
 def _has_digit(ch: str) -> bool:
     return any(unicodedata.decimal(c, None) is not None for c in normalize(ch))
+
+
+def _end_of_digit_run(text: str, start: int) -> int:
+    """Index after the last digit of the run that begins at `start`.
+
+    Separators (space, tab, newline, - . , / and zero-width characters) may sit between digits,
+    but a run never ends on one.
+    """
+    end = start + 1
+    pos = end
+    while pos < len(text):
+        ch = text[pos]
+        pos += 1
+        if _has_digit(ch):
+            end = pos
+        elif ch not in _DIGIT_SEPARATORS and normalize(ch):  # empty after normalize = zero-width
+            break
+    return end
 
 
 def _digit_spans(text: str) -> list[Span]:
     """Every run of digit characters (any script), joined across separators like - . /"""
     spans: list[Span] = []
-    i, n = 0, len(text)
-    while i < n:
+    i = 0
+    while i < len(text):
         if not _has_digit(text[i]):
             i += 1
             continue
-        end = i + 1
-        j = end
-        while j < n:
-            ch = text[j]
-            if _has_digit(ch):
-                j += 1
-                end = j
-            elif ch in _DIGIT_SEPARATORS or not normalize(ch):  # not normalize: zero-width
-                j += 1
-            else:
-                break
+        end = _end_of_digit_run(text, i)
         spans.append((i, end, NUMBER))
         i = end
     return spans
@@ -140,17 +158,17 @@ def _one_pass(text: str, entities: list[Entity]) -> str:
     text = _apply(text, _digit_spans(text))
     spoken: list[Span] = []
     for compact in (False, True):
-        spoken += _regex_spans(text, _THAI_RUN, NUMBER, compact)
-        spoken += _regex_spans(text, _EN_RUN, NUMBER, compact)
+        spoken += _regex_spans(text, SPOKEN_THAI_RUN, NUMBER, compact)
+        spoken += _regex_spans(text, SPOKEN_ENGLISH_RUN, NUMBER, compact)
     text = _apply(text, spoken)
     links: list[Span] = []
     for compact in (False, True):
-        links += _regex_spans(text, _URL_EMAIL, LINK, compact, expand=True)
+        links += _regex_spans(text, URL_OR_EMAIL, LINK, compact, expand=True)
     return _apply(text, links)
 
 
 def _still_unsafe(text: str, entities: list[Entity]) -> bool:
-    return any(r.startswith(_BLOCKING) for r in leak_reasons(text, entities))
+    return any(r.partition(":")[0] in REDACTED_REASONS for r in leak_reasons(text, entities))
 
 
 def redact_context(text: str, entities_seen: Iterable[Entity]) -> str:

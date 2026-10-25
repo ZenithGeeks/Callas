@@ -1,15 +1,7 @@
-"""DSPy programs for the voice reply: a reply writer and an optional leak judge.
+"""DSPy programs for the voice reply: DSPyReplyWriter and DSPyLeakJudge.
 
-Both run on the local vLLM server (an OpenAI-compatible endpoint) and both only ever see the
-REDACTED call context. Needs the optional extra: pip install -e ".[dspy]".
-
-Safety notes:
-  * The writer is a ChainOfThought program. The `reasoning` field it produces is dropped
-    here: `write()` returns `prediction.reply` and nothing else, and nothing is logged.
-  * The judge can only add blocks (see tts_voice_agent.reply); `blocks()` answers True for
-    anything that is not a clear "no leak".
-  * `dspy.context(lm=...)` is used per call, never `dspy.configure`, so threads do not
-    interfere with each other.
+Both run on the vLLM server and only see the REDACTED call context. Needs the optional
+extra: pip install -e ".[dspy]". They do not use LLMClient; they build their own dspy.LM.
 """
 
 from __future__ import annotations
@@ -47,13 +39,21 @@ _UNAVAILABLE: tuple[type[BaseException], ...] = (
 # reply budget the output was cut off, failed to parse, and every reply became a template.
 # The reply text itself is still capped by MAX_REPLY_CHARS in safe_reply.
 DSPY_MAX_TOKENS = 512
+# The DSPy reply writer samples at 0: at 0.3 qwen3.8 produced garbled Thai spelling.
+# dspy_optimize tunes at the same value, so the compiled demos match how the writer runs.
+DSPY_REPLY_TEMPERATURE = 0.0
 
 
-def build_lm(max_tokens: int | None = None, temperature: float | None = None) -> dspy.LM:
-    """dspy.LM on the vLLM server. Same model resolution as LLMClient (empty VLLM_MODEL means
-    the first served model, which needs the server to be up)."""
+def build_lm(
+    max_tokens: int | None = None, temperature: float | None = None, model: str | None = None
+) -> dspy.LM:
+    """Build a dspy.LM on the vLLM server.
+
+    Without `model` it resolves the model like LLMClient: an empty VLLM_MODEL means the first
+    served model, so the server must be up.
+    """
     s = get_settings()
-    model = LLMClient().model
+    model = model or LLMClient().model
     return dspy.LM(
         f"openai/{model}",
         api_base=s.vllm_base_url,
@@ -95,24 +95,70 @@ class JudgeLeak(dspy.Signature):
     )
 
 
-def _timed_call(name: str, context: str, fn):
-    t0 = time.perf_counter()
+def _run_program(
+    name: str, program: dspy.Module, lm: Any, inputs: dict[str, str]
+) -> dspy.Prediction:
+    """Run a DSPy program on `lm`, turn connection errors into LLMUnavailable, log the timing.
+
+    `inputs` are the signature fields and must include `call_context` (only its length is logged).
+    """
+    started = time.perf_counter()
     try:
-        return fn()
-    except _UNAVAILABLE as exc:
-        raise LLMUnavailable(f"cannot reach LLM server for {name}: {type(exc).__name__}") from exc
+        # dspy.context per call, never dspy.configure: threads must not share one global LM
+        with dspy.context(lm=lm):
+            return program(**inputs)
+    except _UNAVAILABLE as error:
+        raise LLMUnavailable(
+            f"cannot reach LLM server for {name}: {type(error).__name__}"
+        ) from error
     finally:
         # lengths and timings only, never call text or reply text
         log.info(
             "dspy call=%s context_chars=%d latency_s=%.3f",
             name,
-            len(context),
-            time.perf_counter() - t0,
+            len(inputs["call_context"]),
+            time.perf_counter() - started,
         )
 
 
-class DSPyReplyWriter:
-    """write(context, result) -> reply text. `context` must already be redacted."""
+def _load_reply_program(compiled_path: Path | None) -> dspy.Module:
+    """Build the reply program, with the optimizer's demos when the compiled file loads."""
+    program = dspy.ChainOfThought(WriteReply)
+    path = compiled_path or COMPILED_REPLY
+    if not path.exists():
+        return program
+    try:
+        program.load(str(path))
+    except Exception as error:  # a broken optimizer file must not stop the call guard
+        log.warning(
+            "could not load %s (%s), using uncompiled program", path.name, type(error).__name__
+        )
+    return program
+
+
+class _LazyLM:
+    """Holds the language model of a DSPy program. The default one is built on first use."""
+
+    lm_temperature: float  # sampling temperature of the default model
+
+    def __init__(self, lm: Any | None = None) -> None:
+        self._lm = lm
+
+    @property
+    def lm(self):
+        """The language model, built on first use."""
+        if self._lm is None:
+            self._lm = build_lm(temperature=self.lm_temperature)
+        return self._lm
+
+
+class DSPyReplyWriter(_LazyLM):
+    """write(context, result) -> reply text. `context` must already be redacted.
+
+    The ChainOfThought `reasoning` field is dropped: `write()` returns the reply text only.
+    """
+
+    lm_temperature = DSPY_REPLY_TEMPERATURE
 
     def __init__(
         self,
@@ -120,65 +166,40 @@ class DSPyReplyWriter:
         lm: Any | None = None,
         compiled_path: Path | None = None,
     ) -> None:
-        self._lm = lm
-        if program is None:
-            program = dspy.ChainOfThought(WriteReply)
-            path = compiled_path or COMPILED_REPLY
-            if path.exists():
-                try:
-                    program.load(str(path))
-                except Exception as exc:  # a broken optimizer file must not stop the call guard
-                    log.warning(
-                        "could not load %s (%s), using uncompiled program",
-                        path.name,
-                        type(exc).__name__,
-                    )
-        self.program = program
-
-    @property
-    def lm(self):
-        if self._lm is None:
-            # Temperature 0: sampling at 0.3 produced garbled Thai spelling on qwen3.8.
-            self._lm = build_lm(temperature=0.0)
-        return self._lm
+        super().__init__(lm)
+        self.program = program if program is not None else _load_reply_program(compiled_path)
 
     def write(self, context: str, result: Any = None) -> str:
+        """Return the spoken reply for the redacted call context."""
         # `result` is accepted for the writer interface; the verdict is fixed because the
         # reply is only ever written for calls the decision step judged benign.
-        def run():
-            with dspy.context(lm=self.lm):
-                return self.program(call_context=context, verdict="benign")
-
-        pred = _timed_call("reply", context, run)
-        return (getattr(pred, "reply", "") or "").strip()  # reasoning is dropped here
+        prediction = _run_program(
+            "reply", self.program, self.lm, {"call_context": context, "verdict": "benign"}
+        )
+        return (getattr(prediction, "reply", "") or "").strip()  # reasoning is dropped here
 
 
-class DSPyLeakJudge:
+class DSPyLeakJudge(_LazyLM):
     """blocks(reply, context) -> True if the reply must not be spoken. Only a real False
     from the model means "no leak"; every other outcome is a block."""
 
+    lm_temperature = 0.0
+
     def __init__(self, lm: Any | None = None) -> None:
-        self._lm = lm
+        super().__init__(lm)
         # Chain of thought: the judge reasons about the reply against the redacted call before
         # answering. Its reasoning is dropped like the writer's; only `leaks` is read.
         self.program = dspy.ChainOfThought(JudgeLeak)
 
-    @property
-    def lm(self):
-        if self._lm is None:
-            self._lm = build_lm(temperature=0.0)
-        return self._lm
-
     def blocks(self, reply: str, context: str) -> bool:
-        def run():
-            with dspy.context(lm=self.lm):
-                return self.program(reply=reply, call_context=context)
-
+        """Return True when the reply must not be spoken (see the class docstring)."""
         try:
-            pred = _timed_call("judge", context, run)
+            prediction = _run_program(
+                "judge", self.program, self.lm, {"reply": reply, "call_context": context}
+            )
         except LLMUnavailable:
             raise
         except Exception as exc:  # unparsable output, server error: block
             log.warning("leak judge failed (%s), blocking", type(exc).__name__)
             return True
-        return getattr(pred, "leaks", True) is not False
+        return getattr(prediction, "leaks", True) is not False

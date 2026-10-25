@@ -147,3 +147,49 @@ def test_optimize_with_dummy_lm(tmp_path):
     before, after = dspy_optimize.optimize(ex, out, lm=lm)
     assert (before, after) == (100.0, 100.0)
     assert out.exists()
+
+
+def test_writer_and_judge_build_their_lm_once_at_their_own_temperature(monkeypatch):
+    built = []
+
+    def fake_build_lm(temperature=None, **kwargs):
+        built.append(temperature)
+        return object()
+
+    monkeypatch.setattr(dspy_programs, "build_lm", fake_build_lm)
+    reply_writer = DSPyReplyWriter(compiled_path=NOFILE)
+    judge = DSPyLeakJudge()
+    assert built == []  # nothing is built before the first use
+    assert reply_writer.lm is reply_writer.lm
+    assert judge.lm is judge.lm
+    assert built == [dspy_programs.DSPY_REPLY_TEMPERATURE, 0.0]
+
+
+def test_an_lm_passed_in_is_not_replaced(monkeypatch):
+    monkeypatch.setattr(dspy_programs, "build_lm", lambda **kwargs: pytest.fail("built an LM"))
+    lm = object()
+    assert DSPyReplyWriter(lm=lm, compiled_path=NOFILE).lm is lm
+    assert DSPyLeakJudge(lm=lm).lm is lm
+
+
+def test_optimizer_tunes_at_the_writers_temperature(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_build_lm(temperature=None, **kwargs):
+        seen.setdefault("writer", temperature)
+        return object()
+
+    monkeypatch.setattr(dspy_programs, "build_lm", fake_build_lm)
+    _ = DSPyReplyWriter(compiled_path=tmp_path / "missing.json").lm  # builds the LM
+
+    def fake_optimize(trainset, out, lm=None, temperature=None):
+        seen["optimizer"] = temperature
+        return 0.0, 0.0
+
+    monkeypatch.setattr(dspy_optimize, "optimize", fake_optimize)
+    monkeypatch.setattr(dspy_optimize, "load_trainset", lambda path: [])
+    dspy_optimize.main(["--out", str(tmp_path / "out.json")])
+    assert seen["optimizer"] == seen["writer"] == dspy_programs.DSPY_REPLY_TEMPERATURE
+
+    dspy_optimize.main(["--out", str(tmp_path / "out.json"), "--temperature", "0.3"])
+    assert seen["optimizer"] == 0.3

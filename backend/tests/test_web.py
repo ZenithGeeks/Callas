@@ -1,12 +1,14 @@
+import asyncio
 import io
 import json
 import re
+import threading
 import wave
 from pathlib import Path
 
 import pytest
 
-from backend import demo
+from backend import call, call_run, demo, live_ws, main
 
 ROOT = Path(__file__).resolve().parents[1]
 PHISHING = (
@@ -29,6 +31,21 @@ def test_pages_render_with_contract_comment(client, path):
     assert CONTRACT.search(r.text)
     assert "FINISH: unreviewed and undocumented is unfinished" in r.text
     assert "/static/css/app.css" in r.text
+
+
+def test_call_page_names_the_default_speaker_split(client):
+    html = client.get("/call").text
+    assert "Nemotron-3 diarization" in html
+    assert "pyannote" not in html
+
+
+@pytest.mark.parametrize("path", ["/message", "/call", "/live"])
+def test_assets_use_paths_not_absolute_urls(client, path):
+    # Behind an https proxy (tailscale serve) the app sees plain http. An absolute
+    # http:// asset URL on an https page is blocked as mixed content.
+    html = client.get(path, headers={"Host": "callas.example.ts.net"}).text
+    assets = re.findall(r'(?:href|src)="([^"]*/static/[^"]*)"', html)
+    assert assets and all(a.startswith("/static/") for a in assets)
 
 
 def test_band_is_a_size_container(client):
@@ -198,9 +215,7 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
     """An upload whose stream never opens must not outlive the server process."""
     from fastapi.testclient import TestClient
 
-    from backend import main
-
-    monkeypatch.setattr(main, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(call, "UPLOAD_DIR", tmp_path / "uploads")
     stale = tmp_path / "uploads"
     stale.mkdir()
     (stale / "callas-old.wav").write_bytes(b"x")  # left by a crashed run
@@ -210,3 +225,76 @@ def test_uploads_are_removed_when_the_app_stops(monkeypatch, tmp_path):
         assert r.status_code == 200
         assert list(stale.iterdir())
     assert list(stale.iterdir()) == []  # cleared at shutdown
+
+
+def test_ws_live_reports_a_call_that_cannot_start(client, monkeypatch):
+    def broken(app_runtime):
+        raise RuntimeError("model would not load")
+
+    monkeypatch.setattr(live_ws, "make_live_call", broken)
+    with client.websocket_connect("/ws/live") as ws:
+        ev = ws.receive_json()
+    assert ev == {"type": "error", "turn": None, "message": "The live call could not start."}
+
+
+def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
+    import asyncio
+
+    seen = []
+    real = live_ws.make_live_call
+
+    def recording(app_runtime):
+        try:  # inside the event loop's thread a loop is running; in a worker thread none is
+            asyncio.get_running_loop()
+            seen.append(True)
+        except RuntimeError:
+            seen.append(False)
+        return real(app_runtime)
+
+    monkeypatch.setattr(live_ws, "make_live_call", recording)
+    with client.websocket_connect("/ws/live") as ws:
+        assert ws.receive_json()["type"] == "ready"
+        ws.send_text(json.dumps({"type": "end"}))
+    assert seen == [False]
+
+
+async def collect_events(client):
+    stream = call_run.iter_updates(client.app.state.app_runtime, "demo.wav", threading.Event())
+    return [event async for event in stream]
+
+
+def test_iter_updates_yields_typed_events_and_ends_with_call_ended(client):
+    events = asyncio.run(collect_events(client))
+    assert isinstance(events[0], call_run.TranscriptReady) and events[0].transcript is not None
+    assert isinstance(events[-1], call_run.CallEnded)
+    updates = [e for e in events if isinstance(e, call_run.GraphUpdate)]
+    assert updates and {"turn_index", "node", "update"} <= set(updates[0].item)
+    assert len(events) == len(updates) + 2
+
+
+def test_iter_updates_ends_with_call_failed_when_the_call_raises(client, monkeypatch):
+    def boom(path):
+        raise RuntimeError("no call")
+
+    monkeypatch.setattr(client.app.state.app_runtime.sessions, "simulate_call", boom)
+    (failed,) = asyncio.run(collect_events(client))
+    assert isinstance(failed, call_run.CallFailed) and str(failed.error) == "no call"
+
+
+def test_the_app_imports_without_pythonpath():
+    # `uvicorn backend.main:app` from the repo root, as the README says, with no PYTHONPATH.
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    result = subprocess.run(
+        [sys.executable, "-c", "import backend.main"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr[-500:]

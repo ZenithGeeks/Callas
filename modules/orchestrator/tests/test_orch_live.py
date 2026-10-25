@@ -26,8 +26,8 @@ class FakeTranscriber:
         return out
 
 
-def turn_ev(text, start=0.0, end=1.0):
-    return {"type": "turn", "speaker": "Caller", "start": start, "end": end, "text": text}
+def turn_ev(text, start=0.0, end=1.0, speaker="Caller"):
+    return {"type": "turn", "speaker": speaker, "start": start, "end": end, "text": text}
 
 
 def make(batches=(), speaker=True):
@@ -75,7 +75,7 @@ def test_benign_turn_event_order_and_contract(fakes):
 
 
 def test_scam_turn_escalates_and_later_benign_stays_escalated(fakes):
-    call, _, _ = make([[turn_ev("SCAM PHONE")], [turn_ev("hello again")]])
+    call, _, _ = make([[turn_ev("SCAM PHONE")], [turn_ev("hello again", speaker="Other")]])
     call.feed(b"1")
     call.feed(b"2")
     events = drain_until_ended(call)
@@ -91,7 +91,7 @@ def test_scam_turn_escalates_and_later_benign_stays_escalated(fakes):
 
 
 def test_turns_are_processed_in_order(fakes):
-    batches = [[turn_ev(f"hello {i}")] for i in range(5)]
+    batches = [[turn_ev(f"hello {i}", speaker=f"S{i}")] for i in range(5)]
     call, _, _ = make(batches)
     for _ in batches:
         call.feed(b"x")
@@ -115,7 +115,7 @@ def test_pause_drops_audio_and_flushes_open_turn(fakes):
 
 def test_end_deletes_memory_and_emits_ended_last(fakes):
     call, sessions, tr = make([[turn_ev("hello")]])
-    tr.tail = [turn_ev("PHONE", 2.0, 3.0)]
+    tr.tail = [turn_ev("PHONE", 2.0, 3.0, speaker="Other")]
     call.feed(b"x")
     cid = call.call_id
     assert cid in sessions.runtime.states
@@ -130,7 +130,7 @@ def test_end_deletes_memory_and_emits_ended_last(fakes):
 
 
 def test_exception_in_turn_gives_error_event_and_call_continues(fakes, monkeypatch):
-    call, sessions, _ = make([[turn_ev("secret words")], [turn_ev("hello")]])
+    call, sessions, _ = make([[turn_ev("secret words")], [turn_ev("hello", speaker="Other")]])
     real = sessions.stream_turn
     state = {"n": 0}
 
@@ -159,7 +159,7 @@ def test_no_speaker_gives_reply_with_null_audio(fakes):
     assert reply["audio_wav_b64"] is None
 
 
-def test_reply_is_not_added_to_memory(fakes, monkeypatch):
+def test_reply_is_added_to_memory(fakes, monkeypatch):
     call, sessions, _ = make([[turn_ev("hello")]])
     seen = []
     real_end = sessions.end
@@ -171,4 +171,16 @@ def test_reply_is_not_added_to_memory(fakes, monkeypatch):
     monkeypatch.setattr(sessions, "end", spy)
     call.feed(b"x")
     drain_until_ended(call)
-    assert seen == [["hello"]]
+    assert seen == [["hello", REPLY]]
+
+
+def test_turns_close_together_are_merged_into_one_reply(fakes):
+    call, _, _ = make([[turn_ev("hello", 0, 1)], [turn_ev("again", 1.5, 2.5)]])
+    call.feed(b"1")
+    call.feed(b"2")
+    events = drain_until_ended(call)
+    assert types_of(events).count("turn") == 2  # the screen still shows both
+    assert [e["turn"] for e in events if e["type"] == "reply"] == [2]
+    analyze = next(e for e in events if e["type"] == "node" and e["node"] == "analyze")
+    assert analyze["data"]["transcript"] == "Caller: hello again"
+    assert [e["turn"] for e in events if e["type"] == "verdict"] == [1, 2]  # no row left pending

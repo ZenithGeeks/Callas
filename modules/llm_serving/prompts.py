@@ -15,6 +15,7 @@ PLACEHOLDER = "{context}"
 
 
 def strip_comments(raw: str) -> str:
+    """Drop lines that start with `#` and trim blank lines at both ends."""
     lines = [ln for ln in raw.splitlines() if not ln.lstrip().startswith("#")]
     return "\n".join(lines).strip("\n") + "\n"
 
@@ -34,4 +35,5 @@ def load_prompt(job: str, prompt_dir: Path = PROMPT_DIR) -> tuple[str, str]:
 
 
 def render(template: str, context: str) -> str:
+    """Put the call context into the prompt template."""
     return template.replace(PLACEHOLDER, context)

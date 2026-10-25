@@ -1,4 +1,4 @@
-"""Tool-calling sub-agents on the vLLM server (OpenAI-compatible).
+"""Tool-calling analyst agent on the vLLM server (OpenAI-compatible).
 
 The only LLM endpoint used is `settings.vllm_base_url`. Call text never goes anywhere else.
 
@@ -7,8 +7,6 @@ The analyst agent writes advisory text for the UI only. Its output never feeds
 """
 
 from __future__ import annotations
-
-import warnings
 
 import openai
 
@@ -60,23 +58,15 @@ def build_chat_model():
 
 def build_analyst_agent(model=None):
     """ReAct-style agent with the three nlp-core tools. `model` defaults to build_chat_model()."""
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 
     if model is None:
         model = build_chat_model()
-    # create_react_agent is deprecated, but `langchain` (create_agent) is not installed
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        try:
-            from langchain_core._api.deprecation import LangChainDeprecationWarning
-
-            warnings.simplefilter("ignore", LangChainDeprecationWarning)
-        except ImportError:
-            pass
-        return create_react_agent(model, TOOLS, prompt=ANALYST_PROMPT)
+    return create_agent(model, TOOLS, system_prompt=ANALYST_PROMPT)
 
 
-def _text(content) -> str:
+def _content_text(content) -> str:
+    """Text of a message whose content is a string or a list of text blocks."""
     if isinstance(content, str):
         return content
     return "".join(
@@ -88,9 +78,9 @@ def explain(text: str, agent=None) -> str:
     """Plain-Thai advice on why `text` looks risky or safe. Advisory only: never feeds decide()."""
     agent = agent or build_analyst_agent()
     try:
-        out = agent.invoke({"messages": [("user", text)]})
+        out = agent.invoke({"messages": [{"role": "user", "content": text}]})
     except openai.BadRequestError as exc:
         if "tool" in str(exc).lower():
             raise ToolCallingUnavailable(TOOL_HINT) from exc
         raise
-    return _text(out["messages"][-1].content).strip()
+    return _content_text(out["messages"][-1].content).strip()

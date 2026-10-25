@@ -1,0 +1,3750 @@
+{
+  "asr": {
+    "turns": 124,
+    "calls": 20,
+    "models": {
+      "typhoon_asr": {
+        "call_gate_and_type": {
+          "texts": 20,
+          "texts_changed_by_autocorrect": 3,
+          "gate": {
+            "off": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            },
+            "on": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            }
+          },
+          "type": {
+            "labels": [
+              "fake_authority",
+              "phishing_otp"
+            ],
+            "off": {
+              "n": 7,
+              "macro_f1": 0.8571428571428571,
+              "accuracy": 0.8571428571428571
+            },
+            "on": {
+              "n": 7,
+              "macro_f1": 0.8571428571428571,
+              "accuracy": 0.8571428571428571
+            },
+            "changed_in_scored_rows": 2,
+            "note": "scored on rows whose type is one of the model's labels"
+          }
+        },
+        "cer": 0.10759372609028309,
+        "wer": 0.16989914662529093,
+        "cer_after_autocorrect": 0.10778500382555471,
+        "reference_words": 2578,
+        "mistakes": 187,
+        "fixed": 0,
+        "changed_but_still_wrong": 3,
+        "left": 184,
+        "correct_words_broken": 0,
+        "turns_changed_by_autocorrect": 3,
+        "latency_s": {
+          "cold_words": {
+            "mean": 0.1752777064516375,
+            "p95": 0.8309388999987277,
+            "max": 6.858944700001302,
+            "turns": 124
+          },
+          "warm_cache": {
+            "mean": 0.0004040096774558826,
+            "p95": 0.0007007999993220437,
+            "max": 0.0012363000023469795,
+            "turns": 124
+          }
+        },
+        "entities": {
+          "gold_in_store": 9,
+          "asr_off": {
+            "overall": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 9,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "BANK_ACCOUNT": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 3,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MONEY": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 4,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OTP": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "URL": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          },
+          "asr_autocorrect": {
+            "overall": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 9,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "BANK_ACCOUNT": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 3,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MONEY": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 4,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OTP": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "URL": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        },
+        "cases": [
+          {
+            "call": "benign_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "มีธุระ",
+            "asr": "มิธุรัตน์",
+            "after": "มิธุรัตน์"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบ่อน",
+            "after": "โกนบ่อน"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ธน",
+            "asr": "ทน",
+            "after": "ทน"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "benign_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "แล้วจะ",
+            "asr": "แล้วว่าจะ",
+            "after": "แล้วว่าจะ"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ต่อ",
+            "asr": "ตอบ",
+            "after": "ตอบ"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "changed_wrong",
+            "ref": "พลัสอินเวสต์โทรมาแจ้งโปรโมชันแพ็กเกจ",
+            "asr": "ภาพInvestTomorrowแจ๊คโปรโมชั่นแพ็คเกจ",
+            "after": "แจ๊ด"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "ลง",
+            "asr": "ร้อง",
+            "after": "ร้อง"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "วัฒน์",
+            "asr": "วัด",
+            "after": "วัด"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ว",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ภรณ์",
+            "asr": "พร",
+            "after": "พร"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ฐานข้อมูณลูกค้า",
+            "asr": "ฐานข้อมูลค้า",
+            "after": "ฐานข้อมูลค้า"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "พลัส",
+            "asr": "พาร์ท",
+            "after": "พาร์ท"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "เวสต์",
+            "asr": "เวท",
+            "after": "เวท"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "พลัส",
+            "asr": "พลัด",
+            "after": "พลัด"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "แพ็กเกจ",
+            "asr": "แพ็คเกจ",
+            "after": "แพ็คเกจ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "แพ็กเกจ",
+            "asr": "แพ็คเกจ",
+            "after": "แพ็คเกจ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "โปรโมชัน",
+            "asr": "โปรโมชั่น",
+            "after": "โปรโมชั่น"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ว่าที่",
+            "asr": "กวาดที่",
+            "after": "กวาดที่"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "เออ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คุ้น",
+            "after": "คุ้น"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "แล้วจะ",
+            "asr": "แล้วว่าจะ",
+            "after": "แล้วว่าจะ"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ตัวตน",
+            "asr": "ทุกต้น",
+            "after": "ทุกต้น"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "กรมศุลกากร",
+            "asr": "กรมศูนย์ลากร",
+            "after": "กรมศูนย์ลากร"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 2,
+            "status": "changed_wrong",
+            "ref": "ค่าน้ำ",
+            "asr": "ขนาม",
+            "after": "ขนาด"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "85,000",
+            "asr": "แปดสิบห้าศูนย์",
+            "after": "แปดสิบห้าศูนย์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "โห85,000",
+            "asr": "หกแปดสิบห้าศูนย์",
+            "after": "หกแปดสิบห้าศูนย์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "แอปขัดข้อง",
+            "asr": "Accuscon",
+            "after": "Accuscon"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "บอก",
+            "after": "บอก"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอปดูเอง",
+            "asr": "Adduan",
+            "after": "Adduan"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "เอ",
+            "after": "เอ"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ไหม่",
+            "asr": "หาย",
+            "after": "หาย"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ไลน์",
+            "asr": "ไหล",
+            "after": "ไหล"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "งั้น",
+            "asr": "งาน",
+            "after": "งาน"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "แอดไลน์",
+            "asr": "แปดไลท์",
+            "after": "แปดไลท์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "บัญชีไลน์ชื่อ",
+            "asr": "บัญชีรายชื่อ",
+            "after": "บัญชีรายชื่อ"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "https://refund-secure50.net",
+            "asr": "ATPSREAFunceUREห้าสิบเน็ต",
+            "after": "ATPSREAFunceUREห้าสิบเน็ต"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 9,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "บอก",
+            "after": "บอก"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "นภัสสร",
+            "asr": "พระสอน",
+            "after": "พระสอน"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 1,
+            "status": "changed_wrong",
+            "ref": "ดิฉันนภัสสร",
+            "asr": "ดีฉันผสอน",
+            "after": "ดีผันผ่อน"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "โห",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่า",
+            "after": "ค่า"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "อย่าโทร",
+            "asr": "อยากถูก",
+            "after": "อยากถูก"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "เช็ก",
+            "asr": "เช็ค",
+            "after": "เช็ค"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ลับ",
+            "asr": "รัก",
+            "after": "รัก"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "แทรกแซง",
+            "asr": "แทรกแทรง",
+            "after": "แทรกแทรง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "158-5-96045-2",
+            "asr": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง",
+            "after": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "เงิน",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ค่า",
+            "after": "ค่า"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "เจ้าหน้า",
+            "asr": "เจ้าน้า",
+            "after": "เจ้าน้า"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "158-5-96045-2",
+            "asr": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง",
+            "after": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "ติฉัน",
+            "after": "ติฉัน"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "ทรัพย์ทวีแคปปิตอล",
+            "asr": "Subviแคบติร",
+            "after": "Subviแคบติร"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "30%",
+            "asr": "สามสิบ",
+            "after": "สามสิบ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "เคารพ",
+            "asr": "เข้ารบ",
+            "after": "เข้ารบ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "",
+            "asr": "ที่จริงแต่",
+            "after": "ที่จริงแต่"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "โทรมาเพราะวันนี้มีที่นั่งเหลือแค่ไม่กี่ที่จริง",
+            "after": "โทรมาเพราะวันนี้มีที่นั่งเหลือแค่ไม่กี่ที่จริง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "กี่",
+            "asr": "ขีด",
+            "after": "ขีด"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงขออภัยจริง",
+            "after": "จริงขออภัยจริง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 5,
+            "status": "left",
+            "ref": "หรอก",
+            "asr": "หลอก",
+            "after": "หลอก"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ทรัพย์ทวีแคปปิตอล",
+            "asr": "Subviแค่ปิตอร์ด",
+            "after": "Subviแค่ปิตอร์ด"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "30%",
+            "asr": "สามสิบ",
+            "after": "สามสิบ"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "30%",
+            "asr": "สามสิบ",
+            "after": "สามสิบ"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงแต่จริง",
+            "after": "จริงแต่จริง"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบอล",
+            "after": "โกนบอล"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "พาร์ทไทม์",
+            "asr": "ผ้าไทย",
+            "after": "ผ้าไทย"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "ทราบ",
+            "asr": "ทรัพย์",
+            "after": "ทรัพย์"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "ชื่อ",
+            "asr": "เชื่อ",
+            "after": "เชื่อ"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ง่ายๆ",
+            "asr": "ง่ายเป็นงานออนไลน์ง่าย",
+            "after": "ง่ายเป็นงานออนไลน์ง่าย"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "เบอร์",
+            "asr": "เบิร์ด",
+            "after": "เบิร์ด"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ง่าย",
+            "asr": "ได้",
+            "after": "ได้"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลด์เทรดดิ้ง",
+            "asr": "โกนTrading",
+            "after": "โกนTrading"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "เอ่อ",
+            "asr": "เออ",
+            "after": "เออ"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "ขุ่น",
+            "after": "ขุ่น"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "1,290",
+            "asr": "หนึ่งสองร้อยเก้าสิบ",
+            "after": "หนึ่งสองร้อยเก้าสิบ"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "742-8-78181-9",
+            "asr": "เจ็ดร้อยสี่สิบสองลบแปดลบเจ็ดหมื่นแปดพันหนึ่งร้อยแปดสิบเอ็ดลบเก้า",
+            "after": "เจ็ดร้อยสี่สิบสองลบแปดลบเจ็ดหมื่นแปดพันหนึ่งร้อยแปดสิบเอ็ดลบเก้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ชาย",
+            "asr": "ใช้",
+            "after": "ใช้"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบอล",
+            "after": "โกนบอล"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "กรุ๊ปนะ",
+            "asr": "ครุปนัก",
+            "after": "ครุปนัก"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ศิ",
+            "asr": "ซี",
+            "after": "ซี"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จีนถ้าจีน",
+            "after": "จีนถ้าจีน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "เช็ก",
+            "asr": "เช็ค",
+            "after": "เช็ค"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ตัดสิทธิ์",
+            "asr": "ตัดสิน",
+            "after": "ตัดสิน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "5",
+            "asr": "ห้า",
+            "after": "ห้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ตอนนี้รางวัล",
+            "asr": "ต่อนี้ราววัน",
+            "after": "ต่อนี้ราววัน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "5",
+            "asr": "ห้า",
+            "after": "ห้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "5",
+            "asr": "ห้า",
+            "after": "ห้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "บ๊ายบาย",
+            "asr": "บ่าย",
+            "after": "บ่าย"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบ่อน",
+            "after": "โกนบ่อน"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "นะ",
+            "asr": "นัก",
+            "after": "นัก"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "10",
+            "asr": "สิบ",
+            "after": "สิบ"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบอล",
+            "after": "โกนบอล"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "กรุ๊ป",
+            "asr": "ครุฑ",
+            "after": "ครุฑ"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "5,000",
+            "asr": "ห้าศูนย์",
+            "after": "ห้าศูนย์"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ้าว5,000บาทเหรอครับ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ลิงก์",
+            "asr": "ลิง",
+            "after": "ลิง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "สิทธิ์",
+            "asr": "สิ",
+            "after": "สิ"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "อะนะ",
+            "asr": "อานาง",
+            "after": "อานาง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "ลิงก์ตรง",
+            "asr": "ลิงปรุง",
+            "after": "ลิงปรุง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "ลิงก์",
+            "asr": "ลิง",
+            "after": "ลิง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "เช็ค",
+            "asr": "เช็ก",
+            "after": "เช็ก"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ถ้า",
+            "after": "ถ้า"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ล็อกอิน",
+            "asr": "ล็อกกิ้ง",
+            "after": "ล็อกกิ้ง"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "นะค่ะ",
+            "asr": "นะคะ",
+            "after": "นะคะ"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ล็อกอิน",
+            "asr": "หลอกยีน",
+            "after": "หลอกยีน"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ระงับ",
+            "asr": "ลำบาก",
+            "after": "ลำบาก"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ้าว",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "ชื่อ",
+            "asr": "ชิ",
+            "after": "ชิ"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ดูรายละเอียด",
+            "asr": "ดูแลละเอียด",
+            "after": "ดูแลละเอียด"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "รหัส",
+            "asr": "รหาด",
+            "after": "รหาด"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "เบอร์โทรศัพท์",
+            "asr": "โบโทรศัพท์",
+            "after": "โบโทรศัพท์"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "6หลัก",
+            "asr": "โขบลัก",
+            "after": "โขบลัก"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "บล็อก",
+            "asr": "มาล็อก",
+            "after": "มาล็อก"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "แจ้งให้ทราบ",
+            "asr": "เช่นให้ทราบ",
+            "after": "เช่นให้ทราบ"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "คุณนภัสสร",
+            "asr": "คูณพาสอ",
+            "after": "คูณพาสอ"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "รหัสOTP",
+            "asr": "รหาดโอทิพย์",
+            "after": "รหาดโอทิพย์"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ระงับ",
+            "asr": "ระมับ",
+            "after": "ระมับ"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "มาลี",
+            "asr": "มะลี",
+            "after": "มะลี"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คุ้น",
+            "after": "คุ้น"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ขาด",
+            "after": "ขาด"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "517841",
+            "asr": "ห้าแสนหนึ่งหมื่นเจ็ดพันแปดร้อยสี่สิบเอ็ด",
+            "after": "ห้าแสนหนึ่งหมื่นเจ็ดพันแปดร้อยสี่สิบเอ็ด"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "นภัสสร",
+            "asr": "พัดสอน",
+            "after": "พัดสอน"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "อรุณี",
+            "asr": "อารุนี้",
+            "after": "อารุนี้"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ค่ะนภัสสร",
+            "asr": "ค่าสอน",
+            "after": "ค่าสอน"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ชัด",
+            "asr": "ชาร์จ",
+            "after": "ชาร์จ"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "วันนี้ฉันท่องเที่ยวมาเหนื่อย",
+            "after": "วันนี้ฉันท่องเที่ยวมาเหนื่อย"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "ค่ะเหนื่อย",
+            "asr": "ค่าเหนื่อย",
+            "after": "ค่าเหนื่อย"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "นะคะมีธุระ",
+            "asr": "นาคามิธุระ",
+            "after": "นาคามิธุระ"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "พัก",
+            "asr": "ภาค",
+            "after": "ภาค"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "อยากไปหาเร็ว",
+            "after": "อยากไปหาเร็ว"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "ขุน",
+            "after": "ขุน"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คุ้น",
+            "after": "คุ้น"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ไง",
+            "asr": "นาย",
+            "after": "นาย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "ผมจำไม่ได้ชัด",
+            "after": "ผมจำไม่ได้ชัด"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "หรอ",
+            "asr": "เหรอ",
+            "after": "เหรอ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงผมจำไม่ได้จริง",
+            "after": "จริงผมจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "",
+            "asr": "จะไม่ได้จริง",
+            "after": "จะไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริง",
+            "after": "จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณ",
+            "asr": "คณะ",
+            "after": "คณะ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "เราคุยกันเรื่องเพลงที่คณะชอบฟังตอนดึก",
+            "after": "เราคุยกันเรื่องเพลงที่คณะชอบฟังตอนดึก"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณ",
+            "asr": "คณะ",
+            "after": "คณะ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "หรอ",
+            "asr": "เหรอ",
+            "after": "เหรอ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงผมจำไม่ได้จริง",
+            "after": "จริงผมจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "ค่อยๆ",
+            "asr": "ค่อยเรื่องเพลงนั้นค่อย",
+            "after": "ค่อยเรื่องเพลงนั้นค่อย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "ศุลกากร",
+            "asr": "สุรกากร",
+            "after": "สุรกากร"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "49,500",
+            "asr": "สี่สิบเก้าห้าร้อย",
+            "after": "สี่สิบเก้าห้าร้อย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 9,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "นาน",
+            "asr": "นั้น",
+            "after": "นั้น"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "49,500",
+            "asr": "สี่สิบเก้าห้าร้อย",
+            "after": "สี่สิบเก้าห้าร้อย"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "นะ",
+            "asr": "น่า",
+            "after": "น่า"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ไง",
+            "asr": "ใน",
+            "after": "ใน"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "หรอ",
+            "asr": "เหรอ",
+            "after": "เหรอ"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "หา",
+            "asr": "หาก",
+            "after": "หาก"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ในแอปนั้น",
+            "asr": "ได้แอน",
+            "after": "ได้แอน"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอปหาคู่",
+            "asr": "แอร์หากคู่",
+            "after": "แอร์หากคู่"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "เช็ก",
+            "asr": "เช็ค",
+            "after": "เช็ค"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "นิดหนึ่ง",
+            "asr": "นิดนึง",
+            "after": "นิดนึง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "นะคะ",
+            "asr": "นักค้า",
+            "after": "นักค้า"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงคิดถึงคุณมากเลยจริง",
+            "after": "จริงคิดถึงคุณมากเลยจริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงดิฉันจำไม่ได้จริง",
+            "after": "จริงดิฉันจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงขออภัยจริง",
+            "after": "จริงขออภัยจริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คู่",
+            "after": "คู่"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ต่างประเทศ",
+            "asr": "ทั้งประเทศ",
+            "after": "ทั้งประเทศ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอปหาคู่",
+            "asr": "แอร์หากคู่",
+            "after": "แอร์หากคู่"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 5,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คูณ",
+            "after": "คูณ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณึ",
+            "asr": "คณื้อ",
+            "after": "คณื้อ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณึ",
+            "asr": "คณื้อ",
+            "after": "คณื้อ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ติด",
+            "asr": "ถิต",
+            "after": "ถิต"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ศุลกากร",
+            "asr": "ศูนย์กากร",
+            "after": "ศูนย์กากร"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 7,
+            "status": "left",
+            "ref": "คุณ",
+            "asr": "คุ้น",
+            "after": "คุ้น"
+          }
+        ],
+        "broken": [],
+        "wer_after_autocorrect": 0.16951124903025602
+      },
+      "typhoon_nemotron_asr": {
+        "call_gate_and_type": {
+          "texts": 20,
+          "texts_changed_by_autocorrect": 4,
+          "gate": {
+            "off": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            },
+            "on": {
+              "n": 20,
+              "macro_f1": 0.803921568627451,
+              "accuracy": 0.9
+            }
+          },
+          "type": {
+            "labels": [
+              "fake_authority",
+              "phishing_otp"
+            ],
+            "off": {
+              "n": 7,
+              "macro_f1": 0.7083333333333333,
+              "accuracy": 0.7142857142857143
+            },
+            "on": {
+              "n": 7,
+              "macro_f1": 0.7083333333333333,
+              "accuracy": 0.7142857142857143
+            },
+            "changed_in_scored_rows": 0,
+            "note": "scored on rows whose type is one of the model's labels"
+          }
+        },
+        "cer": 0.1222264728385616,
+        "wer": 0.21450737005430567,
+        "cer_after_autocorrect": 0.12270466717674063,
+        "reference_words": 2578,
+        "mistakes": 234,
+        "fixed": 0,
+        "changed_but_still_wrong": 4,
+        "left": 230,
+        "correct_words_broken": 0,
+        "turns_changed_by_autocorrect": 4,
+        "latency_s": {
+          "cold_words": {
+            "mean": 0.09062516532268942,
+            "p95": 0.7722083999979077,
+            "max": 2.051719300001423,
+            "turns": 124
+          },
+          "warm_cache": {
+            "mean": 0.0004251072581199321,
+            "p95": 0.0007497000005969312,
+            "max": 0.0010034000006271526,
+            "turns": 124
+          }
+        },
+        "entities": {
+          "gold_in_store": 9,
+          "asr_off": {
+            "overall": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 9,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "BANK_ACCOUNT": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 3,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MONEY": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 4,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OTP": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "URL": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          },
+          "asr_autocorrect": {
+            "overall": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 9,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "BANK_ACCOUNT": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 3,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MONEY": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 4,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OTP": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "URL": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        },
+        "cases": [
+          {
+            "call": "benign_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "หลาน",
+            "asr": "นาน",
+            "after": "นาน"
+          },
+          {
+            "call": "benign_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "มีธุระจะถาม",
+            "asr": "มีธุรัตฐาน",
+            "after": "มีธุรัตฐาน"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "สวัสดี",
+            "asr": "สวัสดิ",
+            "after": "สวัสดิ"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "กลบ",
+            "after": "กลบ"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ธนพล",
+            "asr": "ทนผล",
+            "after": "ทนผล"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ผอม",
+            "after": "ผอม"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "แล้วจะ",
+            "asr": "และว่าจะ",
+            "after": "และว่าจะ"
+          },
+          {
+            "call": "benign_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "พลัส",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "เวสต์โทร",
+            "asr": "เวทโธ",
+            "after": "เวทโธ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "โปรโมชันแพ็กเกจ",
+            "asr": "โปรโมชั่นแพ็คเกจ",
+            "after": "โปรโมชั่นแพ็คเกจ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "ลง",
+            "asr": "โกรธ",
+            "after": "โกรธ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "ชัยวัฒน์",
+            "asr": "ใช้วัตร",
+            "after": "ใช้วัตร"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ว",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ภรณ์",
+            "asr": "พร",
+            "after": "พร"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ฐานข้อมูณลูกค้า",
+            "asr": "ฐานข้อมูล",
+            "after": "ฐานข้อมูล"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "พลัสอินเวสต์",
+            "asr": "Invest",
+            "after": "Invest"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "จำ",
+            "asr": "จะ",
+            "after": "จะ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "พลัส",
+            "asr": "พลัด",
+            "after": "พลัด"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "แพ็กเกจ",
+            "asr": "แพ็คเกจ",
+            "after": "แพ็คเกจ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "แพ็กเกจ",
+            "asr": "แท็กเกจ",
+            "after": "แท็กเกจ"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "โปรโมชัน",
+            "asr": "โปรโมชั่น",
+            "after": "โปรโมชั่น"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ถูกกว่าที่",
+            "asr": "ถูกกวาดที่",
+            "after": "ถูกกวาดที่"
+          },
+          {
+            "call": "benign_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "เออ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "benign_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "โทรมาหรอก",
+            "asr": "โทรอรส",
+            "after": "โทรอรส"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "ศุลกากร",
+            "asr": "ศูนย์กากร",
+            "after": "ศูนย์กากร"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "กรมศุลกากร",
+            "asr": "กรมศูนย์ละกากร",
+            "after": "กรมศูนย์ละกากร"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "แล้วจะ",
+            "asr": "แล้วว่าจะ",
+            "after": "แล้วว่าจะ"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "กรมศุลกากร",
+            "asr": "กรมสุรกากร",
+            "after": "กรมสุรกากร"
+          },
+          {
+            "call": "fake_authority_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "",
+            "asr": "ได้",
+            "after": "ได้"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ค่าน้ำไฟ",
+            "asr": "ขนาดฝ่าย",
+            "after": "ขนาดฝ่าย"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "85,000",
+            "asr": "แปดสิบห้าศูนย์",
+            "after": "แปดสิบห้าศูนย์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "โห85,000",
+            "asr": "หกแปดสิบห้าศูนย์",
+            "after": "หกแปดสิบห้าศูนย์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "แอปขัดข้อง",
+            "asr": "แอร์คัดคอม",
+            "after": "แอร์คัดคอม"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "กรอบ",
+            "after": "กรอบ"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "สะดวก",
+            "asr": "สะดว",
+            "after": "สะดว"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "ไลน์",
+            "asr": "ไลท์",
+            "after": "ไลท์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "เอ๊",
+            "after": "เอ๊"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ไหม่",
+            "asr": "หาย",
+            "after": "หาย"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ไลน์",
+            "asr": "ไลค์",
+            "after": "ไลค์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "งั้น",
+            "asr": "งาน",
+            "after": "งาน"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "ไลน์",
+            "asr": "ไลฟ์",
+            "after": "ไลฟ์"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "บัญชีไลน์ชื่อ",
+            "asr": "บัญชีรายชื่อ",
+            "after": "บัญชีรายชื่อ"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "https://refund-secure50.netครับ",
+            "asr": "ATTพีSIFafFundSecasiCup",
+            "after": "ATTพีSIFafFundSecasiCup"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 9,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ออก",
+            "after": "ออก"
+          },
+          {
+            "call": "fake_authority_00001",
+            "turn": 9,
+            "status": "left",
+            "ref": "วาง",
+            "asr": "วัง",
+            "after": "วัง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "นภัสสร",
+            "asr": "ผ่อน",
+            "after": "ผ่อน"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "ดิฉันนภัสสรค่ะ",
+            "asr": "ดีฉันผส.ค่า",
+            "after": "ดีฉันผส.ค่า"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ใครเด็ดขาด",
+            "asr": "เครดิตขาด",
+            "after": "เครดิตขาด"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "โห",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "คะดิฉัน",
+            "asr": "ค่าติดชั้น",
+            "after": "ค่าติดชั้น"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "เช็ก",
+            "asr": "เช็ค",
+            "after": "เช็ค"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ลับ",
+            "asr": "รับ",
+            "after": "รับ"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "แทรกแซง",
+            "asr": "แทรกแสง",
+            "after": "แทรกแสง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "158-5-96045-2",
+            "asr": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง",
+            "after": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "เงิน",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ค่า",
+            "after": "ค่า"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "จับกุม",
+            "asr": "จับกลุ่ม",
+            "after": "จับกลุ่ม"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "158-5-96045-2",
+            "asr": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง",
+            "after": "หนึ่งร้อยห้าสิบแปดลบห้าลบเก้าหมื่นหกพันสี่สิบห้าลบสอง"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "ฉัน",
+            "after": "ฉัน"
+          },
+          {
+            "call": "fake_authority_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "หรอก",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "investment_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "แคปปิตอล",
+            "asr": "แค่ติดต่อ",
+            "after": "แค่ติดต่อ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "คงที่30%",
+            "asr": "คงที่สามสิทธิ์",
+            "after": "คงที่สามสิทธิ์"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "เคารพความระมัดระวัง",
+            "asr": "เข้ารบความระมาตะวัง",
+            "after": "เข้ารบความระมาตะวัง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะแต่ที่โทรมาเพราะวันนี้ที่นั่งเหลือแค่ไม่กี่ที่จริง",
+            "after": "ค่ะแต่ที่โทรมาเพราะวันนี้ที่นั่งเหลือแค่ไม่กี่ที่จริง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ที่จริงๆ",
+            "asr": "ที่จริง",
+            "after": "ที่จริง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "หรอก",
+            "asr": "รอก",
+            "after": "รอก"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "กี่",
+            "asr": "ขีด",
+            "after": "ขีด"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงขออภัยจริง",
+            "after": "จริงขออภัยจริง"
+          },
+          {
+            "call": "investment_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "จับคู่",
+            "asr": "จะคู่",
+            "after": "จะคู่"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ทรัพย์",
+            "asr": "ซัป",
+            "after": "ซัป"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "แคปปิตอล",
+            "asr": "เครน",
+            "after": "เครน"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ที่นั่ง",
+            "asr": "ที่ณ",
+            "after": "ที่ณ"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "30%",
+            "asr": "สามสิบ",
+            "after": "สามสิบ"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "30%",
+            "asr": "สามสิบ",
+            "after": "สามสิบ"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงแต่จริง",
+            "after": "จริงแต่จริง"
+          },
+          {
+            "call": "investment_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "หอม",
+            "after": "หอม"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "สวัสดี",
+            "asr": "สวัสดิ",
+            "after": "สวัสดิ"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบอล",
+            "after": "โกนบอล"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "กรุ๊ป",
+            "asr": "กร",
+            "after": "กร"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "พาร์ทไทม์",
+            "asr": "ผ้าไทย",
+            "after": "ผ้าไทย"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "ว่างาน",
+            "asr": "ว่างงาน",
+            "after": "ว่างงาน"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 1,
+            "status": "left",
+            "ref": "ชื่อ",
+            "asr": "เชื่อ",
+            "after": "เชื่อ"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ง่ายๆ",
+            "asr": "ง่ายเป็นงานออนไลน์ง่าย",
+            "after": "ง่ายเป็นงานออนไลน์ง่าย"
+          },
+          {
+            "call": "investment_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "แนะนำ",
+            "asr": "ในนาม",
+            "after": "ในนาม"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "สวัสดี",
+            "asr": "สวัสดิ",
+            "after": "สวัสดิ"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลด์เทรดดิ้งครับผม",
+            "asr": "GoodTredingผม",
+            "after": "GoodTredingผม"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "เอ่อ",
+            "asr": "เออ",
+            "after": "เออ"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "อีกที",
+            "asr": "อีกที่",
+            "after": "อีกที่"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "1,290",
+            "asr": "หนึ่งสองร้อยเก้าสิบ",
+            "after": "หนึ่งสองร้อยเก้าสิบ"
+          },
+          {
+            "call": "lottery_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "742-8-78181-9",
+            "asr": "เจ็ดร้อยสี่สิบสองลบแปดลบเจ็ดหมื่นแปดพันหนึ่งร้อยแปดสิบเอ็ดลบเก้า",
+            "after": "เจ็ดร้อยสี่สิบสองลบแปดลบเจ็ดหมื่นแปดพันหนึ่งร้อยแปดสิบเอ็ดลบเก้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ชาย",
+            "asr": "ใช้",
+            "after": "ใช้"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "กลอน",
+            "after": "กลอน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "กรุ๊ปนะ",
+            "asr": "กรับ",
+            "after": "กรับ"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "ศิริพร",
+            "asr": "สิริพอร์ต",
+            "after": "สิริพอร์ต"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จีนท่าจีน",
+            "after": "จีนท่าจีน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 1,
+            "status": "left",
+            "ref": "นั้นเอง",
+            "asr": "นั่นเอง",
+            "after": "นั่นเอง"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "เช็กหรอก",
+            "asr": "เช็คกรอก",
+            "after": "เช็คกรอก"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ตัดสิทธิ์",
+            "asr": "ตัดสิน",
+            "after": "ตัดสิน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "5นา",
+            "asr": "ห้าณ",
+            "after": "ห้าณ"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ตอนนี้รางวัล",
+            "asr": "ต่อนี้ราวัน",
+            "after": "ต่อนี้ราวัน"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "5",
+            "asr": "ห้า",
+            "after": "ห้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "5",
+            "asr": "ห้า",
+            "after": "ห้า"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "ไม่เป็นไร",
+            "asr": "ไม่เป็นราย",
+            "after": "ไม่เป็นราย"
+          },
+          {
+            "call": "lottery_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "บ๊ายบาย",
+            "asr": "บ่าย",
+            "after": "บ่าย"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "โกลบอลวินกรุ๊ปนะครับ",
+            "asr": "โกบอลวินกรัด",
+            "after": "โกบอลวินกรัด"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "ถูกรางวัล",
+            "asr": "ทุกรางวัน",
+            "after": "ทุกรางวัน"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "10",
+            "asr": "สิบ",
+            "after": "สิบ"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "โกลบอล",
+            "asr": "โกนบ่อน",
+            "after": "โกนบ่อน"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "กรุ๊ป",
+            "asr": "กร",
+            "after": "กร"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "5,000",
+            "asr": "ห้าศูนย์",
+            "after": "ห้าศูนย์"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 3,
+            "status": "changed_wrong",
+            "ref": "อ้าว5,000",
+            "asr": "เอ้าห้าศูนย์",
+            "after": "เจ้าหน้า"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ลิงก์",
+            "asr": "ลิง",
+            "after": "ลิง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "สิทธิ์",
+            "asr": "สิ่ง",
+            "after": "สิ่ง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "ลิงก์",
+            "asr": "ลิง",
+            "after": "ลิง"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "เยอะนะ",
+            "asr": "เย้ยอนาค",
+            "after": "เย้ยอนาค"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "กลับ",
+            "asr": "กับ",
+            "after": "กับ"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "ส่งลิงก์ตรง",
+            "asr": "สูงยิงกลุ่ม",
+            "after": "สูงยิงกลุ่ม"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "ไม่งั้น",
+            "asr": "ไม่นั้น",
+            "after": "ไม่นั้น"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "จะหลุด",
+            "asr": "สรุป",
+            "after": "สรุป"
+          },
+          {
+            "call": "lottery_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "ลิงก์",
+            "asr": "ลิง",
+            "after": "ลิง"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "กรุงศรีอยุธยา",
+            "asr": "กรุงศรีอายุยา",
+            "after": "กรุงศรีอายุยา"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ค่า",
+            "after": "ค่า"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค้า",
+            "after": "ค้า"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "พยายาม",
+            "asr": "ไปยายยาม",
+            "after": "ไปยายยาม"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "คุณค่ะ",
+            "asr": "คุณค่า",
+            "after": "คุณค่า"
+          },
+          {
+            "call": "phishing_otp_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "นะค่ะ",
+            "asr": "นะคะ",
+            "after": "นะคะ"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "สวัสดี",
+            "asr": "สวัสดิ",
+            "after": "สวัสดิ"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 0,
+            "status": "left",
+            "ref": "เจ้าหน้าที่",
+            "asr": "เจ้าน่าที่",
+            "after": "เจ้าน่าที่"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ล็อกอิน",
+            "asr": "ลอกิน",
+            "after": "ลอกิน"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "ระงับ",
+            "asr": "รับ",
+            "after": "รับ"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ้าว",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ดูรายละเอียด",
+            "asr": "ดูแล",
+            "after": "ดูแล"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "ส่ง",
+            "asr": "สง",
+            "after": "สง"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "6",
+            "asr": "โข",
+            "after": "โข"
+          },
+          {
+            "call": "phishing_otp_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "บล็อก",
+            "asr": "มาล็อก",
+            "after": "มาล็อก"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "ตรวจ",
+            "asr": "จวบ",
+            "after": "จวบ"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "นภัสสร",
+            "asr": "พาร์ทซ์",
+            "after": "พาร์ทซ์"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 0,
+            "status": "left",
+            "ref": "รู้จัก",
+            "asr": "รู้จะ",
+            "after": "รู้จะ"
+          },
+          {
+            "call": "phishing_otp_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "ระงับ",
+            "asr": "ระมัด",
+            "after": "ระมัด"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "มาลี",
+            "asr": "มะลี",
+            "after": "มะลี"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "ค่ะ",
+            "asr": "ขาด",
+            "after": "ขาด"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "517841",
+            "asr": "ห้าแสนหนึ่งหมื่นเจ็ดพันแปดร้อยสี่สิบเอ็ด",
+            "after": "ห้าแสนหนึ่งหมื่นเจ็ดพันแปดร้อยสี่สิบเอ็ด"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ค่ะดิฉัน",
+            "asr": "ขณะ",
+            "after": "ขณะ"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ได้ระงับ",
+            "asr": "ได้รับ",
+            "after": "ได้รับ"
+          },
+          {
+            "call": "phishing_otp_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "เรียบร้อยแล้วค่ะ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00000",
+            "turn": 0,
+            "status": "changed_wrong",
+            "ref": "นภัสสร",
+            "asr": "พัทสอน",
+            "after": "พังพอน"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "จัง",
+            "asr": "จ้าง",
+            "after": "จ้าง"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 0,
+            "status": "left",
+            "ref": "วันนี้",
+            "asr": "ว่านี้",
+            "after": "ว่านี้"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "ค่ะนภัสสร",
+            "asr": "ค่าพัดศร",
+            "after": "ค่าพัดศร"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 1,
+            "status": "left",
+            "ref": "เสียงชัดดี",
+            "asr": "เสียงดี",
+            "after": "เสียงดี"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ชัด",
+            "asr": "ชัช",
+            "after": "ชัช"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ฉัน",
+            "asr": "ชั้น",
+            "after": "ชั้น"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "",
+            "asr": "ในวันนี้ชั้นเทียวมา",
+            "after": "ในวันนี้ชั้นเทียวมา"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_00000",
+            "turn": 2,
+            "status": "left",
+            "ref": "อยาก",
+            "asr": "อย่า",
+            "after": "อย่า"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "ค่ะเหนื่อย",
+            "asr": "ค่าเหนือ",
+            "after": "ค่าเหนือ"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 3,
+            "status": "left",
+            "ref": "พักนะคะมีธุระ",
+            "asr": "พรรคนาคมีทุรา",
+            "after": "พรรคนาคมีทุรา"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "พัก",
+            "asr": "พรรค",
+            "after": "พรรค"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "",
+            "asr": "ไปหารืออยาก",
+            "after": "ไปหารืออยาก"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 4,
+            "status": "left",
+            "ref": "เร็วๆ",
+            "asr": "เรียว",
+            "after": "เรียว"
+          },
+          {
+            "call": "romance_00000",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ออก",
+            "after": "ออก"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอปหาคู่ไง",
+            "asr": "เอหัสคู่ไหน",
+            "after": "เอหัสคู่ไหน"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ผอม",
+            "after": "ผอม"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 3,
+            "status": "left",
+            "ref": "ๆ",
+            "asr": "ผมจำไม่ได้ชัด",
+            "after": "ผมจำไม่ได้ชัด"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 4,
+            "status": "left",
+            "ref": "สมชาย",
+            "asr": "สงชัย",
+            "after": "สงชัย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "ชายหรอ",
+            "asr": "ชัยรอ",
+            "after": "ชัยรอ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 5,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงผมจำไม่ได้จริง",
+            "after": "จริงผมจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "",
+            "asr": "จะไม่ได้จริง",
+            "after": "จะไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริง",
+            "after": "จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณ",
+            "asr": "คณะ",
+            "after": "คณะ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "ตอนดึกๆ",
+            "asr": "ต่อเด็ดเราคุยกันเรื่องเพลงที่คณะชอบฟังต่อดึก",
+            "after": "ต่อเด็ดเราคุยกันเรื่องเพลงที่คณะชอบฟังต่อดึก"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณ",
+            "asr": "คณะ",
+            "after": "คณะ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 6,
+            "status": "left",
+            "ref": "หู",
+            "asr": "ขู่",
+            "after": "ขู่"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ออก",
+            "after": "ออก"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "หรอ",
+            "asr": "หรอก",
+            "after": "หรอก"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงผมจำไม่ได้จริง",
+            "after": "จริงผมจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 7,
+            "status": "left",
+            "ref": "กัน",
+            "asr": "กับ",
+            "after": "กับ"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "ค่อยๆ",
+            "asr": "ค่อยเรื่องเพลงนั้นค่อย",
+            "after": "ค่อยเรื่องเพลงนั้นค่อย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "ศุลกากร",
+            "asr": "ศูนย์กากร",
+            "after": "ศูนย์กากร"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 8,
+            "status": "left",
+            "ref": "49,500",
+            "asr": "สี่สิบเก้าห้าร้อย",
+            "after": "สี่สิบเก้าห้าร้อย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 9,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "ป๋อง",
+            "after": "ป๋อง"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "นาน",
+            "asr": "นั้น",
+            "after": "นั้น"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "ตอนนี้",
+            "asr": "ต่อนี้",
+            "after": "ต่อนี้"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "ทำลาย",
+            "asr": "ทำร้าย",
+            "after": "ทำร้าย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "49,500",
+            "asr": "สี่สิบเก้าห้าร้อย",
+            "after": "สี่สิบเก้าห้าร้อย"
+          },
+          {
+            "call": "romance_00001",
+            "turn": 10,
+            "status": "left",
+            "ref": "เดี๋ยวนี้",
+            "asr": "เดียวนี้",
+            "after": "เดียวนี้"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "สุภา",
+            "asr": "สุภาพ",
+            "after": "สุภาพ"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 2,
+            "status": "left",
+            "ref": "แอปหาคู่ไง",
+            "asr": "แอร์หากุ้งใน",
+            "after": "แอร์หากุ้งใน"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 3,
+            "status": "left",
+            "ref": "แอปหาคู่",
+            "asr": "แอร์หักคู่",
+            "after": "แอร์หักคู่"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "changed_wrong",
+            "ref": "อ้าวผม",
+            "asr": "เอ้าผม",
+            "after": "เข้าผม"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "หรอ",
+            "asr": "เหรอ",
+            "after": "เหรอ"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "หา",
+            "asr": "หาก",
+            "after": "หาก"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 4,
+            "status": "left",
+            "ref": "ในแอปนั้น",
+            "asr": "ได้แอน",
+            "after": "ได้แอน"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอปหาคู่",
+            "asr": "เอหัสคู่",
+            "after": "เอหัสคู่"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "dichan",
+            "after": "dichan"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "Eand",
+            "after": "Eand"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "เช็ก",
+            "asr": "เช็ค",
+            "after": "เช็ค"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "แอป",
+            "asr": "แอร์",
+            "after": "แอร์"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "สุภา",
+            "asr": "สุภาพ",
+            "after": "สุภาพ"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 6,
+            "status": "left",
+            "ref": "ศุลกากร",
+            "asr": "ศูนย์ละกากร",
+            "after": "ศูนย์ละกากร"
+          },
+          {
+            "call": "romance_00002",
+            "turn": 7,
+            "status": "left",
+            "ref": "รู้จัก",
+            "asr": "รู้จาก",
+            "after": "รู้จาก"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 0,
+            "status": "left",
+            "ref": "สุภา",
+            "asr": "สุภาพ",
+            "after": "สุภาพ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "สุภา",
+            "asr": "สุภาพ",
+            "after": "สุภาพ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "คะขออภัย",
+            "asr": "คอร์ภัย",
+            "after": "คอร์ภัย"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "คะดิฉัน",
+            "asr": "ค่าdistin",
+            "after": "ค่าdistin"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 1,
+            "status": "left",
+            "ref": "สุภาพร",
+            "asr": "สุภาคร",
+            "after": "สุภาคร"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "สุภา",
+            "asr": "สุภาพ",
+            "after": "สุภาพ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "พูดผิด",
+            "asr": "ผู้ผิด",
+            "after": "ผู้ผิด"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "นิดหนึ่ง",
+            "asr": "นิดนึง",
+            "after": "นิดนึง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "นะคะ",
+            "asr": "นะคิดถึงคุณแม่เลยจริง",
+            "after": "นะคิดถึงคุณแม่เลยจริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 2,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริง",
+            "after": "จริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "จริงๆ",
+            "asr": "จริงดิฉันจำไม่ได้จริง",
+            "after": "จริงดิฉันจำไม่ได้จริง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "คะ",
+            "asr": "ค่ะ",
+            "after": "ค่ะ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 3,
+            "status": "left",
+            "ref": "โทร",
+            "asr": "อาทม",
+            "after": "อาทม"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "จริงๆนะคะสุภาพรดิฉัน",
+            "asr": "จริงขออภัยจริงนาคาสุณ",
+            "after": "จริงขออภัยจริงนาคาสุณ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ในแอปหาคู่เมื่อไม่นานมานี้",
+            "asr": "ไอเอหัสคู่เมืองไม่นานมานี้",
+            "after": "ไอเอหัสคู่เมืองไม่นานมานี้"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "Disn",
+            "after": "Disn"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 4,
+            "status": "left",
+            "ref": "ต่างประเทศ",
+            "asr": "ทั้งประเทศ",
+            "after": "ทั้งประเทศ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 5,
+            "status": "left",
+            "ref": "อ๋อ",
+            "asr": "",
+            "after": ""
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 5,
+            "status": "left",
+            "ref": "แอปหาคู่",
+            "asr": "เอหัสคู่",
+            "after": "เอหัสคู่"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "changed_wrong",
+            "ref": "ศุลกากร",
+            "asr": "ศูนย์กรากรณ์",
+            "after": "ศูนย์กลาง"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "ปีชั้น",
+            "after": "ปีชั้น"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณึอาจ",
+            "asr": "คณะ",
+            "after": "คณะ"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "อดทน",
+            "asr": "Oฐทุน",
+            "after": "Oฐทุน"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ดิฉัน",
+            "asr": "Distian",
+            "after": "Distian"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ดิฉันโทรมา",
+            "asr": "dentTomal",
+            "after": "dentTomal"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "คณึ",
+            "asr": "คณึก",
+            "after": "คณึก"
+          },
+          {
+            "call": "romance_teacher_cm_00050",
+            "turn": 6,
+            "status": "left",
+            "ref": "ติด",
+            "asr": "",
+            "after": ""
+          }
+        ],
+        "broken": [],
+        "wer_after_autocorrect": 0.212955779674166
+      }
+    },
+    "first_autocorrect_call_s": 1.513125299999956,
+    "known_bad_fix": {
+      "typo": "โอนเงนิ",
+      "pythainlp_correct": "ถอนเงิน",
+      "autocorrect_text": "ถอนเงิน"
+    }
+  },
+  "texts": 55,
+  "texts_changed_by_autocorrect": 0,
+  "gate": {
+    "off": {
+      "n": 55,
+      "macro_f1": 0.9520905923344948,
+      "accuracy": 0.9636363636363636
+    },
+    "on": {
+      "n": 55,
+      "macro_f1": 0.9520905923344948,
+      "accuracy": 0.9636363636363636
+    }
+  },
+  "type": {
+    "labels": [
+      "fake_authority",
+      "phishing_otp"
+    ],
+    "off": {
+      "n": 39,
+      "macro_f1": 0.8615384615384616,
+      "accuracy": 0.9230769230769231
+    },
+    "on": {
+      "n": 39,
+      "macro_f1": 0.8615384615384616,
+      "accuracy": 0.9230769230769231
+    },
+    "changed_in_scored_rows": 0,
+    "note": "scored on rows whose type is one of the model's labels"
+  },
+  "entities": {
+    "texts": 55,
+    "gold_entities_in_test_csv": 0,
+    "found_off": {
+      "MONEY": 45
+    },
+    "found_on": {
+      "MONEY": 45
+    },
+    "texts_with_different_entities": 0,
+    "vs_each_other": {
+      "overall": {
+        "tp": 45,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "MONEY": {
+        "tp": 45,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "note": "The entities column of test.csv is empty for every row, so there is no gold to score against. The table compares the entities found with autocorrect on to those found with it off (off treated as the reference)."
+  },
+  "wall_time_s": {
+    "all": 97.76601650000157
+  },
+  "matches_notebook_metrics": true
+}

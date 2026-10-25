@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from nlp_core.types import Entity, NLPResult
 
@@ -17,6 +17,7 @@ from .templates import pick_template
 
 
 def load_result(path: str) -> NLPResult:
+    """Read an NLPResult from a JSON file. Missing fields get safe defaults."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     return NLPResult(
@@ -29,6 +30,7 @@ def load_result(path: str) -> NLPResult:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the CLI. Prints the decision as JSON and returns the exit code."""
     p = argparse.ArgumentParser(description="Decide and, for benign calls, speak a reply.")
     p.add_argument("--nlp-result", required=True, help="NLPResult JSON file")
     p.add_argument("--out", required=True, help="output WAV path")
@@ -48,10 +50,11 @@ def main(argv: list[str] | None = None) -> int:
             except ImportError as exc:
                 print(f"error: --llm needs llm_serving.client.LLMClient ({exc})", file=sys.stderr)
                 return 2
-            decision.reply_text, decision.template_used = safe_reply(result, state, LLMClient())
+            text, template_used = safe_reply(result, state, LLMClient())
         else:
-            decision.reply_text, decision.template_used = pick_template(result), True
-        Speaker().synthesize(decision.reply_text, args.out)
+            text, template_used = pick_template(result), True
+        decision = replace(decision, reply_text=text, template_used=template_used)
+        Speaker().synthesize(text, args.out)
 
     print(json.dumps(asdict(decision)))
     return 0

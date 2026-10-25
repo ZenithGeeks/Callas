@@ -11,6 +11,7 @@ SAMPLE = "สวัสดีครับ พรุ่งนี้เจอกั
 
 
 def main() -> int:
+    """Print the server, its models and one classify call. Return 1 if it is unreachable."""
     try:
         client = LLMClient()
         print(f"base url: {client.base_url}")
