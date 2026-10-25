@@ -1,0 +1,6 @@
+# One post inside the batch message of llm_labeler.py. Lines starting with # are comments and are not sent.
+# {post_id} is the post's id; {title} and {content} are its title and shortened content.
+# All posts of one batch are joined with a blank line and sent as a single user message.
+[{post_id}]
+Title: {title}
+Content: {content}
