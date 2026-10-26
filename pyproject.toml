@@ -44,12 +44,6 @@ data = [
     "pythainlp>=5.0",
     "scipy>=1.11",
 ]
-scrape = [
-    "requests>=2.32",
-    "beautifulsoup4>=4.12",
-    "pandas>=2.2",
-    "ipykernel>=6.29",
-]
 # Local tracing client. The Phoenix server runs outside this venv; see README "Tracing".
 trace = [
     "arize-phoenix-otel>=0.17",
