@@ -261,6 +261,19 @@ def test_a_taken_seed_is_refused_and_empty_takes_the_next_free_one(client):
     assert "phishing_otp_00001" in start(client).text
 
 
+def test_empty_seed_skips_a_stopped_call_from_another_config(client, tmp_path):
+    start(client, call_type="benign", seed="0")
+    wait_idle(studio.BOARD)
+    record = saved(tmp_path, "benign_00000")
+    record["generation"]["status"] = "in_progress"
+    record["generation"]["config_hash"] = "old-config"
+    Store(tmp_path / "calls.db").save(record)
+
+    response = start(client, call_type="benign")
+    assert response.status_code == 200 and "benign_00001" in response.text
+    wait_idle(studio.BOARD)
+
+
 def test_a_scenario_and_a_saved_person_are_used(client, tmp_path):
     key = studio._config().scenarios.scams["phishing_otp"][-1].key
     start(client, scenario=key, receiver="teacher_cm", seed="7")
