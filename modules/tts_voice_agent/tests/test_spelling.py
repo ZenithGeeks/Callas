@@ -1,6 +1,6 @@
 import pytest
 
-from tts_voice_agent.spelling import looks_misspelled
+from tts_voice_agent.spelling import looks_misspelled, spelling_problems
 from tts_voice_agent.templates import TEMPLATES
 
 # Real replies from qwen3.8-27b-fp8 during DSPy tuning.
@@ -23,6 +23,17 @@ def test_garbled_thai_is_caught(text):
 @pytest.mark.parametrize("text", CLEAN + list(TEMPLATES))
 def test_clean_thai_passes(text):
     assert not looks_misspelled(text)
+
+
+def test_repeat_mark_and_single_characters_are_not_flagged():
+    # ๆ (repeat mark) and stray single characters are tokeniser noise, not misspellings
+    assert spelling_problems("ครับๆ") == []
+    assert spelling_problems("ป") == []
+
+
+def test_a_real_misspelling_is_still_flagged():
+    # ธรรมเนียม written as ธรรมเนียว must still be caught
+    assert "เนียว" in spelling_problems("ต้องจ่ายค่าธรรมเนียวก่อน")
 
 
 def test_safe_reply_uses_template_for_garbled_thai():

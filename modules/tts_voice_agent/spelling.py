@@ -26,8 +26,12 @@ def spelling_problems(text: str) -> list[str]:
     from pythainlp.tokenize import word_tokenize
 
     words = _words()
+    # A single Thai character (a tokeniser fragment) and the repeat mark ๆ are not misspellings;
+    # flagging them was noise that buried the real typos. Only words of 2+ characters are checked.
     return [
-        t for t in word_tokenize(text, engine="newmm") if _THAI.search(t) and t.strip() not in words
+        token
+        for t in word_tokenize(text, engine="newmm")
+        if _THAI.search(token := t.strip()) and len(token) > 1 and token not in words
     ]
 
 

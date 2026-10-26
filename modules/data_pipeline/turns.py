@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 import dspy
 import openai
@@ -27,6 +28,7 @@ from .fill import (
     SLOT_RE,
     SlotFiller,
     receiver_leaks,
+    self_identity_question,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -62,6 +64,8 @@ def write_turn(
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
+        if self_identity_question(raw):
+            problems.append("self_identity_question")
     if not text:
         problems.append("empty_line")
     return Turn(
@@ -117,7 +121,7 @@ def receiver_says(
         # the profile key is for choosing a profile on the command line, not for the model
         persona=call.receiver.model_dump(exclude={"key"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
-        stage=stage(config, len(turns) // 2),
+        stage=stage(config, len(turns) // 2, call.receiver),
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)
@@ -255,10 +259,41 @@ def pacing(call: CallConfig, config: Config, own_turn: int) -> str:
     return text.format(turn=own_turn + 1, turns=last + 1)
 
 
-def stage(config: Config, own_turn: int) -> str:
-    """Tell the receiver whether it must still stay on the line or may react as it likes."""
+# How long a persona stays on a cold call before they may hang up mirrors why people get
+# scammed: someone who does not know the scam pattern, trusts easily, or is sure they could
+# never be fooled keeps talking (and is the one who gets scammed); someone who knows the
+# warnings cuts the call early. It is a hint floor, not a hard block: the model can still end
+# the call sooner in character.
+_TEMPERAMENT_STAY = {"trusting": 4, "unsure": 2, "busy": 0, "skeptical": 0}
+
+
+def stay_on_line_for(receiver: Any, persona: Any) -> int:
+    """Opening turns this persona stays before they may hang up, from temperament and scam
+    awareness. `receiver.stay_on_line` is the floor everyone keeps: hear out the opener."""
+    stay = receiver.stay_on_line
+    for word, bonus in _TEMPERAMENT_STAY.items():
+        if persona.temperament.lower().startswith(word):
+            stay += bonus
+            break
+    awareness = persona.scam_awareness.lower()
+    overconfident = ("happen to others", "would notice", "never fall")
+    somewhat_wary = ("lost money", "lost a little", "targeted before")
+    if "never heard" in awareness:
+        stay += 4  # no idea it is a scam -> keeps talking
+    elif any(k in awareness for k in overconfident):
+        stay += 3  # sure they could never be fooled -> engages, then caught
+    elif any(k in awareness for k in somewhat_wary):
+        stay += 1
+    # knows the warnings / was scammed before and now careful -> adds nothing, cuts early
+    return stay
+
+
+def stage(config: Config, own_turn: int, persona: Any) -> str:
+    """Tell the receiver whether it must still stay on the line or may react as it likes. How
+    many opening turns count as "still staying" depends on the persona (stay_on_line_for)."""
     receiver = config.agents.receiver
-    text = receiver.stage.stay if own_turn < receiver.stay_on_line else receiver.stage.free
+    floor = stay_on_line_for(receiver, persona)
+    text = receiver.stage.stay if own_turn < floor else receiver.stage.free
     return text.format(turn=own_turn + 1)
 
 

@@ -137,12 +137,12 @@ def test_two_voices_must_be_different(cfg_dir):
 
 
 def test_reveal_turn_must_leave_room_to_ask(cfg_dir):
-    # a 14-turn call gives the caller own turns 0-6; its last two are "make the ask now",
-    # so the latest reveal is turn 5. Reveal 6 can never be followed by an ask.
-    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 6]))
-    with pytest.raises(ConfigError, match=r"reveal_turn_fast has 6.*latest reveal turn there: 5"):
+    # an 18-turn call gives the caller own turns 0-8; its last two are "make the ask now",
+    # so the latest reveal is turn 7. Reveal 8 can never be followed by an ask.
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 8]))
+    with pytest.raises(ConfigError, match=r"reveal_turn_fast has 8.*latest reveal turn there: 7"):
         load_config(cfg_dir)
-    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 5]))
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["calls"].update(reveal_turn_fast=[0, 7]))
     load_config(cfg_dir)
 
 
