@@ -46,19 +46,22 @@
         <div class="studio-row">
           <label for="r_gender">Gender</label>
           <select id="r_gender" name="r_gender" class="select">
+            <option value="">🎲 Random</option>
             {% for g in genders %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
           </select>
         </div>
         <div class="studio-row">
           <label for="r_age">Age</label>
-          <input id="r_age" name="r_age" type="number" class="studio-input" min="10" max="100" value="45" inputmode="numeric">
+          <input id="r_age" name="r_age" type="number" class="studio-input" min="10" max="100" placeholder="🎲 Random" inputmode="numeric">
         </div>
       </div>
       {% for key, label, options in detail_fields %}
       <div class="studio-row">
         <label for="r_{{ key }}">{{ label }}</label>
-        <input id="r_{{ key }}" name="r_{{ key }}" type="text" class="studio-input" maxlength="200" list="dl-{{ key }}" autocomplete="off">
-        <datalist id="dl-{{ key }}">{% for o in options %}<option value="{{ o }}">{% endfor %}</datalist>
+        <select id="r_{{ key }}" name="r_{{ key }}" class="select">
+          <option value="">🎲 Random</option>
+          {% for o in options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+        </select>
       </div>
       {% endfor %}
     </fieldset>

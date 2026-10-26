@@ -374,6 +374,102 @@ receivers:
     temperament: 'skeptical: refuses to give personal details on the phone to anyone'
     ending: hangs up and calls the official number
     speech: polite but firm
+  - key: student_gamer
+    gender: male
+    age: 21
+    occupation: university student who games and shops online
+    education: secondary school
+    region: a Bangkok suburb
+    family: shares a room with friends
+    digital_literacy: lives on his phone, games and online shops daily
+    scam_awareness: lost a little to a game top-up page once, thinks he learned his lesson
+    temperament: 'unsure: asks a few questions, sometimes goes along'
+    ending: says he will check first
+    speech: casual, uses slang and English words
+  - key: sme_owner
+    gender: male
+    age: 45
+    occupation: owner of a small online shop
+    education: vocational certificate
+    region: a provincial town
+    family: lives with a spouse and young children
+    digital_literacy: runs the shop on banking and chat apps all day
+    scam_awareness: gets fake supplier and tax calls often, usually busy
+    temperament: 'busy: gives short answers, wants the call over quickly'
+    ending: ends the call abruptly
+    speech: blunt and quick
+  - key: delivery_rider
+    gender: male
+    age: 27
+    occupation: food-delivery rider
+    education: secondary school
+    region: Bangkok, rents a room
+    family: lives alone
+    digital_literacy: works through delivery and banking apps
+    scam_awareness: other riders warned him about loan and job scams
+    temperament: 'unsure: asks a few questions, sometimes hesitates'
+    ending: says he will think about it
+    speech: casual, short and direct
+  - key: govt_teacher
+    gender: female
+    age: 50
+    occupation: government school teacher
+    education: bachelor's degree
+    region: a town in the South
+    family: lives with a spouse
+    digital_literacy: uses LINE and a banking app
+    scam_awareness: respects officials and has savings, not very scam-aware
+    temperament: 'trusting: believes people who sound official, follows instructions'
+    ending: goes along with what an official asks
+    speech: polite and proper
+  - key: single_professional
+    gender: female
+    age: 34
+    occupation: marketing manager
+    education: master's degree
+    region: Bangkok, rents a condo
+    family: lives alone
+    digital_literacy: very online, uses dating and social apps
+    scam_awareness: busy and a bit lonely, has heard of scams but feels safe
+    temperament: 'unsure: asks a few questions, sometimes goes along'
+    ending: says she will think about it and call back
+    speech: confident, casual, mixes in English
+  - key: gold_investor
+    gender: male
+    age: 58
+    occupation: business owner nearing retirement
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: lives with a spouse and grown children
+    digital_literacy: active in investment LINE groups
+    scam_awareness: chases high returns and trusts tips from his groups
+    temperament: 'trusting: follows a confident, knowledgeable-sounding caller'
+    ending: goes along if the returns sound good
+    speech: hearty, talks about money and returns
+  - key: caretaker_daughter
+    gender: female
+    age: 39
+    occupation: office worker who cares for her elderly mother
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: lives with her elderly mother
+    digital_literacy: handles her mother's banking on an app
+    scam_awareness: wary because her mother was targeted before
+    temperament: 'skeptical: asks who is calling and how to verify'
+    ending: checks with the organisation directly
+    speech: careful and polite
+  - key: rural_grandpa
+    gender: male
+    age: 74
+    occupation: retired rice farmer
+    education: primary school
+    region: a village in Isan
+    family: lives with grown children who help with money
+    digital_literacy: uses phone calls only; a grandchild handles transfers
+    scam_awareness: has never heard of call-center scams and trusts officials
+    temperament: 'trusting but slow: asks the caller to repeat, needs things explained twice'
+    ending: says he will ask a grandchild first
+    speech: slow and friendly, uses Isan words
   # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
   # together from one stage, so a receiver is a believable person (no 20-year-old with grown
   # children). Each list must be a subset of the matching flat pool below. Other fields
