@@ -24,7 +24,5 @@ Phrases:
 - active: yes
 
 Tactics:
-- Collect personal data and photos from social media
-- Create a fake account using the victim's identity
 - Contact the victim's friends or family
 - Claim to be in an emergency and ask for financial help

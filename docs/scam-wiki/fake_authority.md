@@ -121,3 +121,37 @@ Tactics:
 - Call the victim from a mobile number
 - Claim to be from the Ministry of Finance
 - Ask for ID card and bank account numbers to disburse stimulus money
+
+## Caller poses as the Provincial Electricity Authority and asks the victim to confirm their name via LINE for a digital meter upgrade.
+- source: https://www.antifakenewscenter.com/?p=53287
+- published: 2024-02-29
+- active: no
+
+Tactics:
+- Call the victim claiming to be from PEA
+- Inform them that their electricity meter is being upgraded to a digital one
+- Ask the victim to add a LINE contact and confirm their full name
+
+Phrases:
+- กฟภ. โทรแจ้งลูกค้าเพื่อเปลี่ยนมิเตอร์ไฟฟ้าดิจิตอล โดยให้ยืนยันชื่อ-นามสกุล ผ่านไลน
+
+## Scammer poses as a Land Department official on LINE to request personal data.
+- source: https://www.antifakenewscenter.com/?p=85057
+- published: 2026-03-30
+- active: no
+
+Tactics:
+- Contact the victim via a fake LINE account named '{URL} เอกสาร'
+- Impersonate a Land Department official
+- Request personal data or documents
+
+## Caller poses as a Ministry of Finance officer and asks for ID and bank account numbers to distribute economic stimulus money.
+- source: https://www.antifakenewscenter.com/?p=7012
+- published: 2020-11-20
+- active: no
+
+Tactics:
+- Call the victim using a fake number
+- Claim to be from the Ministry of Finance
+- Ask for ID card number and bank account number
+- Use the data for identity theft or further fraud
