@@ -31,9 +31,7 @@ You need Python 3.10 or newer. The scam check, summary and reply need an LLM ser
 python -m venv .venv
 source .venv/Scripts/activate     # Windows Git Bash. PowerShell: .venv\Scripts\Activate.ps1
                                   # macOS or Linux: source .venv/bin/activate
-                                  # Or use conda instead of the three lines above:
-                                  #   conda create -n callas python=3.11 -y && conda activate callas
-pip install -e ".[asr,tts,dev]"   # add ,dspy for the DSPy reply writer, ,scrape for the scraping notebook
+pip install -e ".[asr,tts,dev]"   # add ,dspy for the DSPy reply writer
 
 # 2. Settings
 cp .env.example .env              # then fill in VLLM_BASE_URL and VLLM_MODEL
