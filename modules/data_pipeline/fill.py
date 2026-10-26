@@ -181,6 +181,32 @@ def receiver_leaks(raw: str) -> list[str]:
     return labels
 
 
+# Gender markers that belong to the other gender. A female speaker using these male markers, or
+# a male speaker using these female ones, is a slip worth flagging. ค่า ("value/fee") and คะ
+# inside a word (คะแนน) are deliberately not here; bare คะ is only a particle sentence-finally.
+# ผม also means "hair", so this stays a soft flag (a reviewer decides), never an auto-reject.
+_MALE_MARKERS = ("ครับ", "คับ", "กระผม", "ผม")
+_FEMALE_MARKERS = ("ค่ะ", "ดิฉัน")
+_KHA_FINAL = re.compile(r"คะ(?=[\s!?.,…]|$)")  # bare คะ as a sentence-final particle, not คะแนน
+
+
+def wrong_particles(raw: str, gender: str) -> list[str]:
+    """Gender markers in a receiver line that do not match the speaker's gender, in order.
+
+    Empty when the line is consistent or the gender is unknown. A soft check: the result is
+    recorded as a turn problem (turns.write_turn), it never rewrites the line.
+    """
+    found: list[str] = []
+    if gender == "female":
+        found = [m for m in _MALE_MARKERS if m in raw]
+    elif gender == "male":
+        found = [m for m in _FEMALE_MARKERS if m in raw]
+        if _KHA_FINAL.search(raw):
+            found.append("คะ")
+    # drop a marker already covered by a longer one that contains it (กระผม contains ผม)
+    return [m for m in found if not any(m != other and m in other for other in found)]
+
+
 # made-up values
 
 

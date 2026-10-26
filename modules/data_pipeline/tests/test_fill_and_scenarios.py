@@ -183,7 +183,7 @@ def test_receiver_details_do_not_change_the_old_values():
     values = filler("romance", 5).values
     assert [
         values[k] for k in ("CALLER_NAME", "RECEIVER_NAME", "PHONE", "BANK_ACCOUNT", "OTP")
-    ] == (["จันทร์เพ็ญ", "วิชัย", "081-774-2578", "825-0-44920-4", "510255"])
+    ] == (["ธิดา", "อนันต์", "081-774-2578", "825-0-44920-4", "510255"])
 
 
 def test_receiver_leaks_are_read_from_the_slots_in_order():

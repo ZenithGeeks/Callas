@@ -88,17 +88,28 @@ def sample_config(
 
 
 def sample_receiver(rng: random.Random, pool: Receivers) -> ReceiverProfile:
-    """One of the hand-written profiles (profile_share of the time), else one built from pools."""
+    """One of the hand-written profiles (profile_share of the time), else one built from pools.
+
+    When the config has life_stages, the age-linked fields (age, occupation, education, family,
+    digital_literacy) are drawn together from one stage so the person is believable; without them
+    every field is drawn independently (the old behaviour).
+    """
     if pool.profiles and rng.random() < pool.profile_share:
         return rng.choice(pool.profiles)
+    stage = rng.choice(pool.life_stages) if pool.life_stages else None
+    age_range = stage.age if stage else pool.age
+    occupations = stage.occupations if stage else pool.occupations
+    education = stage.education if stage else pool.education
+    family = stage.family if stage else pool.family
+    digital_literacy = stage.digital_literacy if stage else pool.digital_literacy
     return ReceiverProfile(
         gender=rng.choice(pool.genders),
-        age=rng.randint(*pool.age),
-        occupation=rng.choice(pool.occupations),
-        education=rng.choice(pool.education),
+        age=rng.randint(*age_range),
+        occupation=rng.choice(occupations),
+        education=rng.choice(education),
         region=rng.choice(pool.regions),
-        family=rng.choice(pool.family),
-        digital_literacy=rng.choice(pool.digital_literacy),
+        family=rng.choice(family),
+        digital_literacy=rng.choice(digital_literacy),
         scam_awareness=rng.choice(pool.scam_awareness),
         temperament=rng.choice(pool.temperaments),
         ending=rng.choice(pool.endings),
