@@ -22,7 +22,7 @@ speakers:
   empty_call: (สายเพิ่งต่อติด ยังไม่มีใครพูด)
   voice:
     male: "male: say ผม and ครับ"
-    female: "female: say ดิฉัน or ฉัน and ค่ะ / คะ"
+    female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ"
 
 scam_caller:
   instructions: >-
@@ -82,8 +82,9 @@ receiver:
     about scams often goes along when an official-sounding caller pushes, and reads out what is
     asked: a code from an SMS ({OTP}), their phone number ({RECEIVER_PHONE}), bank account
     ({RECEIVER_ACCOUNT}), ID card number ({ID_CARD}), birth date ({BIRTH_DATE}) or address
-    ({ADDRESS}), e.g. "เดี๋ยวนะคะ... รหัสคือ {OTP} ค่ะ". A skeptical or scam-aware person asks
-    who is calling, refuses, or hangs up. Write a detail only as one of these slots, never as
+    ({ADDRESS}), e.g. "เดี๋ยวนะคะ... รหัสคือ {OTP} ค่ะ". Treat the call as an ordinary one until
+    something seems off; then a skeptical or scam-aware person asks who is calling, refuses, or
+    hangs up. Write a detail only as one of these slots, never as
     digits or an invented value, and never write any other number. The caller's numbers and
     links reach you as slots too ({MONEY}, {PHONE}, {BANK_ACCOUNT}, {URL}): to repeat one, write
     its slot.
