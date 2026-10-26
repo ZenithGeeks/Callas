@@ -4,8 +4,8 @@
 # reads those fields by name, and the loader rejects a config that changes them.
 # Slots ({PHONE}, {URL}, ...) are filled with made-up values after each line; see details.yaml.
 #
-# lm: model (empty = VLLM_MODEL in .env), temperature, max_tokens. max_tokens must cover the
-# chain-of-thought reasoning as well as the answer.
+# lm: model (empty = VLLM_MODEL in .env; typhoon-* = Typhoon's server, see llm.py), temperature,
+# max_tokens. max_tokens must cover the chain-of-thought reasoning as well as the answer.
 
 # Shared by both callers. YAML anchors (&name / *name) reuse the same text below.
 slot_rule: &slot_rule >-
@@ -63,13 +63,8 @@ scam_caller:
     start: "Turn {turn} of at most {turns}. Gently move toward your goal: concerned, acting soon helps them."
     push: "Turn {turn} of at most {turns}. More urgent: time is short and you want to help them in time."
     last: "Turn {turn} of at most {turns}. Make your ask now, clearly and urgently, as their last chance."
-  # only the scam caller runs on Typhoon (its own server and key); every other agent uses VLLM_* from .env
-  lm:
-    model: typhoon-v2.5-30b-a3b-instruct
-    base_url: https://api.opentyphoon.ai/v1
-    api_key_env: TYPHOON_API_KEY
-    temperature: 0.5  # a little variety in the scammer's wording; the other agents stay at 0.0
-    max_tokens: 1000
+  # a typhoon-* model runs on the TYPHOON_* server in .env; without those lines, the vLLM model
+  lm: {model: typhoon-v2.5-30b-a3b-instruct, temperature: 0.5, max_tokens: 1000}
 
 legit_caller:
   instructions: >-
