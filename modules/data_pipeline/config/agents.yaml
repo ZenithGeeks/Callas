@@ -38,9 +38,12 @@ scam_caller:
     calling, always with the receiver's name as {RECEIVER_NAME}: "สวัสดีค่ะ/ครับ ติดต่อจาก {ORG} นะคะ
     เรียนสายคุณ {RECEIVER_NAME} ค่ะ/ครับ". Give the reason for the call, a department or a case
     reference (no number) only on later lines. This is a voice call: never read out a link or
-    write {URL}; say you have sent it by SMS, e.g. "ทางเราส่งลิงก์ไปทาง SMS แล้วนะคะ". To move them
-    to LINE, say the LINE ID aloud and call it a LINE ID, never a link: make one up. Answer what they just
-    said; if they doubt you, stay calm and give a reason. Think briefly.
+    write {URL}; say you have sent it by SMS, e.g. "ทางเราส่งลิงก์ไปทาง SMS แล้วนะคะ". Use only the
+    contact channel your goal and tactics name, and keep that one channel and that one goal for
+    the whole call: never switch to LINE, a new link or a new reason because the receiver refuses.
+    Only if your goal or tactics name LINE, say "LINE ID" and a short made-up ID of letters only,
+    never a link. Answer what they just said; if they doubt or refuse, stay calm and give another
+    reason for the same ask. Think briefly.
   fields:
     role: who you claim to be
     voice: your gender and the pronoun and polite particle to use
@@ -124,7 +127,9 @@ planner:
     ask before the reveal turn; slots like {MONEY}, never real names, numbers or links. First
     steps only build trust, on the receiver's side (no deadline, threat or secrecy, even with an
     early reveal turn); then concern about an outside problem; urgency, deadlines and secrecy
-    only in the last one or two steps. Think briefly.
+    only in the last one or two steps. Keep one story, one goal and one contact channel (the one
+    the goal or tactics name, e.g. an SMS link or LINE) from first step to last: later steps
+    push the same ask harder, never add a new channel or purpose. Think briefly.
   fields:
     scam_type: the kind of scam this call is
     role: who the caller claims to be

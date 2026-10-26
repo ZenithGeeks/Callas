@@ -211,7 +211,7 @@ scams:
   - key: card_points
     role: credit card staff
     org: ธนาคาร
-    goal: get the receiver to open {URL} and enter card details to redeem expiring points
+    goal: get the receiver to open {URL} through SMS and enter card details to redeem expiring points
     tactics: points expire today, the gift is valuable, the link is 'official'
   - key: delivery_redelivery
     role: delivery company staff
@@ -242,12 +242,6 @@ scams:
     tactics: Call the victim claiming to be an official; State that the pension has a problem or needs urgent
       verification; Use the name of a trusted agency to build credibility; Ask the victim to reveal important
       data or click a fake link
-  - key: fake_store_refund_otp
-    role: HomePro account department staff
-    goal: get the receiver to add a LINE contact and provide {OTP} or PIN to access their bank account
-    tactics: Contact victims via LINE posing as HomePro staff; Claim to refund or compensate for service
-      issues; Ask for personal details, bank account number, and PIN/OTP; Use credentials to drain the bank
-      account
   lottery:
   - key: gov_lottery
     role: staff of a lottery prize office

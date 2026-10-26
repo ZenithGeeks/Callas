@@ -49,7 +49,7 @@ Phrases:
 ## Fake HomePro account staff contact via LINE to offer refunds or compensation, asking for OTP or PIN.
 - source: https://www.antifakenewscenter.com/?p=86301
 - published: 2026-04-25
-- active: yes
+- active: no
 
 Tactics:
 - Contact victims via LINE posing as HomePro staff
