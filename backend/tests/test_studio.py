@@ -71,7 +71,7 @@ def test_page_has_the_form_and_a_nav_link(client):
         assert f'<option value="{key}">' in html
     assert '<label for="call_type">' in html and '<label for="receiver">' in html
     assert "teacher_cm" in html  # a saved profile
-    assert 'list="dl-occupation"' in html  # suggestions for a described person
+    assert '<select id="r_occupation"' in html  # a dropdown for a described person
     assert "No call yet" in html
 
 
@@ -223,7 +223,6 @@ def test_unknown_runs_are_404(client):
         ({"seed": "abc"}, "whole number"),
         ({"seed": "123456"}, "whole number"),
         ({"receiver": "nobody"}, "does not exist"),
-        ({"receiver": "__custom__", "r_gender": "female"}, "Missing"),
         ({"receiver": "__custom__", "r_gender": "robot"}, "Gender is one of"),
     ],
 )
@@ -231,6 +230,18 @@ def test_bad_forms_are_refused_with_a_message(client, fields, message):
     response = start(client, **fields)
     assert response.status_code == 422 and message in response.text
     assert studio.BOARD.running() is None
+
+
+def test_a_custom_person_left_on_random_is_sampled(client, tmp_path):
+    # only the gender is chosen; every detail field stays on "Random" and is filled from a
+    # coherently sampled base, so a half-described person is still complete and believable.
+    response = start(client, receiver="__custom__", r_gender="female")
+    assert response.status_code == 200
+    wait_idle(studio.BOARD)
+    receiver = saved(tmp_path, "phishing_otp_custom_00000")["generation"]["call"]["receiver"]
+    assert receiver["gender"] == "female"
+    for field_key, _, _ in studio.DETAIL_FIELDS:
+        assert receiver[field_key]  # every detail was filled, none left blank
 
 
 def test_a_taken_seed_is_refused_and_empty_takes_the_next_free_one(client):

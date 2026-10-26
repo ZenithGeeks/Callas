@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 import threading
 import time
@@ -32,6 +33,7 @@ from starlette.concurrency import run_in_threadpool
 from data_pipeline import live
 from data_pipeline.config import BENIGN, CALL_TYPES, Config, ConfigError, ReceiverProfile
 from data_pipeline.config import load_config as load_default_config
+from data_pipeline.scenarios import sample_receiver
 from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
@@ -282,17 +284,23 @@ def _parse_receiver(form: Any, config: Config) -> ReceiverProfile | None:
 
 
 def _described_receiver(form: Any, pools: Any) -> ReceiverProfile:
-    """A receiver made from the r_* fields of the form."""
-    values = {key: _clean(form.get(f"r_{key}", "")) for key, _, _ in DETAIL_FIELDS}
+    """A receiver from the r_* fields. Any field left on "Random" (empty) is filled from a
+    coherently sampled base, so a half-described person is still a believable one."""
+    base = sample_receiver(random.Random(), pools)
     gender = str(form.get("r_gender", ""))
-    if gender not in pools.genders:
+    if gender and gender not in pools.genders:
         raise FormProblem(f"Gender is one of: {', '.join(pools.genders)}.")
-    if missing := [label for key, label, _ in DETAIL_FIELDS if not values[key]]:
-        raise FormProblem(f"Fill in every detail about the person. Missing: {', '.join(missing)}.")
+    gender = gender or base.gender
+    age_text = str(form.get("r_age", "")).strip()
     try:
-        return ReceiverProfile(
-            key=CUSTOM_KEY, gender=gender, age=int(str(form.get("r_age", "")) or 0), **values
-        )
+        age = int(age_text) if age_text else base.age
+    except ValueError:
+        raise FormProblem("The age is a whole number from 10 to 100.") from None
+    values = {
+        key: _clean(form.get(f"r_{key}", "")) or getattr(base, key) for key, _, _ in DETAIL_FIELDS
+    }
+    try:
+        return ReceiverProfile(key=CUSTOM_KEY, gender=gender, age=age, **values)
     except (ValidationError, ValueError):
         raise FormProblem("The age is a whole number from 10 to 100.") from None
 

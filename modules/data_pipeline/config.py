@@ -276,11 +276,32 @@ class ReceiverProfile(_Strict):
         return v
 
 
+class LifeStage(_Strict):
+    """A coherent age bracket: the jobs, schooling, household and phone habits that fit an age.
+
+    Sampling age, occupation, family, education and digital_literacy *together* from one stage
+    stops nonsense receivers like a 20-year-old with grown children. Each list is a subset of the
+    matching flat pool in Receivers, so the pools stay the one place that lists the vocabulary.
+    """
+
+    age: tuple[int, int]
+    occupations: list[str] = Field(min_length=1)
+    education: list[str] = Field(min_length=1)
+    family: list[str] = Field(min_length=1)
+    digital_literacy: list[str] = Field(min_length=1)
+
+
 class Receivers(_Strict):
-    """Receivers are either one of `profiles` as written, or built from the pools below."""
+    """Receivers are either one of `profiles` as written, or built from the pools below.
+
+    When `life_stages` is set, the age-linked fields (age, occupation, education, family,
+    digital_literacy) are drawn together from one stage; the other fields are still drawn from
+    their flat pools. With no life_stages every field is drawn independently (the old behaviour).
+    """
 
     profile_share: float = Field(0.0, ge=0.0, le=1.0)  # share of calls that use `profiles`
     profiles: list[ReceiverProfile] = []
+    life_stages: list[LifeStage] = []
     genders: list[str] = Field(min_length=1)
     age: tuple[int, int]
     occupations: list[str] = Field(min_length=1)
@@ -301,6 +322,25 @@ class Receivers(_Strict):
                 f"receivers.age must be [low, high] with 10 <= low <= high <= 100, "
                 f"got {list(self.age)}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _life_stages_fit_the_pools(self) -> Receivers:
+        fields = ("occupations", "education", "family", "digital_literacy")
+        for i, stage in enumerate(self.life_stages):
+            low, high = stage.age
+            if not 10 <= low <= high <= 100:
+                raise ValueError(
+                    f"receivers.life_stages[{i}].age must be [low, high] with "
+                    f"10 <= low <= high <= 100, got {list(stage.age)}"
+                )
+            for field in fields:
+                pool = set(getattr(self, field))
+                if extra := [v for v in getattr(stage, field) if v not in pool]:
+                    raise ValueError(
+                        f"receivers.life_stages[{i}].{field} has values not in "
+                        f"receivers.{field}: {extra}"
+                    )
         return self
 
     @model_validator(mode="after")

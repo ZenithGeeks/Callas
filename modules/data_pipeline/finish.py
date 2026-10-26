@@ -222,7 +222,16 @@ def reasons_to_reject(
     reasons = []
     if len(turns) < config.scenarios.calls.min_turns:
         reasons.append("too_short")
-    reasons += sorted({problem for turn in turns for problem in turn.problems})
+    # wrong_particle is a soft flag: it is kept on the turn for review but does not reject the
+    # whole call for one gender-marker slip (turns.write_turn, fill.wrong_particles).
+    reasons += sorted(
+        {
+            problem
+            for turn in turns
+            for problem in turn.problems
+            if not problem.startswith("wrong_particle")
+        }
+    )
     if any("tone_mark_order" in turn.spelling for turn in turns):
         reasons.append("tone_mark_order")
     if judge.skipped:  # not judged: there is nothing else to hold against the call

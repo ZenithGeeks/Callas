@@ -379,6 +379,283 @@ receivers:
     temperament: 'unsure: asks questions, sometimes goes along'
     ending: says he will ask a family member first
     speech: friendly, uses Isan words now and then
+  # The profiles below are grounded in real Thai scam-victim data (AOC 1441 and 2024-2025 news):
+  # women 21-30 are the single largest victim group (online-shopping fraud, fake jobs, social-media
+  # investment); working-age 20-49 see the most cases (jobs, investment); the elderly 60+ lose the
+  # most money (call-center / fake-authority, romance, high-yield investment). Even savvy
+  # professionals fall. Each profile is internally coherent, so it is a believable person.
+  - key: online_shopper_bkk
+    gender: female
+    age: 24
+    occupation: office worker who sells clothes online on the side
+    education: bachelor's degree
+    region: Bangkok, rents a condo
+    family: lives alone
+    digital_literacy: shops and banks on her phone many times a day
+    scam_awareness: a friend was cheated buying a phone online, but she thinks she is careful
+    temperament: 'busy: short answers, wants the call over quickly'
+    ending: ends the call to get back to work
+    speech: casual and fast, mixes in English words
+  - key: jobseeker_grad
+    gender: female
+    age: 23
+    occupation: new graduate looking for work
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: shares a room with friends
+    digital_literacy: lives on social media and chat apps
+    scam_awareness: has seen fake job posts but is hopeful about any offer
+    temperament: 'unsure: asks a few questions, sometimes goes along'
+    ending: says she will think about it and call back
+    speech: polite, a little shy
+  - key: office_investor
+    gender: male
+    age: 38
+    occupation: mid-level office worker
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: lives with a spouse and young children
+    digital_literacy: banks and trades on apps every day
+    scam_awareness: a colleague says he made money trading crypto, so he is curious
+    temperament: 'trusting: follows a confident, knowledgeable-sounding caller'
+    ending: goes along if the returns sound good
+    speech: casual, asks about numbers and returns
+  - key: retired_officer
+    gender: male
+    age: 67
+    occupation: retired government officer with a pension
+    education: bachelor's degree
+    region: a provincial town
+    family: lives with his wife
+    digital_literacy: uses LINE and a banking app his daughter set up
+    scam_awareness: trusts anyone who sounds like an official
+    temperament: 'trusting: believes people who sound official, follows instructions'
+    ending: goes along with what an official asks
+    speech: polite and formal, a little hard of hearing
+  - key: widow_alone
+    gender: female
+    age: 62
+    occupation: retired, lives on savings
+    education: secondary school
+    region: a town in the South
+    family: lives alone; her husband passed away
+    digital_literacy: uses Facebook and LINE to pass the time
+    scam_awareness: lonely and has not heard of romance scams
+    temperament: 'trusting but slow: asks the caller to repeat, warms to a kind voice'
+    ending: keeps talking to a friendly caller
+    speech: chatty, asks personal questions back
+  - key: isan_grandma
+    gender: female
+    age: 71
+    occupation: retired rice farmer
+    education: primary school
+    region: a village in Isan
+    family: lives with grown children who help with money
+    digital_literacy: uses phone calls only; a grandchild handles transfers
+    scam_awareness: has never heard of call-center scams
+    temperament: 'unsure: asks questions, sometimes goes along'
+    ending: says she will ask a grandchild first
+    speech: friendly, uses Isan words now and then
+  - key: savvy_professional
+    gender: female
+    age: 55
+    occupation: senior professional in media
+    education: master's degree
+    region: Bangkok
+    family: lives with grown children
+    digital_literacy: very comfortable online, uses many apps
+    scam_awareness: well-read on scams and sure she would never fall for one
+    temperament: 'skeptical: asks who is calling and how to verify'
+    ending: checks with the organisation directly
+    speech: articulate and confident
+  - key: market_vendor_pay
+    gender: female
+    age: 48
+    occupation: fresh-market vendor
+    education: secondary school
+    region: a province in the Central plains
+    family: lives with a spouse
+    digital_literacy: uses mobile banking and QR for the stall every day
+    scam_awareness: has seen scam news on TV but is always rushed
+    temperament: 'busy: gives short answers, wants the call over quickly'
+    ending: ends the call abruptly
+    speech: blunt and quick
+  - key: factory_worker_cb
+    gender: male
+    age: 29
+    occupation: factory worker on shifts
+    education: vocational certificate
+    region: the Chonburi industrial area
+    family: shares a room with friends
+    digital_literacy: shops online and plays games on his phone
+    scam_awareness: a coworker lost money to an app, so he is wary
+    temperament: 'unsure: asks a few questions, sometimes hesitates'
+    ending: says he will check first
+    speech: casual, short and direct
+  - key: nurse_careful
+    gender: female
+    age: 41
+    occupation: nurse on night shifts
+    education: bachelor's degree
+    region: Chiang Mai
+    family: lives with two teenage children
+    digital_literacy: uses mobile banking every day
+    scam_awareness: reads police warnings and checks numbers
+    temperament: 'skeptical: refuses to give personal details on the phone to anyone'
+    ending: hangs up and calls the official number
+    speech: polite but firm
+  - key: student_gamer
+    gender: male
+    age: 21
+    occupation: university student who games and shops online
+    education: secondary school
+    region: a Bangkok suburb
+    family: shares a room with friends
+    digital_literacy: lives on his phone, games and online shops daily
+    scam_awareness: lost a little to a game top-up page once, thinks he learned his lesson
+    temperament: 'unsure: asks a few questions, sometimes goes along'
+    ending: says he will check first
+    speech: casual, uses slang and English words
+  - key: sme_owner
+    gender: male
+    age: 45
+    occupation: owner of a small online shop
+    education: vocational certificate
+    region: a provincial town
+    family: lives with a spouse and young children
+    digital_literacy: runs the shop on banking and chat apps all day
+    scam_awareness: gets fake supplier and tax calls often, usually busy
+    temperament: 'busy: gives short answers, wants the call over quickly'
+    ending: ends the call abruptly
+    speech: blunt and quick
+  - key: delivery_rider
+    gender: male
+    age: 27
+    occupation: food-delivery rider
+    education: secondary school
+    region: Bangkok, rents a room
+    family: lives alone
+    digital_literacy: works through delivery and banking apps
+    scam_awareness: other riders warned him about loan and job scams
+    temperament: 'unsure: asks a few questions, sometimes hesitates'
+    ending: says he will think about it
+    speech: casual, short and direct
+  - key: govt_teacher
+    gender: female
+    age: 50
+    occupation: government school teacher
+    education: bachelor's degree
+    region: a town in the South
+    family: lives with a spouse
+    digital_literacy: uses LINE and a banking app
+    scam_awareness: respects officials and has savings, not very scam-aware
+    temperament: 'trusting: believes people who sound official, follows instructions'
+    ending: goes along with what an official asks
+    speech: polite and proper
+  - key: single_professional
+    gender: female
+    age: 34
+    occupation: marketing manager
+    education: master's degree
+    region: Bangkok, rents a condo
+    family: lives alone
+    digital_literacy: very online, uses dating and social apps
+    scam_awareness: busy and a bit lonely, has heard of scams but feels safe
+    temperament: 'unsure: asks a few questions, sometimes goes along'
+    ending: says she will think about it and call back
+    speech: confident, casual, mixes in English
+  - key: gold_investor
+    gender: male
+    age: 58
+    occupation: business owner nearing retirement
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: lives with a spouse and grown children
+    digital_literacy: active in investment LINE groups
+    scam_awareness: chases high returns and trusts tips from his groups
+    temperament: 'trusting: follows a confident, knowledgeable-sounding caller'
+    ending: goes along if the returns sound good
+    speech: hearty, talks about money and returns
+  - key: caretaker_daughter
+    gender: female
+    age: 39
+    occupation: office worker who cares for her elderly mother
+    education: bachelor's degree
+    region: a Bangkok suburb
+    family: lives with her elderly mother
+    digital_literacy: handles her mother's banking on an app
+    scam_awareness: wary because her mother was targeted before
+    temperament: 'skeptical: asks who is calling and how to verify'
+    ending: checks with the organisation directly
+    speech: careful and polite
+  - key: rural_grandpa
+    gender: male
+    age: 74
+    occupation: retired rice farmer
+    education: primary school
+    region: a village in Isan
+    family: lives with grown children who help with money
+    digital_literacy: uses phone calls only; a grandchild handles transfers
+    scam_awareness: has never heard of call-center scams and trusts officials
+    temperament: 'trusting but slow: asks the caller to repeat, needs things explained twice'
+    ending: says he will ask a grandchild first
+    speech: slow and friendly, uses Isan words
+  # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
+  # together from one stage, so a receiver is a believable person (no 20-year-old with grown
+  # children). Each list must be a subset of the matching flat pool below. Other fields
+  # (gender, region, scam_awareness, temperament, ending, speech) are still drawn independently.
+  life_stages:
+  - age: [19, 27]
+    occupations: [university student, office worker, factory worker, freelance designer, nurse]
+    education: [secondary school, vocational certificate, bachelor's degree]
+    family: [lives alone, shares a room with friends, lives with elderly parents]
+    digital_literacy:
+    - uses mobile banking every day
+    - shops online often and is comfortable with apps
+    - works in IT and knows phones well
+  - age: [28, 44]
+    occupations:
+    - office worker
+    - nurse
+    - taxi driver
+    - small shop owner
+    - civil servant
+    - freelance designer
+    - market vendor
+    - factory worker
+    education: [primary school, secondary school, vocational certificate, bachelor's degree, master's degree]
+    family: [lives alone, lives with a spouse, lives with a spouse and young children]
+    digital_literacy:
+    - uses mobile banking every day
+    - shops online often and is comfortable with apps
+    - uses only phone calls and LINE with family
+  - age: [45, 59]
+    occupations:
+    - market vendor
+    - rice farmer
+    - taxi driver
+    - small shop owner
+    - housewife
+    - civil servant
+    - nurse
+    - office worker
+    education: [primary school, secondary school, vocational certificate, bachelor's degree]
+    family:
+    - lives with a spouse
+    - lives with a spouse and young children
+    - lives with grown children who help with money
+    - lives with elderly parents
+    digital_literacy:
+    - uses only phone calls and LINE with family
+    - uses mobile banking every day
+    - rarely uses apps; a child set up the banking app
+  - age: [60, 78]
+    occupations: [retired teacher, rice farmer, housewife, small shop owner, market vendor]
+    education: [primary school, secondary school, vocational certificate, bachelor's degree]
+    family: [lives alone, lives with a spouse, lives with grown children who help with money]
+    digital_literacy:
+    - uses only phone calls and LINE with family
+    - rarely uses apps; a child set up the banking app
   genders:
   - male
   - female
