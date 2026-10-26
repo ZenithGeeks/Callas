@@ -95,7 +95,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
         conf = (
             ending.judge.confidence
             if ending.judge and ending.judge.confidence is not None
-            else 0.95
+            else 0.0
         )
         conf_pct = f"{int(round(conf * 100))}%"
         if auto_status == "approved":

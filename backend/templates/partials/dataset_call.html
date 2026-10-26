@@ -186,6 +186,25 @@
           {% endif %}
         </div>
         <p class="mt-3 text-[16px] leading-[1.6]">{{ j.issues if j.issues and j.issues != 'none' else 'No problems noted.' }}</p>
+        {% if j.scam_clear is defined and j.language_realistic is defined %}
+        <dl class="mt-4 space-y-3">
+          <div>
+            <dt class="text-[14px] font-medium text-muted">Scam clarity · 25 points</dt>
+            <dd class="mt-1 font-medium">{{ 'Yes · +25' if j.scam_clear else 'No · +0' }}</dd>
+            <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.scam_clarity_reason or 'No reason recorded.' }}</dd>
+          </div>
+          <div>
+            <dt class="text-[14px] font-medium text-muted">Selected kind of call · 25 points</dt>
+            <dd class="mt-1 font-medium">{{ 'Yes · +25' if j.label_holds else 'No · +0' }}</dd>
+            <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.label_reason or 'No reason recorded.' }}</dd>
+          </div>
+          <div>
+            <dt class="text-[14px] font-medium text-muted">Realistic language · 50 points</dt>
+            <dd class="mt-1 font-medium">{{ 'Yes · +50' if j.language_realistic else 'No · +0' }}</dd>
+            <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.language_realism_reason or 'No reason recorded.' }}</dd>
+          </div>
+        </dl>
+        {% endif %}
         {% if j.reasoning %}
         <details class="why mt-3"><summary>Judge reasoning</summary><p>{{ j.reasoning }}</p></details>
         {% endif %}

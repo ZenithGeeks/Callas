@@ -24,6 +24,9 @@ log = logging.getLogger("data_pipeline")
 
 TOO_LONG_FOR_JUDGE = "too_long_for_judge"
 TOO_LONG_FOR_CONTEXT = "too_long_for_context"
+SCAM_CLARITY_POINTS = 25
+LABEL_MATCH_POINTS = 25
+LANGUAGE_REALISM_POINTS = 50
 
 # The judge reads clean typed text but still reports typos that are not there (#58).
 _SPELLING_TALK = re.compile(r"spell|typo|tone mark|สะกด", re.IGNORECASE)
@@ -136,9 +139,12 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         f"[{i}] {tag[turn.speaker]}: {turn.text}" for i, turn in enumerate(turns)
     )
     intended = config.agents.judge.intended[label_type or "benign"]
-    tokens = prompt_tokens(
-        agents.signatures["judge"], dict(intended=intended, transcript=transcript)
+    judge_inputs = dict(
+        intended=intended,
+        transcript=transcript,
+        realism_criteria=config.agents.judge.realism_criteria,
     )
+    tokens = prompt_tokens(agents.signatures["judge"], judge_inputs)
     if tokens > prompt_budget(config, "judge"):
         # The judge must read the whole call, so a call that does not fit is not judged at all.
         return Judge(
@@ -152,23 +158,35 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
             skipped=TOO_LONG_FOR_JUDGE,
             prompt_tokens=tokens,
         )
-    pred = ask(agents, "judge", intended=intended, transcript=transcript)
-    raw_conf = getattr(pred, "confidence", 0.95)
-    try:
-        conf_val = float(raw_conf)
-        conf_val = max(0.0, min(1.0, conf_val))
-    except (TypeError, ValueError):
-        conf_val = 0.95
+    pred = ask(agents, "judge", **judge_inputs)
+    scam_clear = bool(pred.scam_clear)
+    label_holds = bool(pred.label_holds)
+    language_realistic = bool(pred.language_realistic)
     return Judge(
         prompt_tokens=tokens,
-        label_holds=bool(pred.label_holds),
+        label_holds=label_holds,
+        scam_clear=scam_clear,
+        scam_clarity_reason=(pred.scam_clarity_reason or "").strip(),
+        label_reason=(pred.label_reason or "").strip(),
+        language_realistic=language_realistic,
+        language_realism_reason=(pred.language_realism_reason or "").strip(),
         scam_start_turn=int(pred.scam_start_turn),
         giveaway=bool(pred.giveaway),
-        confidence=conf_val,
+        confidence=_judge_score(scam_clear, label_holds, language_realistic),
         summary=(pred.summary or "").strip(),
         issues=drop_false_spelling((pred.issues or "").strip(), turns),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
     )
+
+
+def _judge_score(scam_clear: bool, label_holds: bool, language_realistic: bool) -> float:
+    """The deterministic score behind the judge's displayed confidence rate."""
+    points = (
+        SCAM_CLARITY_POINTS * scam_clear
+        + LABEL_MATCH_POINTS * label_holds
+        + LANGUAGE_REALISM_POINTS * language_realistic
+    )
+    return points / 100
 
 
 def drop_false_spelling(issues: str, turns: list[Turn]) -> str:

@@ -81,10 +81,14 @@ def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
     ]
     judge = dict(
         reasoning="read the whole call against the intended type",
+        scam_clear=True,
+        scam_clarity_reason="The scripted transcript makes the presence or absence of a scam clear.",
         label_holds=True,
+        label_reason="The scripted transcript follows its intended call type.",
+        language_realistic=True,
+        language_realism_reason="The demo fixture is intentionally concise and internally consistent.",
         scam_start_turn=2 if scam else -1,
         giveaway=False,
-        confidence=0.95,
         summary="ผู้โทรขอรหัสจากผู้รับสาย" if scam else "ผู้โทรแจ้งเรื่องการส่งพัสดุ",
         issues="none",
     )

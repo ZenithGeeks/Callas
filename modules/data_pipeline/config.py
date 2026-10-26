@@ -146,12 +146,20 @@ class JudgeSettings(AgentSettings):
     """The agent that checks a finished call, with what each call type is meant to show."""
 
     intended: dict[str, str]  # call type -> what the call is meant to show
+    realism_criteria: list[str] = Field(min_length=1)
 
     @field_validator("intended")
     @classmethod
     def _all_types(cls, v: dict[str, str]) -> dict[str, str]:
         if set(v) != set(CALL_TYPES):
             raise ValueError(f"intended needs exactly the keys {list(CALL_TYPES)}")
+        return v
+
+    @field_validator("realism_criteria")
+    @classmethod
+    def _nonempty_criteria(cls, v: list[str]) -> list[str]:
+        if any(not criterion.strip() for criterion in v):
+            raise ValueError("realism_criteria cannot contain empty items")
         return v
 
 

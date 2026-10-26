@@ -33,7 +33,7 @@
         {% elif judge.confidence is defined and judge.confidence is not none %}
           {{ (judge.confidence * 100)|round|int }}%
         {% else %}
-          95%
+          Not assessed
         {% endif %}
       </dd>
     </div>

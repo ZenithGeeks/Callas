@@ -144,6 +144,23 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert "Leaked" not in render(leaked=[])
 
 
+def test_a_verdict_without_confidence_does_not_make_up_a_percentage():
+    html = studio.render(
+        "partials/studio_verdict.html",
+        call_id="x",
+        judge={"label_holds": True, "scam_start_turn": -1, "giveaway": False},
+        accepted=True,
+        confidence=None,
+        review=None,
+        reasons=[],
+        scam_start=None,
+        summary="",
+        label_scam=False,
+        tag=None,
+    )
+    assert "Not assessed" in html and "95%" not in html
+
+
 # ---- one run at a time ------------------------------------------------------------------------
 
 

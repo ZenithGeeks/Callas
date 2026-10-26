@@ -107,10 +107,15 @@ class JudgeCall(dspy.Signature):
 
     intended: str = dspy.InputField()
     transcript: str = dspy.InputField()
+    realism_criteria: list[str] = dspy.InputField()
+    scam_clear: bool = dspy.OutputField()
+    scam_clarity_reason: str = dspy.OutputField()
     label_holds: bool = dspy.OutputField()
+    label_reason: str = dspy.OutputField()
+    language_realistic: bool = dspy.OutputField()
+    language_realism_reason: str = dspy.OutputField()
     scam_start_turn: int = dspy.OutputField()
     giveaway: bool = dspy.OutputField()
-    confidence: float = dspy.OutputField()
     summary: str = dspy.OutputField()
     issues: str = dspy.OutputField()
 
