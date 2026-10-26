@@ -138,6 +138,25 @@ scams:
     goal: get the victim to provide ID card number and bank account number
     tactics: Call the victim from a mobile number; Claim to be from the Ministry of Finance; Ask for ID
       card and bank account numbers to disburse stimulus money
+  - key: pea_meter_upgrade_line
+    role: officer of the Provincial Electricity Authority (PEA)
+    org: การไฟฟ้าส่วนภูมิภาค
+    goal: get the receiver to confirm their full name via LINE to 'verify identity' for a digital meter
+      upgrade
+    tactics: Call the victim claiming to be from PEA; Inform them that their electricity meter is being
+      upgraded to a digital one; Ask the victim to add a LINE contact and confirm their full name
+  - key: fake_land_dept_line_contact
+    role: fake Land Department official
+    org: กรมที่ดิน
+    goal: get the receiver to provide personal information via LINE chat
+    tactics: Contact the victim via a fake LINE account named '{URL} เอกสาร'; Impersonate a Land Department
+      official; Request personal data or documents
+  - key: mof_stimulus_data_collection
+    role: Ministry of Finance officer
+    org: กระทรวงการคลัง
+    goal: get the receiver to provide ID card number and bank account number to 'receive' stimulus money
+    tactics: Call the victim using a fake number; Claim to be from the Ministry of Finance; Ask for ID card
+      number and bank account number; Use the data for identity theft or further fraud
   romance:
   - key: engineer_abroad
     role: someone met on a dating app who says they are an engineer working abroad
@@ -217,31 +236,12 @@ scams:
     tactics: Call the victim or send a fake official letter via social media; Claim that the business registration
       data needs to be updated urgently; Direct the victim to a fake website resembling the official DBD
       site; Ask for personal or business details to 'complete the update'
-  - key: pea_meter_upgrade_line
-    role: officer of the Provincial Electricity Authority (PEA)
-    org: การไฟฟ้าส่วนภูมิภาค
-    goal: get the receiver to confirm their full name via LINE to 'verify identity' for a digital meter
-      upgrade
-    tactics: Call the victim claiming to be from PEA; Inform them that their electricity meter is being
-      upgraded to a digital one; Ask the victim to add a LINE contact and confirm their full name
   - key: fake_pension_verification
     role: government official (impersonated)
     goal: get the receiver to reveal personal data or click {URL} to 'verify pension details'
     tactics: Call the victim claiming to be an official; State that the pension has a problem or needs urgent
       verification; Use the name of a trusted agency to build credibility; Ask the victim to reveal important
       data or click a fake link
-  - key: fake_land_dept_line_contact
-    role: fake Land Department official
-    org: กรมที่ดิน
-    goal: get the receiver to provide personal information via LINE chat
-    tactics: Contact the victim via a fake LINE account named '{URL} เอกสาร'; Impersonate a Land Department
-      official; Request personal data or documents
-  - key: mof_stimulus_data_collection
-    role: Ministry of Finance officer
-    org: กระทรวงการคลัง
-    goal: get the receiver to provide ID card number and bank account number to 'receive' stimulus money
-    tactics: Call the victim using a fake number; Claim to be from the Ministry of Finance; Ask for ID card
-      number and bank account number; Use the data for identity theft or further fraud
   - key: fake_store_refund_otp
     role: HomePro account department staff
     goal: get the receiver to add a LINE contact and provide {OTP} or PIN to access their bank account
