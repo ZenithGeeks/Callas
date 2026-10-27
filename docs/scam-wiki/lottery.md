@@ -75,7 +75,7 @@ Phrases:
 ## Fake Facebook page sells 'locked' lottery numbers below market price and never delivers
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/government-lottery
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Run a fake Facebook page styled like a real lottery seller with the GLO logo
@@ -93,7 +93,7 @@ Phrases:
 ## Seller claims tickets with 'ผีน้อย' or 'กบไชโย' print marks win more often and sells them at a premium
 - source: https://www.antifakenewscenter.com/tag/สลากกินแบ่งรัฐบาล
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Spread a rumour that lottery tickets bearing the 'ผีน้อย' or 'กบไชโย' print marks have a higher chance of winning

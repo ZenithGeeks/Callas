@@ -415,27 +415,6 @@ scams:
       them and goes to another buyer if not paid; asks them to transfer {MONEY} to {BANK_ACCOUNT}
       before the call ends, within N minutes (a deadline of N minutes, pick N between 5 and 30
       and keep it for the whole call)
-  - key: lucky_mark_tickets
-    role: lottery ticket seller
-    org: '*'
-    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for a batch of 'special mark'
-      lottery tickets
-    tactics: Says tickets printed with the 'ผีน้อย' or 'กบไชโย' mark win more often than other
-      tickets and are hard to find; offers a batch at a premium price; says only 100 are left and
-      each buyer is limited; asks for the transfer to {BANK_ACCOUNT} and promises EMS delivery;
-      the transfer must be made within N minutes before the tickets go to other buyers (a
-      deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
-  - key: locked_numbers_page
-    role: admin of a Facebook page that sells government lottery tickets
-    org: '*'
-    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for a set of 'locked number'
-      tickets
-    tactics: Calls back about the receiver's inbox message to the page; says the page sells real
-      government lottery tickets cheaper than the market price and has 'locked' and 'hot' numbers
-      for the next draw; promises EMS delivery within 24 hours and that the tickets are 100% real;
-      says many people are booking the same number and only a few are left; asks for the
-      transfer within N minutes to hold the set (a deadline of N minutes, pick N between 5 and 30
-      and keep it for the whole call)
   - key: wholesale_ticket_agent
     role: wholesale lottery ticket agent
     org: '*'
