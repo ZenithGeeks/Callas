@@ -4,6 +4,9 @@
     scenarios.yaml  what calls are about, who answers, how long calls run
     details.yaml    names, banks, links and amounts that fill the slots
 
+The romance scam caller also reads docs/scam-wiki/romance_voice.md (see romance_voice.py); it
+is part of the config hash.
+
 The default folder is data_pipeline/config/. To try a variant, copy the folder, edit the copy
 and pass --config <folder>. Every record stores the config name and hash, and a stopped run
 only resumes with the same config.
@@ -19,11 +22,14 @@ import re
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
+from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from nlp_core.types import SCAM_TYPES
+
+from . import romance_voice as romance_voice_page
 
 DEFAULT_DIR = Path(__file__).resolve().parent / "config"
 FILES = ("agents.yaml", "scenarios.yaml", "details.yaml")
@@ -241,6 +247,15 @@ class Scenario(_Strict):
     # side. Given to the receiver so it treats the caller as someone it already knows and trusts,
     # not a cold-call stranger. Empty for ordinary calls.
     receiver_context: str = ""
+    # romance: the caller's relation to the receiver, a section of romance_voice.md (lover,
+    # friend, ...). A lover is always the other gender from the receiver.
+    relation: str = ""
+    # romance: the one exception to pity-only pressure; the caller also gets romance_voice.md's
+    # `threat` section
+    threatens: bool = False
+    # the caller's own turn of the first ask, one drawn per call; empty: calls.reveal_turn_slow
+    # or reveal_turn_fast by scam type
+    reveal_turn: list[Annotated[int, Field(ge=0)]] = []
 
     @model_validator(mode="after")
     def _slots(self) -> Scenario:
@@ -445,6 +460,7 @@ class DetailsFile(_Strict):
     """details.yaml as a whole."""
 
     names: dict[str, list[str]]  # gender -> first names
+    nicknames: dict[str, list[str]] = {}  # gender -> nicknames; older config folders have none
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
     urls: Urls
@@ -465,6 +481,7 @@ class Config:
     scenarios: ScenariosFile
     details: DetailsFile
     hash: str
+    romance_voice: dict[str, str]  # romance_voice.md: section name -> text (romance_voice.py)
 
     @cached_property
     def name(self) -> str:
@@ -498,6 +515,8 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
     for gender in genders:
         if len(set(details.names[gender])) < 2:  # the caller and receiver need different names
             raise ConfigError(f"details.yaml names.{gender} needs at least 2 different names")
+        if details.nicknames and len(set(details.nicknames.get(gender, []))) < 2:
+            raise ConfigError(f"details.yaml nicknames.{gender} needs at least 2 different names")
     unknown = set(scenarios.calls.slow_types) - set(SCAM_TYPES)
     unknown |= set(details.money.big_types) - set(CALL_TYPES)
     if unknown:
@@ -511,13 +530,19 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
     # the turn before that, so the ask has to come at (turns - 1) // 2 - 1 at the latest, in the
     # shortest call that reveal turn can get. Longer reveals make longer calls (shortest_call),
     # so this only fails when max_turns[1] is too small for the reveal turn.
-    for name in ("reveal_turn_slow", "reveal_turn_fast"):
-        for reveal in getattr(scenarios.calls, name):
+    reveal_lists = {
+        f"calls.{name}": getattr(scenarios.calls, name)
+        for name in ("reveal_turn_slow", "reveal_turn_fast")
+    }
+    for scenario in (s for group in scenarios.scams.values() for s in group):
+        reveal_lists[f"scenario {scenario.key}.reveal_turn"] = scenario.reveal_turn
+    for name, reveals in reveal_lists.items():
+        for reveal in reveals:
             turns = shortest_call(scenarios.calls, reveal)
             latest = (turns - 1) // 2 - 1
             if reveal > latest:
                 raise ConfigError(
-                    f"scenarios.yaml calls.{name} has {reveal}, but the shortest call it can get "
+                    f"scenarios.yaml {name} has {reveal}, but the shortest call it can get "
                     f"({turns} turns) leaves the caller no turn to ask after it "
                     f"(latest reveal turn there: {latest}); raise max_turns or lower it"
                 )
@@ -538,9 +563,15 @@ def load_config(folder: Path | str | None = None) -> Config:
     except ValidationError as exc:
         raise ConfigError(f"config in {folder} is not valid:\n{exc}") from exc
     _cross_check(agents, scenarios, details)
+    try:
+        romance_voice = romance_voice_page.load()
+        romance_voice_page.check(romance_voice, scenarios)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
     # Hash the parsed content, not the bytes, so a comment or spacing change keeps the same hash
     # and a stopped run still resumes.
+    parsed = [raw[n] for n in FILES] + [romance_voice]
     digest = hashlib.sha256(
-        yaml.safe_dump([raw[n] for n in FILES], sort_keys=True, allow_unicode=True).encode()
+        yaml.safe_dump(parsed, sort_keys=True, allow_unicode=True).encode()
     ).hexdigest()[:12]
-    return Config(folder, agents, scenarios, details, digest)
+    return Config(folder, agents, scenarios, details, digest, romance_voice)

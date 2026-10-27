@@ -33,6 +33,12 @@ class Settings(BaseSettings):
         """Extra request fields for every vLLM chat call."""
         return {} if self.vllm_thinking else {"chat_template_kwargs": {"enable_thinking": False}}
 
+    # Typhoon's server, for simulator agents whose agents.yaml model is typhoon-... (see
+    # data_pipeline/llm.py). Empty means not set up; such an agent then fails to start.
+    typhoon_base_url: str = ""
+    typhoon_api_key: SecretStr = SecretStr("")
+    typhoon_timeout_s: float | None = None  # None: use vllm_timeout_s
+
     # How the voice reply is written: "prompt" (llm_serving prompt) or "dspy" (ChainOfThought).
     reply_engine: str = "prompt"
     # Extra leak judge on top of the rule check: "off" or "on". It can only add blocks.
