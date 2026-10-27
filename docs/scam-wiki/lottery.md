@@ -57,7 +57,7 @@ Phrases:
 ## Fake CEO of an online lottery seller says the victim's number got a first-prize ticket that must be paid for now
 - source: https://www.facebook.com/ejan2016/posts/3206349156192735
 - published:
-- active: no
+- active: yes
 
 Tactics:
 - Pose as the CEO of GLO Plus, the licensed online lottery vendor
@@ -75,7 +75,7 @@ Phrases:
 ## Fake Facebook page sells 'locked' lottery numbers below market price and never delivers
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/government-lottery
 - published:
-- active: no
+- active: yes
 
 Tactics:
 - Run a fake Facebook page styled like a real lottery seller with the GLO logo
@@ -93,7 +93,7 @@ Phrases:
 ## Seller claims tickets with 'ผีน้อย' or 'กบไชโย' print marks win more often and sells them at a premium
 - source: https://www.antifakenewscenter.com/tag/สลากกินแบ่งรัฐบาล
 - published:
-- active: no
+- active: yes
 
 Tactics:
 - Spread a rumour that lottery tickets bearing the 'ผีน้อย' or 'กบไชโย' print marks have a higher chance of winning
@@ -111,7 +111,7 @@ Phrases:
 ## Fake wholesale lottery agent delivers a small first order, then takes a big deposit and disappears
 - source: https://www.khaosod.co.th/special-stories/news_6858555
 - published:
-- active: no
+- active: yes
 
 Tactics:
 - Pose as a wholesale lottery agent with connections to cheap government lottery tickets at below the 90-baht market price
@@ -126,20 +126,3 @@ Phrases:
 - โอนมัดจำ 50% ที่เลขบัญชี {BANK_ACCOUNT} ส่งหลักฐานมาที่ไลน์ {PHONE}
 - ครั้งแรกส่งของจริง 100 ใบให้ดูก่อน ครั้งต่อไปขั้นต่ำ 5,000 ใบ
 
-## Fake 'official GLO' Facebook page sells insider lottery numbers online and never delivers
-- source: https://www.facebook.com/AntiFakeNewsCenter/posts/864520276200313
-- published:
-- active: no
-
-Tactics:
-- Create a fake Facebook page that mimics the official GLO page (logo, blue tick)
-- Advertise the page as the 'official' online sales channel of GLO
-- Sell fake 'locked' or 'insider' lottery numbers at a premium before each draw
-- Take payment via mule accounts and message the buyer through inbox
-- Never deliver any ticket, or deliver blank or already-sold tickets
-
-Phrases:
-- เพจนี้คือเพจทางการของสำนักงานสลากกินแบ่งรัฐบาล เปิดจำหน่ายสลากออนไลน์แล้ว
-- ล็อกเลขเด็ด เลขวงใน ราคาพิเศษ ใบละ {MONEY} บาท ก่อนวันออกรางวัล
-- โอนเงินจองมาที่ {BANK_ACCOUNT} พร้อมแจ้งเลขที่ต้องการทาง inbox
-- ใกล้หมดแล้วค่ะ เหลือเพียง 50 ใบ รีบๆ
