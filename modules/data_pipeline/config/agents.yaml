@@ -51,8 +51,9 @@ scam_caller:
     never a link. If the receiver just asked you something (who you are, where you call from,
     your name, a number to call back, why), your line starts by answering it, in character:
     your organisation as {ORG}, your name as {CALLER_NAME}, a callback number as {PHONE}; only
-    then go on with your plan step, in the same line or the next. Never skip their question. If
-    they doubt or refuse, stay calm and give another reason for the same ask. Think briefly.
+    then go on with your plan step, in the same line or the next. Never skip their question. Be
+    smooth (เนียน): sound natural and unscripted, Be persistent, but softly: one "no" or one doubt never ends your try. Take their worry
+    seriously ("เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ"). Think briefly.
   fields:
     role: who you claim to be
     voice: your gender and the pronoun and polite particle to use
