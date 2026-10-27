@@ -210,7 +210,8 @@ async def studio_start(request: Request) -> Response:
 def _begin(form: Any, demo: bool, pace: float) -> Response:
     """Register the run and start its thread (runs in the worker pool: it uses the store)."""
     try:
-        spec = parse_form(form, _config(), _taken_ids())
+        config = _config()
+        spec = parse_form(form, config, _taken_ids(config))
         run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
     except FormProblem as problem:
         return form_error(str(problem), problem.status)
@@ -305,11 +306,25 @@ def _described_receiver(form: Any, pools: Any) -> ReceiverProfile:
         raise FormProblem("The age is a whole number from 10 to 100.") from None
 
 
-def _taken_ids() -> set[str]:
-    """Calls that cannot be started again: the finished ones. An unfinished call (a stopped
-    run) can be resumed with the same seed; the store checks that the receiver matches."""
+def _taken_ids(config: Config) -> set[str]:
+    """Calls an empty seed must skip.
+
+    A stopped call made with this config stays available so an ordinary Start can resume it.
+    One made with another config cannot resume safely, so automatic selection skips it instead
+    of handing the user a config-conflict error after a configuration change.
+    """
     db = dataset.store()
-    return {r["id"] for r in db.summaries() if r["status"] != "in_progress"} if db else set()
+    if db is None:
+        return set()
+    taken = set()
+    for row in db.summaries():
+        if row["status"] != "in_progress":
+            taken.add(row["id"])
+            continue
+        record = db.load(row["id"])
+        if record and record["generation"].get("config_hash") != config.hash:
+            taken.add(row["id"])
+    return taken
 
 
 def _title(spec: live.CallSpec) -> str:
@@ -529,14 +544,19 @@ def _ended_html(event: live.Event) -> str:
 def _verdict_html(event: live.Event) -> str:
     record = event.record
     generation = record["generation"]
+    judge = generation.get("judge")
+    confidence = judge.get("confidence") if judge else None
     return render(
         "partials/studio_verdict.html",
-        judge=generation["judge"],  # None when the call ended early and was not judged
+        call_id=record.get("id"),
+        judge=judge,  # None when the call ended early and was not judged
         accepted=generation["status"] == "accepted",
-        reasons=[dataset.reason_text(r) for r in generation["reasons"]],
-        scam_start=record["scam_start_turn"],
-        summary=record["reference_summary"],
-        label_scam=record["label_scam"],
+        confidence=confidence,
+        review=record.get("review"),
+        reasons=[dataset.reason_text(r) for r in generation.get("reasons", [])],
+        scam_start=record.get("scam_start_turn"),
+        summary=record.get("reference_summary"),
+        label_scam=record.get("label_scam"),
         tag=_tag(event.modules, "judge"),
     )
 

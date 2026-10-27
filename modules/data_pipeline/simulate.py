@@ -78,7 +78,8 @@ def run_call(
     state = CALL_GRAPH.invoke(
         initial_state(record), context=context, config={"recursion_limit": limit}
     )
-    return to_record(record, state)
+    loaded = store.load_call(record.id)
+    return loaded if loaded is not None else to_record(record, state)
 
 
 def record_id(call_type: str, seed: int, receiver_key: str = "") -> str:

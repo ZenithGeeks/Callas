@@ -9,6 +9,7 @@
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var source = null;
+  var batch = null;
 
   function toElement(html) {
     var t = document.createElement("template");
@@ -31,17 +32,19 @@
   }
 
   function setBusy(on) {
-    var start = document.querySelector("[data-start]");
-    if (start) start.disabled = on;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-start], [data-start-all]"), function (start) {
+      start.disabled = on;
+    });
   }
 
-  function end(root, status, html) {
+  function end(root, status, html, advanceBatch) {
     if (source) source.close();
     source = null;
     status.innerHTML = html;
     var stop = root.querySelector("[data-stop-run]");
     if (stop) stop.hidden = true;
     setBusy(false);
+    if (advanceBatch) startNextBatch();
   }
 
   function gone(root, status) {
@@ -80,7 +83,7 @@
       if (box) status.before(box);
     });
     source.addEventListener("done", function (e) {
-      end(root, status, e.data);
+      end(root, status, e.data, true);
     });
     source.onerror = function () {
       if (source && source.readyState === EventSource.CLOSED) {
@@ -116,6 +119,44 @@
     }
   }
 
+  // Run each kind in turn, through the same form as a single call. The server still permits
+  // only one active run; advancing after its "done" event preserves that contract.
+  function startNextBatch() {
+    if (!batch || batch.next >= batch.types.length) {
+      batch = null;
+      return;
+    }
+    var form = document.getElementById("studio-form");
+    var type = document.getElementById("call_type");
+    if (!form || !type) {
+      batch = null;
+      return;
+    }
+    type.value = batch.types[batch.next++];
+    filterScenarios();
+    setBusy(true);
+    form.requestSubmit();
+  }
+
+  function startAllKinds() {
+    var type = document.getElementById("call_type");
+    var scenario = document.getElementById("scenario");
+    var receiver = document.getElementById("receiver");
+    var seed = document.getElementById("seed");
+    var speak = document.getElementById("speak");
+    if (!type || !scenario || !receiver || !seed || !speak) return;
+    var types = Array.prototype.map.call(type.options, function (option) { return option.value; });
+    var first = types.indexOf(type.value);
+    if (first < 0) return;
+    batch = { types: types.slice(first).concat(types.slice(0, first)), next: 0 };
+    scenario.value = "";
+    receiver.value = "";
+    seed.value = "";
+    speak.checked = false;
+    toggleCustom();
+    startNextBatch();
+  }
+
   // The scenario list only shows scenarios of the chosen kind of call.
   function filterScenarios() {
     var type = document.getElementById("call_type");
@@ -144,6 +185,9 @@
   document.addEventListener("change", function (e) {
     if (e.target.id === "call_type") filterScenarios();
     if (e.target.id === "receiver") toggleCustom();
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("[data-start-all]")) startAllKinds();
   });
   document.addEventListener("htmx:afterSettle", function (e) {
     if (e.target && e.target.id === "studio-run") connectNew();

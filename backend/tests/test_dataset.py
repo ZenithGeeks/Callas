@@ -110,6 +110,25 @@ def test_call_detail_partial(client, db_path):
     assert "ask for the OTP now" in html
 
 
+def test_call_detail_shows_the_three_scored_judge_checks(client, db_path):
+    rec = Store(db_path).load("phishing_otp_00001")
+    rec["generation"]["judge"].update(
+        {
+            "confidence": 0.5,
+            "scam_clear": True,
+            "scam_clarity_reason": "The OTP request makes the scam clear.",
+            "label_reason": "The caller asks for an OTP.",
+            "language_realistic": False,
+            "language_realism_reason": "The refusal is repeated like a template.",
+        }
+    )
+    Store(db_path).save(rec)
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Scam clarity" in html and "Yes · +25" in html
+    assert "Selected kind of call" in html and "Realistic language" in html
+    assert "No · +0" in html and "The refusal is repeated like a template." in html
+
+
 def test_the_natural_score_shows_only_for_calls_judged_with_one(client, db_path):
     html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
     assert "Natural score 4 / 5" in html

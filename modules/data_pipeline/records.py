@@ -90,6 +90,13 @@ class Judge:
     summary: str
     issues: str
     reasoning: str
+    # The three scored checks. None means a record made before these checks existed.
+    scam_clear: bool | None = None
+    scam_clarity_reason: str = ""
+    label_reason: str = ""
+    language_realistic: bool | None = None
+    language_realism_reason: str = ""
+    confidence: float | None = None
     # 1 to 5, how natural the Thai sounds. Only in answers stored before #98: the judge scored
     # calls down for spelling mistakes that were not there, so it is no longer asked.
     natural_thai: int | None = None
@@ -104,9 +111,15 @@ class Judge:
         # The stored order: prompt_tokens first for a judged call, last for a skipped one.
         answer = {
             "label_holds": self.label_holds,
+            **({} if self.scam_clear is None else {"scam_clear": self.scam_clear}),
+            **({} if not self.scam_clarity_reason else {"scam_clarity_reason": self.scam_clarity_reason}),
+            **({} if not self.label_reason else {"label_reason": self.label_reason}),
+            **({} if self.language_realistic is None else {"language_realistic": self.language_realistic}),
+            **({} if not self.language_realism_reason else {"language_realism_reason": self.language_realism_reason}),
             "scam_start_turn": self.scam_start_turn,
             **({} if self.natural_thai is None else {"natural_thai": self.natural_thai}),
             "giveaway": self.giveaway,
+            **({} if self.confidence is None else {"confidence": self.confidence}),
             "summary": self.summary,
             "issues": self.issues,
             "reasoning": self.reasoning,
