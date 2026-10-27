@@ -75,6 +75,12 @@ def test_strip_matches_the_longest_opener_first():
     assert strip_leading_interjection("โธ่ ไม่เป็นไรนะ เดี๋ยวช่วยดูให้") == "ไม่เป็นไรนะ เดี๋ยวช่วยดูให้"
 
 
+def test_strip_leaves_a_real_word_that_starts_like_an_opener():
+    # โหยหา ("to long for someone") begins with the opener โหย but is one real word: an opener is
+    # only stripped when the line ends or a non-Thai char follows it, so the word is left whole.
+    assert strip_leading_interjection("โหยหาคุณมากเลยค่ะ") == "โหยหาคุณมากเลยค่ะ"
+
+
 def test_receiver_asking_its_own_name_or_identity_is_flagged():
     assert self_identity_question("ฉันคือใคร")
     assert self_identity_question("ผมชื่ออะไรนะครับ")

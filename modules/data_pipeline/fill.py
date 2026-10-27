@@ -222,6 +222,10 @@ def unwanted_words(raw: str) -> list[str]:
 # longer opener (โธ่เอ้ย) is matched before the shorter one inside it (โธ่), and the whole opener
 # is dropped, not just its first word.
 _LEADING_INTERJECTIONS = ("โธ่เอ้ย", "โอ้โห", "โอ้โฮ", "โหย", "โธ่")
+# An opener counts only when the line ends or a non-Thai character (space, ., …, !) follows it,
+# never when a Thai letter continues it: โหย is an opener, โหยหา ("to long for") is one real word,
+# so the opener must not be chopped off the front of a longer word (U+0E00-U+0E7F is Thai).
+_AFTER_OPENER = r"(?=$|[^฀-๿])"
 
 
 def strip_leading_interjection(raw: str) -> str:
@@ -229,7 +233,7 @@ def strip_leading_interjection(raw: str) -> str:
     after it), so the line opens plainly. Leaves the rest untouched; never empties the line."""
     s = raw.lstrip()
     for word in _LEADING_INTERJECTIONS:
-        if s.startswith(word):
+        if re.match(re.escape(word) + _AFTER_OPENER, s):
             rest = s[len(word) :].lstrip(" .…,!~ๆ")
             return rest or raw
     return raw
