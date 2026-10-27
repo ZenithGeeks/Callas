@@ -5,6 +5,8 @@
 # below, so no real number or link from the model's memory reaches the data.
 #
 #   names         first names by gender, for {CALLER_NAME} and {RECEIVER_NAME}
+#   nicknames     used instead of names in calls whose scenario relation is a nickname one
+#                 (fill.NICKNAME_RELATIONS: a close friend or family member)
 #   banks         {ORG} when a scenario's org is "ธนาคาร"
 #   made_up_orgs  {ORG} when a scenario's org is "*"
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
@@ -69,6 +71,39 @@ names:
   - วิไลวรรณ
   - ธัญชนก
   - กมลชนก
+nicknames:
+  male:
+  - ต้น
+  - บอล
+  - เบียร์
+  - ปอนด์
+  - กอล์ฟ
+  - เก่ง
+  - ต่อ
+  - เอก
+  - ป๊อป
+  - นัท
+  - โอ๊ต
+  - บอส
+  - ภูมิ
+  - เจมส์
+  - ตี๋
+  female:
+  - แพร
+  - มิ้นท์
+  - ฝน
+  - ปุ๊ก
+  - จูน
+  - แนน
+  - ฟ้า
+  - ส้ม
+  - แอน
+  - เมย์
+  - พลอย
+  - น้ำ
+  - ขวัญ
+  - ปลา
+  - ปุ้ย
 banks:
 - ธนาคารกสิกรไทย
 - ธนาคารไทยพาณิชย์
