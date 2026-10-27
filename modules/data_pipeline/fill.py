@@ -218,8 +218,10 @@ def unwanted_words(raw: str) -> list[str]:
     return [w for w in _UNWANTED_RECEIVER_WORDS if w in raw]
 
 
-# Leading interjections the model keeps opening with (โอ้โห, โธ่เอ้ย, ...). Longest first so the
-_LEADING_INTERJECTIONS = ("โอ้โห", "โอ้โฮ", "โหย")
+# Leading interjections the model keeps opening with (โอ้โห, โธ่เอ้ย, ...). Longest first so a
+# longer opener (โธ่เอ้ย) is matched before the shorter one inside it (โธ่), and the whole opener
+# is dropped, not just its first word.
+_LEADING_INTERJECTIONS = ("โธ่เอ้ย", "โอ้โห", "โอ้โฮ", "โหย", "โธ่")
 
 
 def strip_leading_interjection(raw: str) -> str:

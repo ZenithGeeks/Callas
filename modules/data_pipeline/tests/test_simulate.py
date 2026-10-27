@@ -493,15 +493,16 @@ LEAKY = [
 
 
 def test_receiver_prompt_stays_small():
-    """The receiver's prompt without the call. It grew from 776 as behaviour was added (#64, #99,
-    the romance known-caller line) and then a few short few-shot examples replaced some prose to
-    fix greeting-yourself, re-asking a given detail, awkward phrasing, and reacting to a partner's
-    problem with concern rather than excitement: about 1100 now. Still tiny against the 100k
+    """The receiver's prompt without the call. It grew from 776 as behaviour was added (#64, #99)
+    and then two short, general few-shot examples replaced some prose to fix greeting-yourself,
+    re-asking a given detail, and reacting to a problem with concern rather than excitement: about
+    1070 now. The romance reply example lives in each romance scenario's receiver_context, so only
+    romance calls pay for it and the shared prompt no longer carries it. Still tiny against the 100k
     window (headroom below); this guard only catches runaway growth."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(persona="{}", voice="v", stage="s", conversation="[0] ผู้โทร: สวัสดีครับ")
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1150
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1100
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):

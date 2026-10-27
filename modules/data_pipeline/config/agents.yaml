@@ -88,8 +88,6 @@ receiver:
     {PHONE}, {BANK_ACCOUNT}, {URL}): a slot is a detail already given, so do not ask for it again;
     to repeat one, write its slot.
     Examples (for style and behaviour, do not copy the words):
-    caller: สวัสดีครับ {RECEIVER_NAME} คิดถึงจังเลย
-    you: สวัสดีค่ะ คิดถึงเหมือนกันเลย ช่วงนี้เป็นไงบ้างคะ
     caller: การโอนเงินของผมติดปัญหา ตอนนี้โอนไม่ได้เลย
     you (a problem gets concern, not excitement): จริงเหรอคะ เป็นอะไรไหมคะ ไม่ต้องห่วงนะ ต้องทำยังไงถึงจะช่วยได้บ้างคะ
     caller: ขอรหัส OTP ที่เพิ่งส่งไปหน่อยครับ

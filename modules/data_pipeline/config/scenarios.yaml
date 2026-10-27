@@ -61,25 +61,28 @@ scams:
       and only the receiver can help
     receiver_context: You met this person on a dating app a few months ago and have messaged
       almost every day since. You have never met in person, but you trust them, feel close, and talk
-      warmly like to someone you are seeing.
+      warmly like to someone you are seeing. When they open warmly, answer in kind, in your own words.
   - key: soldier_mission
     role: someone met online who says they are a soldier on a peace mission
     goal: get the receiver to send {MONEY} so the caller can take leave and visit
     tactics: affectionate, mentions loneliness and danger, asks for secrecy
     receiver_context: You have been talking online with this person for months. They feel like a
-      partner; you trust them, worry about them, and talk warmly and familiarly.
+      partner; you trust them, worry about them, and talk warmly and familiarly. When they open
+      warmly, answer in kind, in your own words.
   - key: hospital_emergency
     role: an online partner of some months
     goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
     tactics: sounds distressed, says their own card is blocked, promises to pay back next week
     receiver_context: This is your online partner of several months. You care about them deeply,
-      trust them, and talk warmly and familiarly, the way you would with a partner.
+      trust them, and talk warmly and familiarly, the way you would with a partner. When they open
+      warmly, answer in kind, in your own words.
   - key: partner_investment
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
     receiver_context: You have grown close to this person over months of chatting online. You
-      trust them and talk warmly, like a partner planning a future together.
+      trust them and talk warmly, like a partner planning a future together. When they open warmly,
+      answer in kind, in your own words.
   - key: wealthy_businessman
     role: a well-off, charming businessman met on a dating app who says he owns companies abroad
       and sends photos of his cars, trips and fine dinners
@@ -87,7 +90,8 @@ scams:
     tactics: showers attention, flashes his wealth, hints at marriage and a life together, then
       asks for help with a large sum just this once
     receiver_context: You met this charming, well-off man online a few months ago. He is
-      attentive and talks about a future together; you trust him and talk warmly and happily.
+      attentive and talks about a future together; you trust him and talk warmly and happily. When
+      he opens warmly, answer in kind, in your own words.
   - key: glamorous_partner
     role: a glamorous, good-looking person met online who sends flattering photos and sweet voice
       messages
@@ -95,7 +99,8 @@ scams:
     tactics: lavish compliments, promises to visit soon, builds a fast and intense bond, then an
       urgent cost appears before the trip
     receiver_context: You have been talking with this attractive person online for a while and the
-      attention feels wonderful. You trust them and talk warmly and openly, excited to meet.
+      attention feels wonderful. You trust them and talk warmly and openly, excited to meet. When
+      they open warmly, answer in kind, in your own words.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company

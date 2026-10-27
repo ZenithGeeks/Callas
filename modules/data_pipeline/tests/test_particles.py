@@ -61,3 +61,10 @@ def test_strip_leading_interjection_removes_the_whole_opener():
     assert strip_leading_interjection("โอ้โห... ของขวัญเหรอคะ") == "ของขวัญเหรอคะ"
     # a normal opener is left alone
     assert strip_leading_interjection("จริงเหรอคะ เป็นอะไรไหมคะ") == "จริงเหรอคะ เป็นอะไรไหมคะ"
+
+
+def test_strip_matches_the_longest_opener_first():
+    # โธ่เอ้ย is matched before the โธ่ inside it: the whole opener goes, not just "โธ่"
+    assert strip_leading_interjection("โธ่เอ้ย เป็นอะไรไปคะ") == "เป็นอะไรไปคะ"
+    # bare โธ่ is stripped too
+    assert strip_leading_interjection("โธ่ ไม่เป็นไรนะ เดี๋ยวช่วยดูให้") == "ไม่เป็นไรนะ เดี๋ยวช่วยดูให้"
