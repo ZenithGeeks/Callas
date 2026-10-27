@@ -294,22 +294,26 @@ scams:
     role: staff of a lottery prize office
     org: สำนักงานสลากกินแบ่งรัฐบาล
     goal: get the receiver to pay a 'tax and fee' of {MONEY} before the prize is released
-    tactics: congratulates loudly, says the prize is large, the fee must be paid today
+    tactics: congratulates loudly, says the prize is large, the fee must be paid within N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: shopping_draw
     role: staff of an online shopping platform
     org: '*'
     goal: get the receiver to pay {MONEY} 'shipping and insurance' for a won car or phone
-    tactics: the receiver was picked in a customer draw, asks to keep it quiet until delivered
+    tactics: the receiver was picked in a customer draw, asks to keep it quiet until delivered,
+      the payment must be made within N minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: brand_anniversary
     role: marketing staff of a drink brand
     org: '*'
     goal: get the receiver to open {URL} and fill in bank details to receive prize money
-    tactics: anniversary campaign, random phone numbers won, deadline tonight
+    tactics: anniversary campaign, random phone numbers won, the form closes in N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: lucky_sim
     role: telecom promotion staff
     org: '*'
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
-    tactics: the receiver's number won a lucky draw, tone friendly then urgent
+    tactics: the receiver's number won a lucky draw, tone friendly then urgent, transfer within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: glo_sms_first_prize
     role: officer of the Government Lottery Office following up an SMS about a prize
     org: สำนักงานสลากกินแบ่งรัฐบาล
@@ -317,7 +321,7 @@ scams:
       first prize is paid out
     tactics: Says an SMS was sent about the receiver winning the first prize; walks them through
       the claim; asks them to confirm their name and bank account to seem official; the tax must be
-      paid before the prize money can be transferred
+      paid within N minutes before the prize money can be transferred (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: glo_phone_claim_fee
     role: officer of the Government Lottery Office
     org: สำนักงานสลากกินแบ่งรัฐบาล
@@ -325,7 +329,8 @@ scams:
       their right to claim the prize
     tactics: Says the receiver's ticket won the first prize but has not been claimed; because of a
       system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
-      within 24 hours once the fee is paid
+      within 24 hours once the fee is paid, which must be done within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
