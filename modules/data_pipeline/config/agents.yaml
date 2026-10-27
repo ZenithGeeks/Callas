@@ -76,8 +76,7 @@ scam_caller:
     start: "Turn {turn} of at most {turns}. Gently move toward your goal: concerned, acting soon helps them."
     push: "Turn {turn} of at most {turns}. More urgent: time is short and you want to help them in time."
     last: "Turn {turn} of at most {turns}. Make your ask now, clearly and urgently, as their last chance."
-  # a typhoon-* model runs on the TYPHOON_* server in .env; without those lines, the vLLM model
-  lm: {model: typhoon-v2.5-30b-a3b-instruct, temperature: 0.5, max_tokens: 1000}
+  lm: {temperature: 0.5, max_tokens: 1000}
 
 legit_caller:
   instructions: >-
@@ -163,7 +162,7 @@ planner:
     pattern_notes: notes from recent real cases of this scam type, newest first
     turns: how many turns the caller has, and the first turn it may ask for something
     plan: one short step per caller turn, in English, in order
-  notes_limit: 6
+  notes_limit: 10
   lm: {temperature: 0.0, max_tokens: 1200}
 
 # Used by `python -m data_pipeline.patterns add`: reads one article and writes a pattern note.
