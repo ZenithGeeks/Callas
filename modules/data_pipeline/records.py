@@ -112,10 +112,22 @@ class Judge:
         answer = {
             "label_holds": self.label_holds,
             **({} if self.scam_clear is None else {"scam_clear": self.scam_clear}),
-            **({} if not self.scam_clarity_reason else {"scam_clarity_reason": self.scam_clarity_reason}),
+            **(
+                {}
+                if not self.scam_clarity_reason
+                else {"scam_clarity_reason": self.scam_clarity_reason}
+            ),
             **({} if not self.label_reason else {"label_reason": self.label_reason}),
-            **({} if self.language_realistic is None else {"language_realistic": self.language_realistic}),
-            **({} if not self.language_realism_reason else {"language_realism_reason": self.language_realism_reason}),
+            **(
+                {}
+                if self.language_realistic is None
+                else {"language_realistic": self.language_realistic}
+            ),
+            **(
+                {}
+                if not self.language_realism_reason
+                else {"language_realism_reason": self.language_realism_reason}
+            ),
             "scam_start_turn": self.scam_start_turn,
             **({} if self.natural_thai is None else {"natural_thai": self.natural_thai}),
             "giveaway": self.giveaway,

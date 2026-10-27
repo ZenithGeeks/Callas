@@ -143,6 +143,44 @@ def test_normal_call_the_judge_calls_a_scam_is_rejected(tmp_path):
     assert "too_short" in rec["generation"]["reasons"]
 
 
+@pytest.mark.parametrize(
+    ("answers", "reason"),
+    [
+        (dict(scam_clear=False), "judge_scam_unclear"),
+        (dict(language_realistic=False), "judge_language_unrealistic"),
+    ],
+)
+def test_a_failed_scored_check_rejects_the_call(tmp_path, answers, reason):
+    agents = make_agents(SCAM, REPLIES, judge(start=2, **answers))
+    store = Store(tmp_path / "calls.db")
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "rejected" and reason in rec["generation"]["reasons"]
+    assert rec["review"]["status"] == "rejected"
+
+
+def test_the_judge_does_not_undo_a_human_review(tmp_path, monkeypatch):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    store = Store(tmp_path / "calls.db")
+    real_speak = graph_module.write_turn
+    calls = {"n": 0}
+
+    def crash_on_third(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise KeyboardInterrupt
+        return real_speak(*a, **kw)
+
+    monkeypatch.setattr(graph_module, "write_turn", crash_on_third)
+    with pytest.raises(KeyboardInterrupt):
+        run_call("phishing_otp", 1, store, agents, CONFIG)
+    store.set_review(record_id("phishing_otp", 1), "rejected", "a person said no")
+
+    monkeypatch.setattr(graph_module, "write_turn", real_speak)
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+    assert rec.generation.status == "accepted"
+    assert (rec.review.status, rec.review.note) == ("rejected", "a person said no")
+
+
 def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
@@ -496,7 +534,8 @@ def test_the_judge_gives_no_natural_thai_score(tmp_path):
 
 
 def test_judge_prompt_stays_small():
-    """The scored verdict fields and editable realism rubric leave room for the transcript."""
+    """The judge's prompt without the call. The scored checks and the realism criteria took it
+    from about 800 tokens to 1670."""
     tokens = prompt_tokens(
         Agents(CONFIG, lms={}).signatures["judge"],
         dict(
@@ -505,7 +544,7 @@ def test_judge_prompt_stays_small():
             realism_criteria=CONFIG.agents.judge.realism_criteria,
         ),
     )
-    assert tokens <= 1_400
+    assert tokens <= 1_700
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

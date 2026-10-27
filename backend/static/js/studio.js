@@ -94,6 +94,7 @@
     };
     if (stop) {
       stop.addEventListener("click", function () {
+        batch = null; // Stop ends a "Generate all six kinds" run too, not just this call
         stop.disabled = true;
         status.textContent = "Stopping after the step in progress…";
         fetch(root.dataset.stop, { method: "POST" })

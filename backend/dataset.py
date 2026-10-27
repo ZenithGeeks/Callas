@@ -39,6 +39,8 @@ REASON_TEXT = {
     "too_short": "Too short",
     "judge_label_does_not_hold": "Judge: does not show the intended call",
     "judge_giveaway": "Judge: names the label outright",
+    "judge_scam_unclear": "Judge: unclear whether it is a scam",
+    "judge_language_unrealistic": "Judge: the language is not realistic",
     "no_scam_move": "No scam move found",
     "judge_saw_scam_in_normal_call": "Judge saw a scam in a normal call",
     "tone_mark_order": "Tone mark before a vowel",

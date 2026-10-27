@@ -1,5 +1,6 @@
 """The /studio page, in demo mode (scripted agents on a real DSPy stack, silent voices)."""
 
+import sqlite3
 import time
 
 import pytest
@@ -73,7 +74,7 @@ def test_page_has_the_form_and_a_nav_link(client):
     assert "teacher_cm" in html  # a saved profile
     assert 'list="dl-occupation"' in html  # suggestions for a described person
     assert "No call yet" in html
-    assert 'data-start-all' in html and "Generate all six kinds" in html
+    assert "data-start-all" in html and "Generate all six kinds" in html
 
 
 def test_start_shows_the_run_and_the_call_is_saved(client, tmp_path):
@@ -264,10 +265,12 @@ def test_a_taken_seed_is_refused_and_empty_takes_the_next_free_one(client):
 def test_empty_seed_skips_a_stopped_call_from_another_config(client, tmp_path):
     start(client, call_type="benign", seed="0")
     wait_idle(studio.BOARD)
-    record = saved(tmp_path, "benign_00000")
-    record["generation"]["status"] = "in_progress"
-    record["generation"]["config_hash"] = "old-config"
-    Store(tmp_path / "calls.db").save(record)
+    # Store.save never changes a stored call's config, so set the old one in the row itself.
+    with sqlite3.connect(tmp_path / "calls.db") as db:
+        db.execute(
+            "UPDATE calls SET status = 'in_progress', config_hash = 'old-config' WHERE id = ?",
+            ("benign_00000",),
+        )
 
     response = start(client, call_type="benign")
     assert response.status_code == 200 and "benign_00001" in response.text

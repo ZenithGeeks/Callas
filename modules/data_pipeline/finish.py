@@ -255,6 +255,11 @@ def reasons_to_reject(
         return [*reasons, judge.skipped]
     if not judge.label_holds:
         reasons.append("judge_label_does_not_hold")
+    # False only: None is a call judged before these checks existed.
+    if judge.scam_clear is False:
+        reasons.append("judge_scam_unclear")
+    if judge.language_realistic is False:
+        reasons.append("judge_language_unrealistic")
     if judge.giveaway:
         reasons.append("judge_giveaway")
     if label_scam and scam_start_turn is None:

@@ -5,6 +5,8 @@
 {% import "partials/_ui.html" as ui %}
 {% set rv = d.record.review or {} %}
 {% set st = rv.status or 'pending' %}
+{# graph.to_record writes the judge's decision with a note that starts "Auto-"; a person's does not. #}
+{% set by_judge = (rv.note or '').startswith('Auto-') %}
 <section id="review-bar" class="review-bar" aria-labelledby="review-h"
          data-review="{{ st }}"
          data-id="{{ d.row.id }}"
@@ -20,8 +22,8 @@
     <p class="review-state">
       {{ ds.review_mark(st) }}
       <span>
-        {% if st == 'approved' %}<strong>Auto-Approved by Judge.</strong> In dataset.
-        {% elif st == 'rejected' %}<strong>Auto-Rejected by Judge.</strong> Excluded from dataset.
+        {% if st == 'approved' %}<strong>{{ 'Auto-approved by the judge.' if by_judge else 'Approved.' }}</strong> It goes into the dataset.
+        {% elif st == 'rejected' %}<strong>{{ 'Auto-rejected by the judge.' if by_judge else 'Rejected.' }}</strong> It stays out.
         {% elif d.row.status == 'rejected' %}<strong>Failed checks.</strong> Reject, or approve if the checks were wrong.
         {% else %}<strong>Not reviewed.</strong> Play it once, then decide.{% endif %}
       </span>

@@ -93,9 +93,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
     if state["status"] in ("accepted", "rejected"):
         auto_status = "approved" if state["status"] == "accepted" else "rejected"
         conf = (
-            ending.judge.confidence
-            if ending.judge and ending.judge.confidence is not None
-            else 0.0
+            ending.judge.confidence if ending.judge and ending.judge.confidence is not None else 0.0
         )
         conf_pct = f"{int(round(conf * 100))}%"
         if auto_status == "approved":
@@ -178,7 +176,10 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
     finished = to_record(ctx.record, {**state, **update})
     ctx.store.save_call(finished)
-    if finished.generation.status in ("accepted", "rejected"):
+    # save_call keeps a stored review, so the judge's decision is written here, but only over
+    # a pending one: it must not undo a human's decision on a resumed call.
+    stored = ctx.store.load_call(finished.id)
+    if finished.generation.status in ("accepted", "rejected") and stored.review.status == "pending":
         ctx.store.set_review(finished.id, finished.review.status, finished.review.note)
     return update
 
