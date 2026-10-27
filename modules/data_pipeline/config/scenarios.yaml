@@ -353,9 +353,14 @@ scams:
   - key: shopping_draw
     role: staff of an online shopping platform
     org: '*'
-    goal: get the receiver to pay {MONEY} 'shipping and insurance' for a won car or phone
-    tactics: the receiver was picked in a customer draw, asks to keep it quiet until delivered,
-      the payment must be made within N minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for 'shipping, insurance and
+      the import tax' on a won item before it is delivered
+    tactics: the receiver was picked in a draw for customers who bought on the platform; the prize
+      is an item, not cash (pick one, a car, a motorbike or a new phone, and keep it for the whole
+      call); asks the receiver to confirm their delivery address, never says it; says the item is
+      waiting at the warehouse and ships once shipping, insurance and the import tax are paid;
+      asks them to keep it quiet until it is delivered; the payment must be made within N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: brand_anniversary
     role: marketing staff of a drink brand
     org: '*'
@@ -420,6 +425,28 @@ scams:
       each buyer is limited; asks for the transfer to {BANK_ACCOUNT} and promises EMS delivery;
       the transfer must be made within N minutes before the tickets go to other buyers (a
       deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: locked_numbers_page
+    role: admin of a Facebook page that sells government lottery tickets
+    org: '*'
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for a set of 'locked number'
+      tickets
+    tactics: Calls back about the receiver's inbox message to the page; says the page sells real
+      government lottery tickets cheaper than the market price and has 'locked' and 'hot' numbers
+      for the next draw; promises EMS delivery within 24 hours and that the tickets are 100% real;
+      says many people are booking the same number and only a few are left; asks for the
+      transfer within N minutes to hold the set (a deadline of N minutes, pick N between 5 and 30
+      and keep it for the whole call)
+  - key: wholesale_ticket_agent
+    role: wholesale lottery ticket agent
+    org: '*'
+    goal: get the receiver to transfer a 50% deposit of {MONEY} to {BANK_ACCOUNT} for a large
+      wholesale order of lottery tickets
+    tactics: Calls a receiver who bought a small first order last time and got real tickets;
+      says they have connections for government lottery tickets below the usual market price;
+      offers a much bigger wholesale order at a deep discount, with a minimum order; asks for a
+      50% deposit of {MONEY} to {BANK_ACCOUNT} to lock the price; the deposit must be paid within
+      N minutes or the discount is gone (a deadline of N minutes, pick N between 5 and 30 and keep
+      it for the whole call)
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
