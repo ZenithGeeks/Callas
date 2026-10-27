@@ -494,11 +494,11 @@ LEAKY = [
 
 def test_receiver_prompt_stays_small():
     """The receiver's prompt without the call (#64 added about 30 tokens to 776, #99 about 45
-    more)."""
+    more, the known-caller line for romance about 20 more)."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(persona="{}", voice="v", stage="s", conversation="[0] ผู้โทร: สวัสดีครับ")
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 880
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 900
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):

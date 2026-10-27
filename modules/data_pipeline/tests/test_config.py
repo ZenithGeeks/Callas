@@ -64,6 +64,13 @@ def test_scam_types_are_fixed(cfg_dir):
         load_config(cfg_dir)
 
 
+def test_romance_scenarios_carry_a_receiver_relationship():
+    # romance calls tell the receiver it already knows the caller; ordinary calls do not
+    c = load_config()
+    assert all(s.receiver_context for s in c.scenarios.scams["romance"])
+    assert all(not s.receiver_context for s in c.scenarios.scams["phishing_otp"])
+
+
 def test_one_voice_per_gender_is_not_enough(cfg_dir):
     edit(cfg_dir, "agents.yaml", lambda d: d["tts"]["voices"].update(male=["th_m_1"]))
     with pytest.raises(ConfigError, match="at least 2 voices"):

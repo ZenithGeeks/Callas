@@ -237,6 +237,10 @@ class Scenario(_Strict):
     org: str = ""  # named organisation; "*" = a made-up company, "" = none
     goal: str
     tactics: str  # for legit calls: how the caller handles the call
+    # Romance etc.: the prior relationship the receiver believes it is in, from the receiver's
+    # side. Given to the receiver so it treats the caller as someone it already knows and trusts,
+    # not a cold-call stranger. Empty for ordinary calls.
+    receiver_context: str = ""
 
     @model_validator(mode="after")
     def _slots(self) -> Scenario:

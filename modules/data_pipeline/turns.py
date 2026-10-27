@@ -113,11 +113,14 @@ def receiver_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
+    stage_text = stage(config, len(turns) // 2)
+    if call.scenario.receiver_context:  # romance etc.: the receiver already knows this caller
+        stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
         # the profile key is for choosing a profile on the command line, not for the model
         persona=call.receiver.model_dump(exclude={"key"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
-        stage=stage(config, len(turns) // 2),
+        stage=stage_text,
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)

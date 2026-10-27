@@ -59,18 +59,27 @@ scams:
     goal: get the receiver to pay {MONEY} 'customs tax' for a gift parcel
     tactics: warm and personal for several turns, talks about a future together, then the parcel is stuck
       and only the receiver can help
+    receiver_context: You met this person on a dating app a few months ago and have messaged
+      almost every day since. You have never met in person, but you trust them, feel close, and talk
+      warmly like to someone you are seeing.
   - key: soldier_mission
     role: someone met online who says they are a soldier on a peace mission
     goal: get the receiver to send {MONEY} so the caller can take leave and visit
     tactics: affectionate, mentions loneliness and danger, asks for secrecy
+    receiver_context: You have been talking online with this person for months. They feel like a
+      partner; you trust them, worry about them, and talk warmly and familiarly.
   - key: hospital_emergency
     role: an online partner of some months
     goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
     tactics: sounds distressed, says their own card is blocked, promises to pay back next week
+    receiver_context: This is your online partner of several months. You care about them deeply,
+      trust them, and talk warmly and familiarly, the way you would with a partner.
   - key: partner_investment
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
+    receiver_context: You have grown close to this person over months of chatting online. You
+      trust them and talk warmly, like a partner planning a future together.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -470,6 +479,33 @@ receivers:
     temperament: 'trusting but slow: asks the caller to repeat, needs things explained twice'
     ending: says he will ask a grandchild first
     speech: slow and friendly, uses Isan words
+  # Lonely, warm people — the group romance scams hit hardest (Thai romance victims are mostly
+  # middle-aged women, many widowed or divorced, especially in Isan from the reference news). The online relationship
+  # itself comes from the scenario's receiver_context, so these also work on any other call type.
+  - key: isan_widow
+    gender: female
+    age: 51
+    occupation: runs a small shop in an Isan town
+    education: secondary school
+    region: a town in Isan
+    family: widowed, lives alone; her children work in Bangkok
+    digital_literacy: uses Facebook and LINE every day to pass the time
+    scam_awareness: has never heard of romance scams and longs for company
+    temperament: 'warm and trusting: opens up quickly to anyone kind, talks like an old friend'
+    ending: keeps talking to someone who is kind to her
+    speech: warm and chatty, uses ค่ะ and soft words
+  - key: divorced_teacher
+    gender: female
+    age: 46
+    occupation: primary school teacher
+    education: bachelor's degree
+    region: a provincial town
+    family: divorced, lives alone
+    digital_literacy: active on Facebook and LINE in the evenings
+    scam_awareness: has seen scam news but believes her own feelings are real
+    temperament: 'warm but a little lonely: friendly and caring, trusts someone she feels close to'
+    ending: wants to believe the other person and keep talking
+    speech: polite and gentle, a bit talkative when happy
   # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
   # together from one stage, so a receiver is a believable person (no 20-year-old with grown
   # children). Each list must be a subset of the matching flat pool below. Other fields
