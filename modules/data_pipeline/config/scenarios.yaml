@@ -347,8 +347,8 @@ scams:
     role: staff of a lottery prize office
     org: สำนักงานสลากกินแบ่งรัฐบาล
     goal: get the receiver to pay a 'tax and fee' of {MONEY} before the prize is released
-    tactics: congratulates loudly, says the receiver won the first prize, the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot), the fee must be
-      paid within N minutes
+    tactics: congratulates loudly, says the receiver won the first prize, the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot), the tax and fee {MONEY} is
+      a small share of that prize, so paying it is clearly worth it, the fee must be paid within N minutes
       (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: shopping_draw
     role: staff of an online shopping platform
@@ -375,7 +375,8 @@ scams:
       first prize is paid out
     tactics: Says an SMS was sent about the receiver winning the first prize; the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot); walks them
       through
-      the claim; asks them to confirm their name and bank account to seem official; the tax must be
+      the claim; asks them to confirm their name and bank account to seem official; the tax {MONEY} is
+      a small share of the prize, held back by law on big prizes; the tax must be
       paid within N minutes before the prize money can be transferred (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: glo_phone_claim_fee
     role: officer of the Government Lottery Office
@@ -385,7 +386,7 @@ scams:
     tactics: Says the receiver's ticket won the first prize but has not been claimed; the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot);
       because of a
       system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
-      within 24 hours once the fee is paid, which must be done within N
+      within 24 hours once the fee is paid; the fee {MONEY} is a small share of the prize, the fee must be paid within N
       minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
