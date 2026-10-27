@@ -207,6 +207,20 @@ def wrong_particles(raw: str, gender: str) -> list[str]:
     return [m for m in found if not any(m != other and m in other for other in found)]
 
 
+# A receiver asking who or what it itself is (ฉันคือใคร "who am I", ผมชื่ออะไร "what is my name")
+# is a broken line: a person knows their own name. Only ฉัน/ผม/ดิฉัน count — หนู and เรา are left
+# out because a Thai speaker also uses them for "you" (an older receiver asks a young caller
+# "หนูชื่ออะไรจ๊ะ" = what is YOUR name). Matches a self pronoun straight before คือ/เป็นใคร or
+# ชื่ออะไร, so "ฉันไม่รู้ว่าคุณคือใคร" and "ฉันเป็นอะไรไป" ("what is wrong with me") are not caught.
+_SELF_IDENTITY_QUESTION = re.compile(r"(?:ฉัน|ผม|ดิฉัน)(?:(?:คือ|เป็น)ใคร|ชื่ออะไร)")
+
+
+def self_identity_question(raw: str) -> bool:
+    """True if the receiver asks about its own identity — never sensible for the person who
+    answered. Recorded as a turn problem, which rejects the broken call (turns.write_turn)."""
+    return bool(_SELF_IDENTITY_QUESTION.search(raw.replace(" ", "")))
+
+
 # made-up values
 
 
