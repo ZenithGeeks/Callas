@@ -28,6 +28,7 @@ from .fill import (
     SLOT_RE,
     SlotFiller,
     receiver_leaks,
+    self_identity_question,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -63,6 +64,8 @@ def write_turn(
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
+        if self_identity_question(raw):
+            problems.append("self_identity_question")
     if not text:
         problems.append("empty_line")
     return Turn(

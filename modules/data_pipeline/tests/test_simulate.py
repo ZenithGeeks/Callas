@@ -467,6 +467,39 @@ def test_a_spelling_claim_the_spell_check_backs_is_kept():
     assert drop_false_spelling("none", SPELLED) == "none"
 
 
+def test_a_line_with_several_misspellings_is_rejected_as_garbled():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[1] = Turn(speaker="B", spelling=["จาย", "เทาไร"])  # two different non-words: garbled
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
+def test_one_odd_word_is_not_garbled():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[1] = Turn(speaker="B", spelling=["ลิ้งก์"])  # one loanword the dictionary lacks: tolerated
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
+def test_a_garbled_caller_line_is_not_counted():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[0] = Turn(speaker="A", spelling=["จาย", "เทาไร"])  # caller line: this is a receiver check
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
 def test_the_judge_gives_no_natural_thai_score(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()

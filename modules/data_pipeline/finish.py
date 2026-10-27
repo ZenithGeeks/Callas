@@ -234,6 +234,13 @@ def reasons_to_reject(
     )
     if any("tone_mark_order" in turn.spelling for turn in turns):
         reasons.append("tone_mark_order")
+    # several misspelled words in one receiver line means it is garbled (ตองจายเทาไร for
+    # ต้องจ่ายเท่าไร); one odd word alone (a name or loanword the dictionary lacks) is tolerated.
+    if any(
+        turn.speaker == RECEIVER and len({s for s in turn.spelling if s != "tone_mark_order"}) >= 2
+        for turn in turns
+    ):
+        reasons.append("garbled_spelling")
     if judge.skipped:  # not judged: there is nothing else to hold against the call
         return [*reasons, judge.skipped]
     if not judge.label_holds:
