@@ -151,14 +151,10 @@ def build_lms(config: Config) -> dict[str, Any]:
     """One dspy.LM per agent, from its lm settings in agents.yaml."""
     from llm_serving.dspy_programs import build_lm
 
-    from .llm import build_typhoon_lm, is_typhoon
-
     lms = {}
     for name in SIGNATURES:
         lm = getattr(config.agents, name).lm  # the LMSettings in agents.yaml, not a dspy.LM
-        # a typhoon-* model runs on Typhoon (see llm.py); every other model on the vLLM server
-        build = build_typhoon_lm if is_typhoon(lm.model) else build_lm
-        lms[name] = build(model=lm.model, max_tokens=lm.max_tokens, temperature=lm.temperature)
+        lms[name] = build_lm(model=lm.model, max_tokens=lm.max_tokens, temperature=lm.temperature)
     return lms
 
 
