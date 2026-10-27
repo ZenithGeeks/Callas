@@ -68,6 +68,7 @@ class ReceiverTurn(dspy.Signature):
     persona: dict = dspy.InputField()  # a ReceiverProfile as a dict, without its key
     voice: str = dspy.InputField()
     stage: str = dspy.InputField()
+    red_flags: str = dspy.InputField()  # general scam warning signs, same for every call
     conversation: str = dspy.InputField()
     line: str = dspy.OutputField()
     end_call: bool = dspy.OutputField()
