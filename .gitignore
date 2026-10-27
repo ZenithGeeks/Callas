@@ -37,8 +37,4 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
-CLAUDE.md
 eval/results/asr_cache/
-
-# review sheet and drafts made by scraping/build_review.py
-scraping/out/

@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated # ensure type
+from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator

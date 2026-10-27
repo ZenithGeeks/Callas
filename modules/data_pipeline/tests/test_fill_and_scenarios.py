@@ -210,8 +210,11 @@ def test_id_card_is_the_same_for_the_same_seed():
 
 
 def test_friend_calls_use_nicknames():
-    friend = [c for c in (sample_config("romance", s, CONFIG) for s in range(300))
-              if c.scenario.relation == "friend"]
+    friend = [
+        c
+        for c in (sample_config("romance", s, CONFIG) for s in range(300))
+        if c.scenario.relation == "friend"
+    ]
     assert friend
     for c in friend:
         f = SlotFiller(c, CONFIG.details)

@@ -124,7 +124,7 @@ def _one_row(section: str, gender: str, receiver_gender: str, rng: random.Random
     chosen = rng.choice(_fitting(rows, gender, receiver_gender))
     # Spell the row's two words out, so the caller never reads another word it could use for
     # itself (a ผม caller that sees หนู anywhere in its prompt drifts into it).
-    row = dict(zip(_cells(lines[start]), _cells(chosen)))
+    row = dict(zip(_cells(lines[start]), _cells(chosen), strict=True))
     words = (
         f"In every line you call yourself {row['You call yourself']} and the receiver "
         f"{row['You call the receiver']}, and nothing else."
