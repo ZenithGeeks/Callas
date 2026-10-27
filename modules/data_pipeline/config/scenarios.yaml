@@ -326,13 +326,6 @@ scams:
     tactics: Says the receiver's ticket won the first prize but has not been claimed; because of a
       system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
       within 24 hours once the fee is paid
-  - key: glo_plus_reserved_ticket
-    role: CEO of an online lottery seller
-    org: กองสลากพลัส
-    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to confirm their right to a
-      first-prize ticket reserved for their phone number
-    tactics: Announces good news; says the receiver's number was picked for a first-prize ticket;
-      it must be paid for today or it goes to another buyer; pushes to transfer before the call ends
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:

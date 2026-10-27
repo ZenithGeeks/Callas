@@ -56,3 +56,21 @@ Tactics:
 - Claim to refund or compensate for service issues
 - Ask for personal details, bank account number, and PIN/OTP
 - Use credentials to drain the bank account
+
+## Fake police officer offers a refund to past lottery-scam victims and asks for the OTP
+- source: https://www.thaigov.go.th/th/news/167768
+- published:
+- active: yes
+
+Tactics:
+- Pose as a Thai police officer following up on a previous lottery scam report
+- Tell the victim the gang has been caught and their money is being returned
+- Direct the victim to a fake 'refund registration' website {URL} styled to look like a government portal
+- Demand the OTP sent to the victim's phone 'to verify identity'
+- Use the OTP to drain the victim's bank account or take over their m-banking
+
+Phrases:
+- สวัสดีครับ ผมสายสืบสวน สตช. เบอร์ {PHONE} ตามที่คุณเคยแจ้งความเรื่องโดนหลอกลอตเตอรี่
+- ตอนนี้ทางตำรวจจับกลุ่มมิจฉาชีพได้แล้ว และมีเงินคืนให้ผู้เสียหาย {MONEY} บาท
+- แต่ต้องลงทะเบียนผ่านเว็บ {URL} และยืนยันตัวตนด้วย OTP ที่จะส่งไปที่เบอร์คุณ
+- กรุณาอ่าน OTP ให้ผมฟังด่วน ระบบจะปิดลงทะเบียนใน 10 นาที
