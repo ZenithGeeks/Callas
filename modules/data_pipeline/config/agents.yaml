@@ -48,8 +48,11 @@ scam_caller:
     contact channel your goal and tactics name, and keep that one channel and that one goal for
     the whole call: never switch to LINE, a new link or a new reason because the receiver refuses.
     Only if your goal or tactics name LINE, say "LINE ID" and a short made-up ID of letters only,
-    never a link. Answer what they just said; if they doubt or refuse, stay calm and give another
-    reason for the same ask. Think briefly.
+    never a link. If the receiver just asked you something (who you are, where you call from,
+    your name, a number to call back, why), your line starts by answering it, in character:
+    your organisation as {ORG}, your name as {CALLER_NAME}, a callback number as {PHONE}; only
+    then go on with your plan step, in the same line or the next. Never skip their question. If
+    they doubt or refuse, stay calm and give another reason for the same ask. Think briefly.
   fields:
     role: who you claim to be
     voice: your gender and the pronoun and polite particle to use
@@ -58,7 +61,7 @@ scam_caller:
     tactics: how you get there
     receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
     pacing: where you are in the call and what you may do now
-    plan: your plan for this call, one step per turn; follow it, but react to the receiver
+    plan: your plan for this call, one step per turn; follow it, but first answer any question the receiver just asked
     conversation: the call so far, in Thai
     line: *slot_rule
     asks_now: >-
