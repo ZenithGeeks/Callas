@@ -4,7 +4,7 @@ but slips (a female line that says ผม, seen in testing). wrong_particles fla
 recorded as a turn problem — it does not rewrite the line. Soft flag: a reviewer decides.
 """
 
-from data_pipeline.fill import wrong_particles
+from data_pipeline.fill import strip_leading_interjection, unwanted_words, wrong_particles
 
 
 def test_flags_male_particle_in_a_female_line():
@@ -44,3 +44,20 @@ def test_fee_word_khaa_is_not_mistaken_for_a_female_particle():
 
 def test_unknown_gender_flags_nothing():
     assert wrong_particles("ได้เลยครับ", "") == []
+
+
+def test_flags_over_acted_exclamations():
+    assert "โอ้โห" in unwanted_words("โอ้โห ดีจังเลยค่ะ")
+    assert "โห่" in unwanted_words("โห่ ติดระบบเหรอคะ ฟังดูตึงตังมากเลย")
+    assert "ตึงตัง" in unwanted_words("ฟังดูตึงตังมากเลยนะคะ")
+
+
+def test_plain_reaction_is_not_flagged():
+    assert unwanted_words("จริงเหรอคะ เป็นอะไรไหมคะ ต้องทำยังไงบ้างคะ") == []
+
+
+def test_strip_leading_interjection_removes_the_whole_opener():
+    assert strip_leading_interjection("โธ่เอ้ย ด่วนขนาดนั้นเลยเหรอครับ") == "ด่วนขนาดนั้นเลยเหรอครับ"
+    assert strip_leading_interjection("โอ้โห... ของขวัญเหรอคะ") == "ของขวัญเหรอคะ"
+    # a normal opener is left alone
+    assert strip_leading_interjection("จริงเหรอคะ เป็นอะไรไหมคะ") == "จริงเหรอคะ เป็นอะไรไหมคะ"

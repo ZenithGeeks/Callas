@@ -80,6 +80,22 @@ scams:
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
     receiver_context: You have grown close to this person over months of chatting online. You
       trust them and talk warmly, like a partner planning a future together.
+  - key: wealthy_businessman
+    role: a well-off, charming businessman met on a dating app who says he owns companies abroad
+      and sends photos of his cars, trips and fine dinners
+    goal: get the receiver to help move {MONEY} for a 'joint fund' or a transfer that is 'stuck'
+    tactics: showers attention, flashes his wealth, hints at marriage and a life together, then
+      asks for help with a large sum just this once
+    receiver_context: You met this charming, well-off man online a few months ago. He is
+      attentive and talks about a future together; you trust him and talk warmly and happily.
+  - key: glamorous_partner
+    role: a glamorous, good-looking person met online who sends flattering photos and sweet voice
+      messages
+    goal: get the receiver to send {MONEY} for a visa, flight or emergency so they can finally meet
+    tactics: lavish compliments, promises to visit soon, builds a fast and intense bond, then an
+      urgent cost appears before the trip
+    receiver_context: You have been talking with this attractive person online for a while and the
+      attention feels wonderful. You trust them and talk warmly and openly, excited to meet.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -506,6 +522,18 @@ receivers:
     temperament: 'warm but a little lonely: friendly and caring, trusts someone she feels close to'
     ending: wants to believe the other person and keep talking
     speech: polite and gentle, a bit talkative when happy
+  - key: lonely_widower
+    gender: male
+    age: 60
+    occupation: retired civil servant
+    education: bachelor's degree
+    region: a provincial town
+    family: widowed, lives alone; his children are grown and busy
+    digital_literacy: uses Facebook and LINE, learned from his children
+    scam_awareness: has never heard of romance scams and misses having a partner
+    temperament: 'warm and trusting: glad for the attention, believes someone who is kind to him'
+    ending: keeps talking to someone who seems to care about him
+    speech: gentle and a little formal, warms up quickly
   # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
   # together from one stage, so a receiver is a believable person (no 20-year-old with grown
   # children). Each list must be a subset of the matching flat pool below. Other fields

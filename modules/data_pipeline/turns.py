@@ -27,6 +27,8 @@ from .fill import (
     SLOT_RE,
     SlotFiller,
     receiver_leaks,
+    strip_leading_interjection,
+    unwanted_words,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -57,11 +59,14 @@ def write_turn(
         agent = "receiver"
         pred, tokens = receiver_says(agents, call, config, turns, filler)
     raw = (pred.line or "").strip()
+    if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
+        raw = strip_leading_interjection(raw)
     text, entities, problems = filler.fill(raw)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
+        problems += [f"unwanted_word:{w}" for w in unwanted_words(raw)]
     if not text:
         problems.append("empty_line")
     return Turn(
