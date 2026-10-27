@@ -84,6 +84,7 @@ _LOOSE_DIGITS = re.compile(r"\d{4}|\d+(?:[,. -]\d{3,4})+")
 _LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its line
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
+NICKNAME_RELATIONS = ("friend", "family")  # relations whose two names come from details.nicknames
 
 
 class SlotFiller:
@@ -91,8 +92,10 @@ class SlotFiller:
 
     def __init__(self, call: CallConfig, details: DetailsFile) -> None:
         rng = random.Random(f"fill:{call.call_type}:{call.seed}")
-        caller = rng.choice(details.names[call.caller_gender])
-        other_names = [n for n in details.names[call.receiver.gender] if n != caller]
+        nickname = call.scenario.relation in NICKNAME_RELATIONS and details.nicknames
+        names = details.nicknames if nickname else details.names
+        caller = rng.choice(names[call.caller_gender])
+        other_names = [n for n in names[call.receiver.gender] if n != caller]
         receiver = rng.choice(other_names)
         org = call.scenario.org
         if org == BANK_SCENARIO_ORG:
