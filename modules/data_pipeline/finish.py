@@ -27,7 +27,7 @@ TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 SCAM_CLARITY_POINTS = 25
 LABEL_MATCH_POINTS = 25
 LANGUAGE_REALISM_POINTS = 50
-PASS_MARK_POINTS = 50  # a judged call scoring this or less is rejected, whatever else holds
+PASS_MARK_POINTS = 50  # a judged call scoring this or less is rejected, more is passed
 JUDGE_LOW_CONFIDENCE = "judge_low_confidence"
 
 # The judge reads clean typed text but still reports typos that are not there (#58).
@@ -84,7 +84,7 @@ def finish_call(
         entities=entities,
         receiver_leaked=receiver_leaked,
         first_leak_turn=first_leak_turn,
-        reasons=reasons_to_reject(turns, judge, record.label_scam, start, config),
+        reasons=reasons_to_reject(turns, judge, config),
         audio_path=audio_path,
         reference_summary=judge.summary,
         scam_start_turn=start,
@@ -239,13 +239,7 @@ def scam_start(
     return None, None
 
 
-def reasons_to_reject(
-    turns: list[Turn],
-    judge: Judge,
-    label_scam: bool,
-    scam_start_turn: int | None,
-    config: Config,
-) -> list[str]:
+def reasons_to_reject(turns: list[Turn], judge: Judge, config: Config) -> list[str]:
     """Reasons to reject the call; empty means accepted."""
     reasons = []
     if len(turns) < config.scenarios.calls.min_turns:
@@ -264,16 +258,8 @@ def reasons_to_reject(
         reasons.append("tone_mark_order")
     if judge.skipped:  # not judged: there is nothing else to hold against the call
         return [*reasons, judge.skipped]
-    # The confidence score is the main check: at or below the pass mark it alone is the judge's
-    # reason, and no other judge check is weighed.
-    if judge.confidence is not None and judge.confidence * 100 <= PASS_MARK_POINTS:
-        return [*reasons, JUDGE_LOW_CONFIDENCE]
-    if not judge.label_holds:
-        reasons.append("judge_label_does_not_hold")
-    if judge.giveaway:
-        reasons.append("judge_giveaway")
-    if label_scam and scam_start_turn is None:
-        reasons.append("no_scam_move")
-    if not label_scam and judge.scam_start_turn >= 0:
-        reasons.append("judge_saw_scam_in_normal_call")
+    # The confidence score is the judge's only say: above the pass mark it passes the call,
+    # and no other judge answer (label_holds, giveaway, scam_start_turn) can reject it.
+    if (judge.confidence or 0.0) * 100 <= PASS_MARK_POINTS:
+        reasons.append(JUDGE_LOW_CONFIDENCE)
     return reasons

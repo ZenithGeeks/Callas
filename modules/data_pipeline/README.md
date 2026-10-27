@@ -238,10 +238,9 @@ A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 - a slot is left unfilled, so `{` or `}` is in the line (`stray_brace`)
 - a line has a line break or starts with `A:` or `B:` (`line_break`)
 - a tone mark comes before a vowel
-- the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points for a clear scam or not-scam, 25 for showing the intended call and 50 for realistic language. At or below 50% it is the only judge reason given, and none of the judge checks below are weighed
-- the judge says it does not show the intended call, or that it names the label outright
-- a scam call has no scam move
-- the judge finds a scam in a normal call
+- the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points for a clear scam or not-scam, 25 for showing the intended call and 50 for realistic language. It is the judge's only say: above 50% the judge passes the call, whatever its other answers (`giveaway`, `scam_start_turn`) are
+
+Calls stored before this rule may still carry the old judge reasons `judge_label_does_not_hold`, `judge_giveaway`, `no_scam_move` and `judge_saw_scam_in_normal_call`.
 
 The scam start turn is the caller agent's own flag. A flag on a turn before the call's reveal turn is ignored. When the caller did not flag one, the judge's answer is used if it points at a caller turn, and `generation.scam_start_from` says which.
 
