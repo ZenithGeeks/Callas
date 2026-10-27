@@ -363,6 +363,29 @@ scams:
     org: '*'
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
     tactics: the receiver's number won a lucky draw, tone friendly then urgent
+  - key: glo_sms_first_prize
+    role: officer of the Government Lottery Office following up an SMS about a prize
+    org: สำนักงานสลากกินแบ่งรัฐบาล
+    goal: get the receiver to transfer a 'withholding tax' of {MONEY} to {BANK_ACCOUNT} before the
+      first prize is paid out
+    tactics: Says an SMS was sent about the receiver winning the first prize; walks them through
+      the claim; asks them to confirm their name and bank account to seem official; the tax must be
+      paid before the prize money can be transferred
+  - key: glo_phone_claim_fee
+    role: officer of the Government Lottery Office
+    org: สำนักงานสลากกินแบ่งรัฐบาล
+    goal: get the receiver to transfer a {MONEY} 'processing fee' to {BANK_ACCOUNT} to confirm
+      their right to claim the prize
+    tactics: Says the receiver's ticket won the first prize but has not been claimed; because of a
+      system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
+      within 24 hours once the fee is paid
+  - key: glo_plus_reserved_ticket
+    role: CEO of an online lottery seller
+    org: กองสลากพลัส
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to confirm their right to a
+      first-prize ticket reserved for their phone number
+    tactics: Announces good news; says the receiver's number was picked for a first-prize ticket;
+      it must be paid for today or it goes to another buyer; pushes to transfer before the call ends
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
