@@ -388,6 +388,38 @@ scams:
       system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
       within 24 hours once the fee is paid; the fee {MONEY} is a small share of the prize, the fee must be paid within N
       minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: company_cash_draw
+    role: prize staff of a well-known company
+    org: '*'
+    goal: get the receiver to transfer a 'tax and insurance' payment of {MONEY} to {BANK_ACCOUNT}
+      before a cash prize is sent
+    tactics: Says the receiver was picked in a customer draw they never entered; the cash prize is
+      P baht (pick P from 200,000, 350,000, 500,000, 800,000, 1,000,000 or 2,000,000, say it in
+      Thai words, not a slot, and keep it for the whole call); asks for the receiver's name and ID
+      card details to 'register' the win; then says tax and insurance {MONEY}, a small share of
+      the prize, must be paid first; when the receiver agrees or hesitates, adds that one more fee
+      may follow after this payment, to keep them paying; the payment must be made within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: online_seller_reserved_ticket
+    role: CEO of a licensed online lottery seller
+    org: '*'
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to pay for a first-prize ticket
+      reserved for their phone number
+    tactics: Announces good news as the company's CEO; says the receiver's phone number was picked
+      to buy a ticket with the number that will win the first prize; the ticket is only held for
+      them and goes to another buyer if not paid; asks them to transfer {MONEY} to {BANK_ACCOUNT}
+      before the call ends, within N minutes (a deadline of N minutes, pick N between 5 and 30
+      and keep it for the whole call)
+  - key: lucky_mark_tickets
+    role: lottery ticket seller
+    org: '*'
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for a batch of 'special mark'
+      lottery tickets
+    tactics: Says tickets printed with the 'ผีน้อย' or 'กบไชโย' mark win more often than other
+      tickets and are hard to find; offers a batch at a premium price; says only 100 are left and
+      each buyer is limited; asks for the transfer to {BANK_ACCOUNT} and promises EMS delivery;
+      the transfer must be made within N minutes before the tickets go to other buyers (a
+      deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
