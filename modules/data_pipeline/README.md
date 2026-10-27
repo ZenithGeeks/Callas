@@ -238,6 +238,7 @@ A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 - a slot is left unfilled, so `{` or `}` is in the line (`stray_brace`)
 - a line has a line break or starts with `A:` or `B:` (`line_break`)
 - a tone mark comes before a vowel
+- the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points for a clear scam or not-scam, 25 for showing the intended call and 50 for realistic language. At or below 50% it is the only judge reason given, and none of the judge checks below are weighed
 - the judge says it does not show the intended call, or that it names the label outright
 - a scam call has no scam move
 - the judge finds a scam in a normal call

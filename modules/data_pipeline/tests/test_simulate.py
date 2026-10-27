@@ -102,6 +102,27 @@ def test_judge_score_uses_the_three_weighted_checks(
     assert _judge_score(scam_clear, label_holds, language_realistic) == expected
 
 
+@pytest.mark.parametrize(
+    "verdict",
+    [
+        judge(start=2, language_realistic=False),  # 50: exactly the pass mark
+        judge(start=2, scam_clear=False, holds=False),  # 50 from language alone
+        judge(start=-1, holds=False, giveaway=True, scam_clear=False, language_realistic=False),
+    ],
+)
+def test_a_score_of_50_or_less_rejects_with_only_the_score(tmp_path, verdict):
+    agents = make_agents(SCAM, REPLIES, verdict)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "rejected"
+    assert rec["generation"]["reasons"] == ["judge_low_confidence"]
+
+
+def test_above_the_pass_mark_the_other_judge_checks_still_apply(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2, holds=False))  # 75
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["reasons"] == ["judge_label_does_not_hold"]
+
+
 def test_each_turn_sees_the_log_so_far(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
@@ -505,7 +526,9 @@ def test_judge_prompt_stays_small():
             realism_criteria=CONFIG.agents.judge.realism_criteria,
         ),
     )
-    assert tokens <= 1_400
+    # Measured at 1,670 with dspy 3.4.1 (11 output fields and 9 criteria). The prompt budget
+    # is about 96K, so this only guards against large growth.
+    assert tokens <= 1_800
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

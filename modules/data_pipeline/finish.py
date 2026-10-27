@@ -27,6 +27,8 @@ TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 SCAM_CLARITY_POINTS = 25
 LABEL_MATCH_POINTS = 25
 LANGUAGE_REALISM_POINTS = 50
+PASS_MARK_POINTS = 50  # a judged call scoring this or less is rejected, whatever else holds
+JUDGE_LOW_CONFIDENCE = "judge_low_confidence"
 
 # The judge reads clean typed text but still reports typos that are not there (#58).
 _SPELLING_TALK = re.compile(r"spell|typo|tone mark|สะกด", re.IGNORECASE)
@@ -262,6 +264,10 @@ def reasons_to_reject(
         reasons.append("tone_mark_order")
     if judge.skipped:  # not judged: there is nothing else to hold against the call
         return [*reasons, judge.skipped]
+    # The confidence score is the main check: at or below the pass mark it alone is the judge's
+    # reason, and no other judge check is weighed.
+    if judge.confidence is not None and judge.confidence * 100 <= PASS_MARK_POINTS:
+        return [*reasons, JUDGE_LOW_CONFIDENCE]
     if not judge.label_holds:
         reasons.append("judge_label_does_not_hold")
     if judge.giveaway:

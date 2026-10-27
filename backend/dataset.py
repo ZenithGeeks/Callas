@@ -37,6 +37,7 @@ SPEAKER_NAMES = {GENERATED_CALLER: "Caller", "B": "Receiver"}
 # Why the generator rejected a call, in words. Unknown codes are shown as they are.
 REASON_TEXT = {
     "too_short": "Too short",
+    "judge_low_confidence": "Judge: confidence 50% or less",
     "judge_label_does_not_hold": "Judge: does not show the intended call",
     "judge_giveaway": "Judge: names the label outright",
     "no_scam_move": "No scam move found",
