@@ -159,28 +159,75 @@ scams:
       number and bank account number; Use the data for identity theft or further fraud
   romance:
   - key: engineer_abroad
+    relation: lover
     role: someone met on a dating app who says they are an engineer working abroad
     goal: get the receiver to pay {MONEY} 'customs tax' for a gift parcel
     tactics: warm and personal for several turns, talks about a future together, then the parcel is stuck
       and only the receiver can help
   - key: soldier_mission
+    relation: lover
     role: someone met online who says they are a soldier on a peace mission
     goal: get the receiver to send {MONEY} so the caller can take leave and visit
     tactics: affectionate, mentions loneliness and danger, asks for secrecy
   - key: hospital_emergency
+    relation: lover
     role: an online partner of some months
     goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
     tactics: sounds distressed, says their own card is blocked, promises to pay back next week
   - key: partner_investment
+    relation: lover
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
-  - key: identity_hijack_emergency
-    role: victim's friend or family member (impersonated)
+  - key: identity_hijack_friend
+    relation: friend
+    reveal_turn: [1, 1, 2]  # gets to the point: "are you free?", then the problem and the ask
+    role: the receiver's close friend (impersonated, from a hijacked account), an old friend who talks to them every week
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
-    tactics: Collect personal data and photos from social media; Create a fake account using the victim's
-      identity; Contact the victim's friends or family; Claim to be in an emergency and ask for financial
-      help
+    tactics: Talks like an old friend, blunt and short; says who they are and asks if the receiver is
+      free; then says straight away they need help with an urgent bill and asks to borrow the money,
+      promising to pay back tomorrow; no reminiscing, no small talk
+  - key: identity_hijack_family
+    relation: family
+    role: a close member of the receiver's family, such as a sibling, son, daughter, niece or nephew (impersonated, from a hijacked account)
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
+    tactics: Talks like a close relative, warm and a little pleading, with the family words for each
+      other; says they changed phone number; has an accident or urgent bill and is too ashamed to tell
+      anyone else; asks the receiver to keep it between them
+  - key: business_branch_investment
+    relation: lover
+    role: foreign business owner met on a dating app who says they are opening a branch in Thailand
+    goal: get the receiver to transfer {MONEY} today as a 'partner investment' in the business
+    tactics: Shower the receiver with affection and talk about marriage; Pitch a partnership in the new
+      Thailand branch with guaranteed high profit; Says they will handle all the documents; Frames hesitation
+      as not loving them enough
+  - key: inheritance_tax
+    relation: lover
+    role: online lover abroad who plans to settle in Thailand
+    goal: get the receiver to transfer {MONEY} for the tax on a large inheritance
+    tactics: Says a grandparent left a large inheritance that is released only after the tax is paid;
+      Quotes a lawyer's deadline this week or the money goes to the state; Promises to repay double;
+      Says everything they own will be the receiver's too
+  - key: intimate_photo_blackmail
+    relation: lover
+    threatens: true  # the only romance scenario allowed to threaten (romance_voice.md, threat)
+    role: online lover who already has intimate photos of the receiver
+    goal: get the receiver to transfer {MONEY} tonight so the photos are not sent to family and colleagues
+    tactics: Starts sweet and reminds the receiver how much they trusted each other; Suddenly switches to threats;
+      Says the photos and phone number are saved; Raises the demand each time the receiver hesitates
+  - key: wedding_flight_ticket
+    relation: lover
+    role: online lover abroad who has set a wedding date in Thailand
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} today for the flight ticket
+    tactics: Talks about the wedding next month as if everything is ready; Says their own bank account is
+      temporarily frozen; Offers to send passport and ticket copies; Says the fare offer ends today; Asks
+      to keep it secret to surprise the family
+  - key: lonely_friend_loan
+    relation: new_friend
+    role: kind stranger met on social media who has been chatting with the receiver daily
+    goal: get the receiver to lend {MONEY} for a personal emergency
+    tactics: Comforting and understanding, mentions the cold lonely season; Says they are close friends
+      now; Invents a debt or sick relative; Promises quick repayment and asks for more after each transfer
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -726,7 +773,8 @@ receivers:
 #   slow_types        scam types that build trust before the first ask
 #   reveal_turn_*     the caller's own turn (0 = first) where it may first ask. With these
 #                     lists about two thirds of scam calls wait until its turn 2 or later
-#                     (speaker turn 4+): the slow-build calls the spec asks for
+#                     (speaker turn 4+): the slow-build calls the spec asks for. A scenario
+#                     can set its own `reveal_turn` list, which replaces these for its calls
 #   max_turns         [low, high] speaker turns, both sides together
 #   caller_knows_name share of calls where the caller already knows the receiver's name
 #   min_turns         shorter calls are rejected

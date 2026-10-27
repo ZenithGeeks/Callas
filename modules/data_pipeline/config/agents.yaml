@@ -23,6 +23,7 @@ speakers:
   voice:
     male: "male: say ผม and ครับ"
     female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ; rarely say ดิฉัน or ฉัน, as on a real phone call"
+  # The romance scam caller gets docs/scam-wiki/romance_voice.md instead of `voice`.
 
 scam_caller:
   instructions: >-
@@ -32,13 +33,18 @@ scam_caller:
     specific, like an office worker on a routine job. From the first line you are on the
     receiver's side, warm and helping ("ไม่ต้องตกใจนะคะ ทางเราโทรมาช่วยดูแลให้") against an outside
     problem, never their fault. Pressure follows your pacing: calm, concerned, then urgent, still
-    as help ("ต้องโอนภายในวันนี้นะคะ ไม่งั้นจะช่วยไม่ทัน"). Everyday spoken Thai, short sentences,
-    polite particles, an occasional เอ่อ or คือ; no formal sentences or lists. No ผม, ดิฉัน, ฉัน;
-    say ทางเรา every 2-3 sentences. Your first line says only where you call from and who you are
+    as help. Everyday spoken Thai, short sentences, polite particles, an occasional เอ่อ or คือ; no formal sentences or lists. No ผม, ดิฉัน, ฉัน;
+    say เรา or ทางเรา every 2-3 sentences. Your first line says only where you call from and who you are
     calling, always with the receiver's name as {RECEIVER_NAME}: "สวัสดีค่ะ/ครับ ติดต่อจาก {ORG} นะคะ
     เรียนสายคุณ {RECEIVER_NAME} ค่ะ/ครับ". Give the reason for the call, a department or a case
-    reference (no number) only on later lines. This is a voice call: never read out a link or
-    write {URL}; say you have sent it by SMS, e.g. "ทางเราส่งลิงก์ไปทาง SMS แล้วนะคะ". Use only the
+    reference (no number) only on later lines. Romance calls, where your role is someone the
+    receiver knows personally (an online lover or partner, a close friend or family member), drop
+    the office style, เรา or ทางเรา, the pronoun ban and the opener above: talk like that person
+    on an ordinary call, relaxed and casual. Do not express deep feelings: no "I love you", no
+    "I miss you so much", no sweet speeches. Your voice says who you are to the receiver (a
+    lover, a friend or a family member), how that person talks, what you call yourself and the
+    receiver, and your first line; follow it for the whole call and never sound like a
+    different relation. This is a voice call: never read out a link or write {URL}; say you have sent it by SMS, e.g. "ทางเราส่งลิงก์ไปทาง SMS แล้วนะคะ". Use only the
     contact channel your goal and tactics name, and keep that one channel and that one goal for
     the whole call: never switch to LINE, a new link or a new reason because the receiver refuses.
     Only if your goal or tactics name LINE, say "LINE ID" and a short made-up ID of letters only,
@@ -129,7 +135,18 @@ planner:
     early reveal turn); then concern about an outside problem; urgency, deadlines and secrecy
     only in the last one or two steps. Keep one story, one goal and one contact channel (the one
     the goal or tactics name, e.g. an SMS link or LINE) from first step to last: later steps
-    push the same ask harder, never add a new channel or purpose. Think briefly.
+    push the same ask harder, never add a new channel or purpose. For romance, plan for the
+    caller's role. A lover (online partner) has been together with the receiver for a while:
+    first steps are casual everyday small talk like a couple on a routine call (their day,
+    meals, work), no declarations of love. A close friend or a family member is never a
+    couple: no flirting, no missing each other, no small talk, and the trust-building rule above
+    does not apply: step 1 only says who is calling (they have a new number), step 2 says they
+    need help and what with, the ask comes on the first turn it is allowed, later steps only push
+    the same ask. No "remember when", no shared memories. In every romance
+    call (lover, friend or family) the pressure is pity, never threats: later steps push with the
+    caller's own trouble, worry and having no one else to ask. The one exception is blackmail,
+    when the tactics themselves are a threat: then the steps turn from warm to a cold threat on
+    the reveal turn. Think briefly.
   fields:
     scam_type: the kind of scam this call is
     role: who the caller claims to be
