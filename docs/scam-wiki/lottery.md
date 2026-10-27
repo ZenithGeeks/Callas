@@ -75,7 +75,7 @@ Phrases:
 ## Fake Facebook page sells 'locked' lottery numbers below market price and never delivers
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/government-lottery
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Run a fake Facebook page styled like a real lottery seller with the GLO logo
@@ -111,7 +111,7 @@ Phrases:
 ## Fake wholesale lottery agent delivers a small first order, then takes a big deposit and disappears
 - source: https://www.khaosod.co.th/special-stories/news_6858555
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Pose as a wholesale lottery agent with connections to cheap government lottery tickets at below the 90-baht market price
