@@ -73,6 +73,7 @@ def test_page_has_the_form_and_a_nav_link(client):
     assert "teacher_cm" in html  # a saved profile
     assert '<select id="r_occupation"' in html  # a dropdown for a described person
     assert "No call yet" in html
+    assert 'data-start-all' in html and "Generate all six kinds" in html
 
 
 def test_start_shows_the_run_and_the_call_is_saved(client, tmp_path):
@@ -141,6 +142,23 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert ">Leaked: OTP, ID CARD</li>" in leaking and "data-leak" in leaking
     assert "Leaked" not in render()
     assert "Leaked" not in render(leaked=[])
+
+
+def test_a_verdict_without_confidence_does_not_make_up_a_percentage():
+    html = studio.render(
+        "partials/studio_verdict.html",
+        call_id="x",
+        judge={"label_holds": True, "scam_start_turn": -1, "giveaway": False},
+        accepted=True,
+        confidence=None,
+        review=None,
+        reasons=[],
+        scam_start=None,
+        summary="",
+        label_scam=False,
+        tag=None,
+    )
+    assert "Not assessed" in html and "95%" not in html
 
 
 # ---- one run at a time ------------------------------------------------------------------------
@@ -252,6 +270,19 @@ def test_a_taken_seed_is_refused_and_empty_takes_the_next_free_one(client):
     assert "phishing_otp_00000" in start(client).text  # lowest free seed
     wait_idle(studio.BOARD)
     assert "phishing_otp_00001" in start(client).text
+
+
+def test_empty_seed_skips_a_stopped_call_from_another_config(client, tmp_path):
+    start(client, call_type="benign", seed="0")
+    wait_idle(studio.BOARD)
+    record = saved(tmp_path, "benign_00000")
+    record["generation"]["status"] = "in_progress"
+    record["generation"]["config_hash"] = "old-config"
+    Store(tmp_path / "calls.db").save(record)
+
+    response = start(client, call_type="benign")
+    assert response.status_code == 200 and "benign_00001" in response.text
+    wait_idle(studio.BOARD)
 
 
 def test_a_scenario_and_a_saved_person_are_used(client, tmp_path):

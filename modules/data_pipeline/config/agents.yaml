@@ -143,11 +143,22 @@ judge:
     Check a simulated Thai phone call before it goes into a scam-detection dataset. Judge the
     transcript alone, as a careful Thai reader would. Be strict: a call that does not clearly
     show what it is meant to show must be rejected. The transcript is typed text and code has
-    already checked its spelling, so spelling is not your job: do not report typos.
+    already checked basic spelling, so assess language realism against the supplied criteria
+    rather than inventing spelling claims. Give a short, concrete reason for every scored check.
   fields:
     intended: what this call is meant to be
     transcript: "numbered speaker turns, [n] speaker: text"
+    realism_criteria: editable list of language-realism criteria for this review
+    scam_clear: >-
+      true only if the transcript clearly establishes whether it is a scam (for a normal call,
+      clearly establishes that it is not); false if that conclusion is ambiguous
+    scam_clarity_reason: short English reason for the scam-clarity decision, citing the transcript
     label_holds: true only if the transcript on its own clearly shows the intended kind of call
+    label_reason: short English reason for the intended-call decision, citing the transcript
+    language_realistic: >-
+      true only if the language and turn-taking satisfy the supplied realism criteria overall;
+      false when a material criterion is violated
+    language_realism_reason: short English reason for the language-realism decision, citing examples
     scam_start_turn: >-
       number of the first turn where the scam shows (an ask for money, codes, details, an app
       or a link, or a threat); -1 if there is none
@@ -165,6 +176,18 @@ judge:
     phishing_otp: a scam call that tries to get an OTP, card details, or a visit to a fake link
     lottery: a scam call that says the receiver won a prize but must pay a fee first
     benign: a normal, legitimate phone call (not a scam)
+  # Add, remove, or rewrite these without changing judge code. A material violation makes
+  # language_realistic false.
+  realism_criteria:
+    - The caller's pretext, organization, process, and requests are credible for the claimed role.
+    - Scam tactics unfold plausibly instead of dumping urgency, secrecy, links, OTPs, and payment demands at once.
+    - Each speaker responds to the prior turn and adapts instead of repeating canned questions, refusals, or threats.
+    - The receiver's choices, knowledge, confidence, and caution remain consistent with the stated persona and call context.
+    - Relationship-based scams establish a plausible relationship before asking for money, a link, or an account.
+    - Turn-taking, escalation, and call endings are plausible; speakers do not continue naturally after a clear hang-up.
+    - The conversation does not narrate lesson-like safety advice or label itself a scam unless that reaction is plausible in context.
+    - Thai grammar, spelling, word choice, politeness, and register are fluent and consistent with each speaker's role.
+    - The dialogue contains no malformed text, unexplained template artifacts, contradictory facts, or repeated unanswered questions.
   # The judge reads the whole call; give it room for reasoning and the summary.
   lm: {temperature: 0.0, max_tokens: 1600}
 

@@ -13,7 +13,7 @@ from data_pipeline import turns as turn_module
 from data_pipeline.agents import SIGNATURES, Agents
 from data_pipeline.budget import prompt_tokens
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
-from data_pipeline.finish import drop_false_spelling, scam_start
+from data_pipeline.finish import _judge_score, drop_false_spelling, scam_start
 from data_pipeline.records import Judge, Turn
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
@@ -33,9 +33,14 @@ class Script:
         return dspy.Prediction(reasoning="thinking", **self.answers.pop(0))
 
 
-def judge(holds=True, start=-1, giveaway=False):
+def judge(holds=True, start=-1, giveaway=False, scam_clear=True, language_realistic=True):
     return dict(
+        scam_clear=scam_clear,
+        scam_clarity_reason="clear evidence",
         label_holds=holds,
+        label_reason="matches the intended type" if holds else "does not match the intended type",
+        language_realistic=language_realistic,
+        language_realism_reason="natural dialogue" if language_realistic else "repetitive dialogue",
         scam_start_turn=start,
         giveaway=giveaway,
         summary="สรุป",
@@ -77,8 +82,24 @@ def test_scam_call_record(tmp_path):
         assert rec["text"][e["start"] : e["end"]] == e["text"]
     assert {e["label"] for e in rec["entities"]} == {"ORG", "OTP", "BANK_ACCOUNT"}
     assert rec["reference_summary"] == "สรุป"
+    assert rec["generation"]["judge"]["confidence"] == 1.0
     assert rec["generation"]["config_hash"] == CONFIG.hash
     assert store.load(record_id("phishing_otp", 1)) == rec
+
+
+@pytest.mark.parametrize(
+    ("scam_clear", "label_holds", "language_realistic", "expected"),
+    [
+        (True, True, True, 1.0),
+        (True, False, True, 0.75),
+        (True, True, False, 0.5),
+        (False, False, False, 0.0),
+    ],
+)
+def test_judge_score_uses_the_three_weighted_checks(
+    scam_clear, label_holds, language_realistic, expected
+):
+    assert _judge_score(scam_clear, label_holds, language_realistic) == expected
 
 
 def test_each_turn_sees_the_log_so_far(tmp_path):
@@ -475,13 +496,16 @@ def test_the_judge_gives_no_natural_thai_score(tmp_path):
 
 
 def test_judge_prompt_stays_small():
-    """The judge's prompt without the call (#58 added about 65 tokens to 841; #98 dropped
-    natural_thai, about 115)."""
+    """The scored verdict fields and editable realism rubric leave room for the transcript."""
     tokens = prompt_tokens(
         Agents(CONFIG, lms={}).signatures["judge"],
-        dict(intended="x", transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ"),
+        dict(
+            intended="x",
+            transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ",
+            realism_criteria=CONFIG.agents.judge.realism_criteria,
+        ),
     )
-    assert tokens <= 820
+    assert tokens <= 1_400
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
