@@ -4,7 +4,12 @@ but slips (a female line that says ผม, seen in testing). wrong_particles fla
 recorded as a turn problem — it does not rewrite the line. Soft flag: a reviewer decides.
 """
 
-from data_pipeline.fill import strip_leading_interjection, unwanted_words, wrong_particles
+from data_pipeline.fill import (
+    self_identity_question,
+    strip_leading_interjection,
+    unwanted_words,
+    wrong_particles,
+)
 
 
 def test_flags_male_particle_in_a_female_line():
@@ -68,3 +73,17 @@ def test_strip_matches_the_longest_opener_first():
     assert strip_leading_interjection("โธ่เอ้ย เป็นอะไรไปคะ") == "เป็นอะไรไปคะ"
     # bare โธ่ is stripped too
     assert strip_leading_interjection("โธ่ ไม่เป็นไรนะ เดี๋ยวช่วยดูให้") == "ไม่เป็นไรนะ เดี๋ยวช่วยดูให้"
+
+
+def test_receiver_asking_its_own_name_or_identity_is_flagged():
+    assert self_identity_question("ฉันคือใคร")
+    assert self_identity_question("ผมชื่ออะไรนะครับ")
+
+
+def test_asking_about_the_caller_is_not_flagged():
+    assert not self_identity_question("คุณชื่ออะไรนะคะ")  # asking the caller — correct
+    assert not self_identity_question("ฉันไม่รู้ว่าคุณคือใครนะคะ")
+    assert not self_identity_question("ฉันเป็นอะไรไปเนี่ย")  # "what's wrong with me", not identity
+    # หนู and เรา also mean "you": asking a young caller "หนูชื่ออะไรคะ" = what is YOUR name
+    assert not self_identity_question("อ้าว... หนูชื่ออะไรคะ แล้วโทรมาจากไหน")
+    assert not self_identity_question("แล้วเราชื่ออะไรนะ")
