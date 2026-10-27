@@ -43,7 +43,7 @@ Phrases:
 
 Tactics:
 - Pose as a GLO officer phoning a victim whose real lottery ticket has just won
-- Tell the victim they must 'confirm the right to claim' through a special phone channel due to COVID / system upgrade
+- Tell the victim they must 'confirm the right to claim' through a special phone channel due to system upgrade
 - Ask for bank account details and an upfront 'processing fee' of {MONEY}
 - Promise the prize money will be transferred to the victim's account within 24 hours
 - Disappear once the fee is transferred
@@ -51,13 +51,13 @@ Tactics:
 Phrases:
 - สวัสดีครับ ผมเจ้าหน้าที่สำนักงานสลากกินแบ่งรัฐบาล เบอร์ {PHONE}
 - ตรวจสอบพบว่าคุณถูกรางวัลที่ 1 แต่ยังไม่ได้มาขึ้นเงิน
-- เนื่องจากขณะนี้มีโควิด ทางสำนักงานเปิดให้ขึ้นเงินผ่านช่องทางพิเศษทางโทรศัพท์
+- เนื่องจากขณะนี้ระบบได้มีการอัปเดต ทางสำนักงานเปิดให้ขึ้นเงินผ่านช่องทางพิเศษทางโทรศัพท์
 - กรุณาแจ้งเลขบัญชี {BANK_ACCOUNT} และโอนค่าธรรมเนียม {MONEY} บาท เพื่อยืนยันสิทธิ์
 
 ## Fake CEO of an online lottery seller says the victim's number got a first-prize ticket that must be paid for now
 - source: https://www.facebook.com/ejan2016/posts/3206349156192735
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Pose as the CEO of GLO Plus, the licensed online lottery vendor
@@ -71,24 +71,6 @@ Phrases:
 - เบอร์ {PHONE} ของคุณถูกผู้ซื้อสลากกินแบ่งของเราที่ต้องการถูกรางวัลที่ 1
 - เพื่อยืนยันสิทธิ์ ขอให้คุณโอนเงินค่าจองสลากเลขนี้ {MONEY} บาท มาที่บัญชี {BANK_ACCOUNT}
 - โอนภายในวันนี้นะครับ ไม่งั้นสลากจะถูกตัดสิทธิ์ขายให้คนอื่น
-
-## Fake police officer offers a refund to past lottery-scam victims and asks for the OTP
-- source: https://www.thaigov.go.th/th/news/167768
-- published:
-- active: no
-
-Tactics:
-- Pose as a Thai police officer following up on a previous lottery scam report
-- Tell the victim the gang has been caught and their money is being returned
-- Direct the victim to a fake 'refund registration' website {URL} styled to look like a government portal
-- Demand the OTP sent to the victim's phone 'to verify identity'
-- Use the OTP to drain the victim's bank account or take over their m-banking
-
-Phrases:
-- สวัสดีครับ ผมสายสืบสวน สตช. เบอร์ {PHONE} ตามที่คุณเคยแจ้งความเรื่องโดนหลอกลอตเตอรี่
-- ตอนนี้ทางตำรวจจับกลุ่มมิจฉาชีพได้แล้ว และมีเงินคืนให้ผู้เสียหาย {MONEY} บาท
-- แต่ต้องลงทะเบียนผ่านเว็บ {URL} และยืนยันตัวตนด้วย OTP ที่จะส่งไปที่เบอร์คุณ
-- กรุณาอ่าน OTP ให้ผมฟังด่วน ระบบจะปิดลงทะเบียนใน 10 นาที
 
 ## Fake Facebook page sells 'locked' lottery numbers below market price and never delivers
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/government-lottery
