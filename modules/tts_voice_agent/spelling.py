@@ -8,8 +8,9 @@ import re
 from functools import cache
 
 _THAI = re.compile(r"[฀-๿]")
-# A tone mark (่ ้ ๊ ๋) must come after an upper vowel (ั ิ ี ึ ื), never before it.
-_TONE_BEFORE_VOWEL = re.compile(r"[่-๋][ัิ-ื]")
+# Garbled marks: a tone mark (่ ้ ๊ ๋) before an upper vowel (ั ิ ี ึ ื) instead of after it, or
+# two tone marks or two upper vowels in a row (เต้้น, กััน, นั้้น). None of these are valid Thai.
+_BAD_MARKS = re.compile(r"[่-๋][ัิ-ื]|[่-๋]{2,}|[ัิ-ื]{2,}")
 
 
 @cache
@@ -21,7 +22,7 @@ def _words() -> frozenset[str]:
 
 def spelling_problems(text: str) -> list[str]:
     """Thai tokens that look misspelled (empty list = clean)."""
-    if _TONE_BEFORE_VOWEL.search(text):
+    if _BAD_MARKS.search(text):
         return ["tone_mark_order"]
     from pythainlp.tokenize import word_tokenize
 

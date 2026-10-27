@@ -210,6 +210,38 @@ def wrong_particles(raw: str, gender: str) -> list[str]:
     return [m for m in found if not any(m != other and m in other for other in found)]
 
 
+# Loud exclamations and exaggerations the receiver should not use: the model keeps reaching for
+# them ("โอ้โห ... ฟังดูตึงตังมากเลย"), and they read as over-acted, not like a real person. The
+# prompt forbids them; this catches any that slip through.
+_UNWANTED_RECEIVER_WORDS = ("โอ้โห", "โอ้โฮ", "โห่", "โธ่", "ตึงตัง", "น่าตื่นเต้น")
+
+
+def unwanted_words(raw: str) -> list[str]:
+    """Over-acted exclamations in a receiver line that the team asked to drop, in order found."""
+    return [w for w in _UNWANTED_RECEIVER_WORDS if w in raw]
+
+
+# Leading interjections the model keeps opening with (โอ้โห, โธ่เอ้ย, ...). Longest first so a
+# longer opener (โธ่เอ้ย) is matched before the shorter one inside it (โธ่), and the whole opener
+# is dropped, not just its first word.
+_LEADING_INTERJECTIONS = ("โธ่เอ้ย", "โอ้โห", "โอ้โฮ", "โหย", "โธ่")
+# An opener counts only when the line ends or a non-Thai character (space, ., …, !) follows it,
+# never when a Thai letter continues it: โหย is an opener, โหยหา ("to long for") is one real word,
+# so the opener must not be chopped off the front of a longer word (U+0E00-U+0E7F is Thai).
+_AFTER_OPENER = r"(?=$|[^฀-๿])"
+
+
+def strip_leading_interjection(raw: str) -> str:
+    """Drop a single over-acted interjection at the start of a receiver line (and the filler right
+    after it), so the line opens plainly. Leaves the rest untouched; never empties the line."""
+    s = raw.lstrip()
+    for word in _LEADING_INTERJECTIONS:
+        if re.match(re.escape(word) + _AFTER_OPENER, s):
+            rest = s[len(word) :].lstrip(" .…,!~ๆ")
+            return rest or raw
+    return raw
+
+
 # A receiver asking who or what it itself is (ฉันคือใคร "who am I", ผมชื่ออะไร "what is my name")
 # is a broken line: a person knows their own name. Only ฉัน/ผม/ดิฉัน count — หนู and เรา are left
 # out because a Thai speaker also uses them for "you" (an older receiver asks a young caller

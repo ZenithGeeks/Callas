@@ -29,6 +29,8 @@ from .fill import (
     SlotFiller,
     receiver_leaks,
     self_identity_question,
+    strip_leading_interjection,
+    unwanted_words,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -59,11 +61,14 @@ def write_turn(
         agent = "receiver"
         pred, tokens = receiver_says(agents, call, config, turns, filler)
     raw = (pred.line or "").strip()
+    if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
+        raw = strip_leading_interjection(raw)
     text, entities, problems = filler.fill(raw)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
+        problems += [f"unwanted_word:{w}" for w in unwanted_words(raw)]
         if self_identity_question(raw):
             problems.append("self_identity_question")
     if not text:
@@ -127,11 +132,14 @@ def receiver_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
+    stage_text = stage(config, len(turns) // 2)
+    if call.scenario.receiver_context:  # romance etc.: the receiver already knows this caller
+        stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
         # the profile key is for choosing a profile on the command line, not for the model
         persona=call.receiver.model_dump(exclude={"key"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
-        stage=stage(config, len(turns) // 2),
+        stage=stage_text,
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)

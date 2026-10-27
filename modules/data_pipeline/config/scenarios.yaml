@@ -164,21 +164,53 @@ scams:
     goal: get the receiver to pay {MONEY} 'customs tax' for a gift parcel
     tactics: warm and personal for several turns, talks about a future together, then the parcel is stuck
       and only the receiver can help
+    receiver_context: You met this person on a dating app a few months ago and have messaged
+      almost every day since. You have never met in person, but you trust them, feel close, and talk
+      warmly like to someone you are seeing. When they open warmly, answer in kind, in your own words.
   - key: soldier_mission
     relation: lover
     role: someone met online who says they are a soldier on a peace mission
     goal: get the receiver to send {MONEY} so the caller can take leave and visit
     tactics: affectionate, mentions loneliness and danger, asks for secrecy
+    receiver_context: You have been talking online with this person for months. They feel like a
+      partner; you trust them, worry about them, and talk warmly and familiarly. When they open
+      warmly, answer in kind, in your own words.
   - key: hospital_emergency
     relation: lover
     role: an online partner of some months
     goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
     tactics: sounds distressed, says their own card is blocked, promises to pay back next week
+    receiver_context: This is your online partner of several months. You care about them deeply,
+      trust them, and talk warmly and familiarly, the way you would with a partner. When they open
+      warmly, answer in kind, in your own words.
   - key: partner_investment
     relation: lover
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
+    receiver_context: You have grown close to this person over months of chatting online. You
+      trust them and talk warmly, like a partner planning a future together. When they open warmly,
+      answer in kind, in your own words.
+  - key: wealthy_businessman
+    relation: lover
+    role: a well-off, charming businessman met on a dating app who says he owns companies abroad
+      and sends photos of his cars, trips and fine dinners
+    goal: get the receiver to help move {MONEY} for a 'joint fund' or a transfer that is 'stuck'
+    tactics: showers attention, flashes his wealth, hints at marriage and a life together, then
+      asks for help with a large sum just this once
+    receiver_context: You met this charming, well-off man online a few months ago. He is
+      attentive and talks about a future together; you trust him and talk warmly and happily. When
+      he opens warmly, answer in kind, in your own words.
+  - key: glamorous_partner
+    relation: lover
+    role: a glamorous, good-looking person met online who sends flattering photos and sweet voice
+      messages
+    goal: get the receiver to send {MONEY} for a visa, flight or emergency so they can finally meet
+    tactics: lavish compliments, promises to visit soon, builds a fast and intense bond, then an
+      urgent cost appears before the trip
+    receiver_context: You have been talking with this attractive person online for a while and the
+      attention feels wonderful. You trust them and talk warmly and openly, excited to meet. When
+      they open warmly, answer in kind, in your own words.
   - key: identity_hijack_friend
     relation: friend
     reveal_turn: [1, 1, 2]  # gets to the point: "are you free?", then the problem and the ask
@@ -187,6 +219,9 @@ scams:
     tactics: Talks like an old friend, blunt and short; says who they are and asks if the receiver is
       free; then says straight away they need help with an urgent bill and asks to borrow the money,
       promising to pay back tomorrow; no reminiscing, no small talk
+    receiver_context: This caller is one of your close friends — you talk almost every week and
+      know them well. You trust them, so you talk back casually and warmly, the way old friends do.
+      When they open warmly, answer in kind, in your own words.
   - key: identity_hijack_family
     relation: family
     role: a close member of the receiver's family, such as a sibling, son, daughter, niece or nephew (impersonated, from a hijacked account)
@@ -194,6 +229,9 @@ scams:
     tactics: Talks like a close relative, warm and a little pleading, with the family words for each
       other; says they changed phone number; has an accident or urgent bill and is too ashamed to tell
       anyone else; asks the receiver to keep it between them
+    receiver_context: This caller is a close member of your family. You trust them completely and
+      talk warmly and familiarly, the way you would with your own relative. When they open warmly,
+      answer in kind, in your own words.
   - key: business_branch_investment
     relation: lover
     role: foreign business owner met on a dating app who says they are opening a branch in Thailand
@@ -201,6 +239,9 @@ scams:
     tactics: Shower the receiver with affection and talk about marriage; Pitch a partnership in the new
       Thailand branch with guaranteed high profit; Says they will handle all the documents; Frames hesitation
       as not loving them enough
+    receiver_context: You met this person on a dating app a while ago and have grown close; they talk
+      about marriage and a future together. You trust them and talk warmly. When they open warmly,
+      answer in kind, in your own words.
   - key: inheritance_tax
     relation: lover
     role: online lover abroad who plans to settle in Thailand
@@ -208,6 +249,9 @@ scams:
     tactics: Says a grandparent left a large inheritance that is released only after the tax is paid;
       Quotes a lawyer's deadline this week or the money goes to the state; Promises to repay double;
       Says everything they own will be the receiver's too
+    receiver_context: This is your online partner of several months who plans to settle in Thailand
+      with you. You trust them and talk warmly, like a partner building a future together. When they
+      open warmly, answer in kind, in your own words.
   - key: intimate_photo_blackmail
     relation: lover
     threatens: true  # the only romance scenario allowed to threaten (romance_voice.md, threat)
@@ -215,6 +259,9 @@ scams:
     goal: get the receiver to transfer {MONEY} tonight so the photos are not sent to family and colleagues
     tactics: Starts sweet and reminds the receiver how much they trusted each other; Suddenly switches to threats;
       Says the photos and phone number are saved; Raises the demand each time the receiver hesitates
+    receiver_context: This is your online partner of several months, someone you trusted enough to
+      grow close to. At the start you still care about them and talk warmly and familiarly. When they
+      open warmly, answer in kind, in your own words.
   - key: wedding_flight_ticket
     relation: lover
     role: online lover abroad who has set a wedding date in Thailand
@@ -222,12 +269,18 @@ scams:
     tactics: Talks about the wedding next month as if everything is ready; Says their own bank account is
       temporarily frozen; Offers to send passport and ticket copies; Says the fare offer ends today; Asks
       to keep it secret to surprise the family
+    receiver_context: This is your online partner abroad; you have set a wedding date and are excited
+      to finally meet. You trust them and talk warmly and happily. When they open warmly, answer in
+      kind, in your own words.
   - key: lonely_friend_loan
     relation: new_friend
     role: kind stranger met on social media who has been chatting with the receiver daily
     goal: get the receiver to lend {MONEY} for a personal emergency
     tactics: Comforting and understanding, mentions the cold lonely season; Says they are close friends
       now; Invents a debt or sick relative; Promises quick repayment and asks for more after each transfer
+    receiver_context: You met this person on social media and have chatted almost every day; they feel
+      like a close new friend now. You have come to trust them and talk warmly and openly. When they
+      open warmly, answer in kind, in your own words.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -641,6 +694,45 @@ receivers:
     temperament: 'trusting but slow: asks the caller to repeat, needs things explained twice'
     ending: says he will ask a grandchild first
     speech: slow and friendly, uses Isan words
+  # Lonely, warm people — the group romance scams hit hardest (Thai romance victims are mostly
+  # middle-aged women, many widowed or divorced, especially in Isan from the reference news). The online relationship
+  # itself comes from the scenario's receiver_context, so these also work on any other call type.
+  - key: isan_widow
+    gender: female
+    age: 51
+    occupation: runs a small shop in an Isan town
+    education: secondary school
+    region: a town in Isan
+    family: widowed, lives alone; her children work in Bangkok
+    digital_literacy: uses Facebook and LINE every day to pass the time
+    scam_awareness: has never heard of romance scams and longs for company
+    temperament: 'warm and trusting: opens up quickly to anyone kind, talks like an old friend'
+    ending: keeps talking to someone who is kind to her
+    speech: warm and chatty, uses ค่ะ and soft words
+  - key: divorced_teacher
+    gender: female
+    age: 46
+    occupation: primary school teacher
+    education: bachelor's degree
+    region: a provincial town
+    family: divorced, lives alone
+    digital_literacy: active on Facebook and LINE in the evenings
+    scam_awareness: has seen scam news but believes her own feelings are real
+    temperament: 'warm but a little lonely: friendly and caring, trusts someone she feels close to'
+    ending: wants to believe the other person and keep talking
+    speech: polite and gentle, a bit talkative when happy
+  - key: lonely_widower
+    gender: male
+    age: 60
+    occupation: retired civil servant
+    education: bachelor's degree
+    region: a provincial town
+    family: widowed, lives alone; his children are grown and busy
+    digital_literacy: uses Facebook and LINE, learned from his children
+    scam_awareness: has never heard of romance scams and misses having a partner
+    temperament: 'warm and trusting: glad for the attention, believes someone who is kind to him'
+    ending: keeps talking to someone who seems to care about him
+    speech: gentle and a little formal, warms up quickly
   # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
   # together from one stage, so a receiver is a believable person (no 20-year-old with grown
   # children). Each list must be a subset of the matching flat pool below. Other fields
