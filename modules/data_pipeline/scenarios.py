@@ -70,7 +70,8 @@ def sample_config(
     receiver = receiver or sampled
     calls = scenarios.calls
     slow = call_type in calls.slow_types
-    reveal = rng.choice(calls.reveal_turn_slow if slow else calls.reveal_turn_fast)
+    reveals = scenario.reveal_turn or (calls.reveal_turn_slow if slow else calls.reveal_turn_fast)
+    reveal = rng.choice(reveals)
     high = calls.max_turns[1]
     # The keyword arguments below draw from rng in the order written. Do not reorder them: the
     # order fixes every call for a seed.
@@ -79,12 +80,21 @@ def sample_config(
         seed=seed,
         scenario=scenario,
         receiver=receiver,
-        caller_gender=rng.choice(pool.genders),
+        caller_gender=_caller_gender(rng, pool.genders, scenario, receiver),
         caller_knows_name=rng.random() < calls.caller_knows_name,
         # room for the reveal turn plus a few exchanges after it
         max_turns=rng.randint(shortest_call(calls, reveal), high),
         reveal_turn=reveal,
     )
+
+
+def _caller_gender(
+    rng: random.Random, genders: list[str], scenario: Scenario, receiver: ReceiverProfile
+) -> str:
+    """A random gender, except that a lover is the other gender from the receiver."""
+    drawn = rng.choice(genders)  # always drawn, so the rest of the call is the same
+    others = [g for g in genders if g != receiver.gender]
+    return others[0] if scenario.relation == "lover" and others else drawn
 
 
 def sample_receiver(rng: random.Random, pool: Receivers) -> ReceiverProfile:

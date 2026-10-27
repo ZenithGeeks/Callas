@@ -17,6 +17,7 @@ from dspy.utils.exceptions import AdapterParseError
 from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 
+from . import romance_voice
 from .agents import Agents
 from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config
@@ -90,9 +91,19 @@ def caller_says(
 ) -> tuple[str, dspy.Prediction, int]:
     """Ask the scam or legit caller for its next line. Returns (agent, answer, prompt tokens)."""
     scenario = call.scenario
+    if call.call_type == "romance":
+        voice = romance_voice.voice(
+            config.romance_voice,
+            call.caller_gender,
+            call.receiver.gender,
+            call.scenario,
+            f"{call.call_type}:{call.seed}",
+        )
+    else:
+        voice = config.agents.speakers.voice[call.caller_gender]
     inputs = dict(
         role=scenario.role,
-        voice=config.agents.speakers.voice[call.caller_gender],
+        voice=voice,
         org="{ORG}" if scenario.org else "",
         goal=scenario.goal,
         receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
