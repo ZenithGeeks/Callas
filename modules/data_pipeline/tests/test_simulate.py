@@ -618,9 +618,10 @@ def test_receiver_prompt_stays_small():
     then two short general few-shot examples replaced some prose (greeting-yourself, re-asking a
     given detail, concern-not-excitement) for ~1070, and then a short red_flags digest from the
     scam wiki (red_flags.py: one general warning sign per scam type, same for every call so the
-    receiver stays blind to the label) was added to every receiver prompt for ~1420. Content comes
-    from the wiki, so expect some wording variance; this guard only catches runaway growth. Still
-    tiny against the 100k window."""
+    receiver stays blind to the label) was added to every receiver prompt for ~1420, and then a
+    register-matching line (mirror the caller's level: formal, affectionate pet names and เค้า, or
+    casual) for ~1540. Content comes partly from the wiki, so expect some wording variance; this
+    guard only catches runaway growth. Still tiny against the 100k window."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(
@@ -630,7 +631,7 @@ def test_receiver_prompt_stays_small():
         red_flags=CONFIG.red_flags,
         conversation="[0] ผู้โทร: สวัสดีครับ",
     )
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1500
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1600
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):
