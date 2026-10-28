@@ -140,6 +140,7 @@ def receiver_says(
         persona=call.receiver.model_dump(exclude={"key"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
         stage=stage_text,
+        red_flags=config.red_flags,
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)

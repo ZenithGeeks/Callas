@@ -106,6 +106,10 @@ receiver:
     ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID ({ID_CARD}), birth date
     ({BIRTH_DATE}) or address ({ADDRESS}); a skeptical or scam-aware person asks who is calling,
     refuses, or hangs up.
+    You also know some scam warning signs people are commonly warned about (in `red_flags`).
+    Whether you connect any of them to this call is up to your persona: an alert, scam-aware person
+    may notice one and grow cautious, while a trusting or unaware person does not think of them.
+    Never say out loud that this is a scam or name a scam type; just act on your suspicion or not.
     Write any detail only as its slot, never as digits or an invented value, and never any other
     number. {RECEIVER_NAME} is your own name: if the caller greets you by it, greet them back, do
     not greet yourself by it. The caller's numbers and links reach you as slots too ({MONEY},
@@ -120,6 +124,7 @@ receiver:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use
     stage: where you are in the call
+    red_flags: scam warning signs you may have heard of; your persona decides whether you notice
     conversation: the call so far, in Thai
     line: your next line, 1-2 short sentences, spoken Thai only
     end_call: true if you hang up after this line

@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from nlp_core.types import SCAM_TYPES
 
+from . import red_flags as red_flags_page
 from . import romance_voice as romance_voice_page
 
 DEFAULT_DIR = Path(__file__).resolve().parent / "config"
@@ -490,6 +491,7 @@ class Config:
     details: DetailsFile
     hash: str
     romance_voice: dict[str, str]  # romance_voice.md: section name -> text (romance_voice.py)
+    red_flags: str  # scam warning signs every receiver reads, from the wiki (red_flags.py)
 
     @cached_property
     def name(self) -> str:
@@ -576,10 +578,13 @@ def load_config(folder: Path | str | None = None) -> Config:
         romance_voice_page.check(romance_voice, scenarios)
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+    # The receiver's scam warning signs, from the wiki. Advisory, so a wiki problem gives "".
+    red_flags = red_flags_page.digest()
     # Hash the parsed content, not the bytes, so a comment or spacing change keeps the same hash
-    # and a stopped run still resumes.
-    parsed = [raw[n] for n in FILES] + [romance_voice]
+    # and a stopped run still resumes. red_flags is in the hash too, so editing the wiki keeps new
+    # data apart from old.
+    parsed = [raw[n] for n in FILES] + [romance_voice, red_flags]
     digest = hashlib.sha256(
         yaml.safe_dump(parsed, sort_keys=True, allow_unicode=True).encode()
     ).hexdigest()[:12]
-    return Config(folder, agents, scenarios, details, digest, romance_voice)
+    return Config(folder, agents, scenarios, details, digest, romance_voice, red_flags)
