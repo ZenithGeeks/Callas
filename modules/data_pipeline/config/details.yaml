@@ -9,6 +9,7 @@
 #                 (fill.NICKNAME_RELATIONS: a close friend or family member)
 #   banks         {ORG} when a scenario's org is "ธนาคาร"
 #   made_up_orgs  {ORG} when a scenario's org is "*"
+#   podcasts      {ORG} when a scenario's org is "พอดแคสต์" (made-up podcast names)
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
 #   money         {MONEY} in baht; big_types use the big amounts
 #   addresses     the receiver's {ADDRESS} = <house number> ซอย<soi> <district> <province>
@@ -154,6 +155,12 @@ made_up_orgs:
 - ไทยเอ็กซ์เพรส โลจิสติกส์
 - โกลบอลวิน กรุ๊ป
 - ทรัพย์ทวี แคปปิตอล
+podcasts:
+- เงินงอกเงย ทอล์ก
+- ลงทุนคุยกันเอง
+- รวยช้าๆ แต่ชัวร์
+- กำไรวันละนิด
+- เศรษฐีหลังเลิกงาน
 urls:
   words:
   - secure

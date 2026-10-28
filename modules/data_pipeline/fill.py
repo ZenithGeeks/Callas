@@ -84,6 +84,7 @@ _LOOSE_DIGITS = re.compile(r"\d{4}|\d+(?:[,. -]\d{3,4})+")
 _LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its line
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
+PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
 NICKNAME_RELATIONS = ("friend", "family")  # relations whose two names come from details.nicknames
 
 
@@ -100,6 +101,8 @@ class SlotFiller:
         org = call.scenario.org
         if org == BANK_SCENARIO_ORG:
             org = rng.choice(details.banks)
+        elif org == PODCAST_SCENARIO_ORG:
+            org = rng.choice(details.podcasts or details.made_up_orgs)
         elif org in ("*", ""):
             org = rng.choice(details.made_up_orgs)
         money = details.money

@@ -8,7 +8,7 @@
 #   key      short unique id, stored in each record
 #   role     who the caller says they are
 #   org      organisation named in the call: a name, "ธนาคาร" (a random real bank),
-#            "*" (a made-up company), or leave it out for none
+#            "พอดแคสต์" (a made-up podcast), "*" (a made-up company), or leave it out for none
 #   goal     what the caller wants by the end of the call
 #   tactics  how the caller gets there (for legit calls: how they handle the call)
 #   money_max  optional: the highest {MONEY} in baht for this scenario
@@ -331,17 +331,18 @@ scams:
       cancel the place today; then says the daily target is incomplete and an unlock fee is needed
   - key: podcast_vip_investor
     role: host of a well-known business podcast
-    org: '*'
-    goal: get the receiver to join a LINE group at {URL} and transfer {MONEY} to {BANK_ACCOUNT}
+    org: พอดแคสต์
+    goal: get the receiver to add the host on LINE and transfer {MONEY} to {BANK_ACCOUNT}
     tactics: Thanks the receiver for following the podcast; offers a VIP investment open only to
-      fans; promises a 30% return in 7 days; asks them to join the LINE group and send the slip while
-      still on the call
+      fans; promises a 30% return in 7 days; tells them the host's LINE ID and to add it, and says
+      the host will then invite them into the VIP LINE group (no link); asks them to send the slip on LINE
+      while still on the call
   - key: hsh_securities_sec
     role: staff of a gold and securities company
     org: ฮั่วเซ่งเฮง
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} before midnight to open a trading
       account
-    tactics: Follows up a LINE message; says the company is approved by the SEC (ก.ล.ต.);
+    tactics: Calls to offer a trading account; says the company is approved by the SEC (ก.ล.ต.);
       guarantees 20% a month; the promotion closes at midnight; asks for the slip on LINE and says
       the account is opened right after
   - key: or_private_ipo
@@ -351,13 +352,14 @@ scams:
       share allocation
     tactics: Says a new round of shares is open; the price is 20% below the normal IPO price as an
       internal allocation; the allocation is limited; the deposit must be sent today and the slip
-      reported to {PHONE}
+      sent on LINE
   - key: hsh_gold_line
     role: gold investment advisor
     org: ฮั่วเซ่งเฮง
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to buy physical gold
-    tactics: Calls to confirm a gold offer the receiver saw on LINE; says the company is approved by
-      the SEC; gold prices are rising fast so buy now; promises gold at a branch or by EMS; asks for
+    tactics: Calls to offer a gold investment; says the company is approved by
+      the SEC; gold will rise 10-15% within a month, so buy now before the price goes up; promises
+      gold at a branch or by EMS; asks for
       the slip on LINE
   phishing_otp:
   - key: bank_security
