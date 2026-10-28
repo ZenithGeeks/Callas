@@ -128,9 +128,7 @@ NO_ASKS = [dict(d, asks_now=False) for d in SCAM]
         (NO_ASKS, judge(start=-1)),  # 100: no scam move from the caller or the judge
     ],
 )
-def test_a_score_above_50_accepts_whatever_the_other_judge_answers_say(
-    tmp_path, caller, verdict
-):
+def test_a_score_above_50_accepts_whatever_the_other_judge_answers_say(tmp_path, caller, verdict):
     agents = make_agents(caller, REPLIES, verdict)
     rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
     assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
