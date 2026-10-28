@@ -79,9 +79,7 @@ def test_scenario_money_max_caps_the_amount(cfg_dir):
     c = load_config(cfg_dir)
     key = c.scenarios.scams["investment"][0].key
     calls = [sample_config("investment", s, c) for s in range(200)]
-    amounts = {
-        SlotFiller(x, c.details).values["MONEY"] for x in calls if x.scenario.key == key
-    }
+    amounts = {SlotFiller(x, c.details).values["MONEY"] for x in calls if x.scenario.key == key}
     assert amounts and amounts <= {"15,000 บาท", "30,000 บาท"}
 
 
