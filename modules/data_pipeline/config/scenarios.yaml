@@ -11,6 +11,7 @@
 #            "*" (a made-up company), or leave it out for none
 #   goal     what the caller wants by the end of the call
 #   tactics  how the caller gets there (for legit calls: how they handle the call)
+#   money_max  optional: the highest {MONEY} in baht for this scenario
 # Text may use slots like {MONEY} or {URL}; the loader rejects unknown slots.
 #
 # Seeds pick scenarios and receivers by list position, so adding an item in the middle changes
@@ -157,6 +158,14 @@ scams:
     goal: get the receiver to provide ID card number and bank account number to 'receive' stimulus money
     tactics: Call the victim using a fake number; Claim to be from the Ministry of Finance; Ask for ID card
       number and bank account number; Use the data for identity theft or further fraud
+  - key: fake_sec_registration
+    role: officer of the Securities and Exchange Commission
+    org: สำนักงาน ก.ล.ต.
+    goal: get the receiver to transfer a {MONEY} registration fee to {BANK_ACCOUNT} before they can
+      start investing
+    tactics: Calls about the investment the receiver showed interest in; says a certificate with the
+      SEC seal was sent on LINE and can be checked at {URL}; the certificate must be registered for a
+      fee; walks the receiver through the transfer on the call
   romance:
   - key: engineer_abroad
     relation: lover
@@ -300,8 +309,56 @@ scams:
   - key: task_job
     role: recruiter for online part-time tasks
     org: '*'
+    money_max: 40000
     goal: get the receiver to pay {MONEY} to 'unlock' higher paying tasks
     tactics: pays a small first reward, then asks for top-ups before withdrawal
+  - key: free_cctv_task
+    role: staff of a free CCTV camera project
+    org: '*'
+    money_max: 40000
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT}, first as a camera deposit and then
+      as an unlock fee
+    tactics: Offers a free CCTV camera plus a daily cash return for liking products; says the
+      deposit is refunded within 24 hours; after the first task says it was not completed and the
+      account is frozen; more money must be transferred to unlock it before the window closes
+  - key: online_job_onboarding
+    role: recruiter for an online job
+    org: '*'
+    money_max: 40000
+    goal: get the receiver to pay a {MONEY} sign-up fee to {BANK_ACCOUNT}, then a larger unlock fee
+    tactics: Offers easy, well-paid work with no experience needed; the sign-up fee 'opens the
+      system' and is paid back with the first salary; if the receiver hesitates, says the policy is to
+      cancel the place today; then says the daily target is incomplete and an unlock fee is needed
+  - key: podcast_vip_investor
+    role: host of a well-known business podcast
+    org: '*'
+    goal: get the receiver to join a LINE group at {URL} and transfer {MONEY} to {BANK_ACCOUNT}
+    tactics: Thanks the receiver for following the podcast; offers a VIP investment open only to
+      fans; promises a 30% return in 7 days; asks them to join the LINE group and send the slip while
+      still on the call
+  - key: hsh_securities_sec
+    role: staff of a gold and securities company
+    org: ฮั่วเซ่งเฮง
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} before midnight to open a trading
+      account
+    tactics: Follows up a LINE message; says the company is approved by the SEC (ก.ล.ต.);
+      guarantees 20% a month; the promotion closes at midnight; asks for the slip on LINE and says
+      the account is opened right after
+  - key: or_private_ipo
+    role: staff of the IPO department of an oil company
+    org: OR ปตท.
+    goal: get the receiver to transfer a 50% deposit of {MONEY} to {BANK_ACCOUNT} today to lock a
+      share allocation
+    tactics: Says a new round of shares is open; the price is 20% below the normal IPO price as an
+      internal allocation; the allocation is limited; the deposit must be sent today and the slip
+      reported to {PHONE}
+  - key: hsh_gold_line
+    role: gold investment advisor
+    org: ฮั่วเซ่งเฮง
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to buy physical gold
+    tactics: Calls to confirm a gold offer the receiver saw on LINE; says the company is approved by
+      the SEC; gold prices are rising fast so buy now; promises gold at a branch or by EMS; asks for
+      the slip on LINE
   phishing_otp:
   - key: bank_security
     role: bank security staff

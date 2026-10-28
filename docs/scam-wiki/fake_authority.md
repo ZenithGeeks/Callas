@@ -155,3 +155,20 @@ Tactics:
 - Claim to be from the Ministry of Finance
 - Ask for ID card number and bank account number
 - Use the data for identity theft or further fraud
+
+## Fake SEC officer sends a fake certificate and asks for a registration fee before investing
+- source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/line-id-459gjkmq-ออกเอกสารที่มีการรับรองโดย-ก-ล-ต/
+- published:
+- active: yes
+
+Tactics:
+- Impersonate the SEC on LINE using the SEC logo and follow up with a phone call
+- Send the victim a fake 'SEC certification' document with the SEC logo and a fake seal
+- Tell the victim the certification must be 'registered' with a {MONEY} fee to a mule account
+- Walk the victim through the transfer on the call to prevent second thoughts
+- After payment, request additional 'verification fees' before disappearing
+
+Phrases:
+- สวัสดีครับ ผม {CALLER_NAME} เจ้าหน้าที่สำนักงาน ก.ล.ต. เบอร์ {PHONE} ตามที่ท่านสนใจลงทุน
+- นี่คือเอกสารรับรองโดย ก.ล.ต. ส่งให้ทางไลน์แล้ว ตรวจสอบได้ที่ {URL}
+- ท่านต้องโอนเงินค่าธรรมเนียม {MONEY} บาท เป็นค่าจดทะเบียนผ่านบัญชี {BANK_ACCOUNT} จึงจะสามารถเริ่มลงทุนได้
