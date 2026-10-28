@@ -523,7 +523,7 @@ def test_a_line_with_several_misspellings_is_rejected_as_garbled():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_one_odd_word_is_not_garbled():
@@ -534,7 +534,7 @@ def test_one_odd_word_is_not_garbled():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_a_garbled_caller_line_is_not_counted():
@@ -545,7 +545,7 @@ def test_a_garbled_caller_line_is_not_counted():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_the_judge_gives_no_natural_thai_score(tmp_path):
