@@ -264,12 +264,14 @@ def test_receiver_gets_structured_persona(tmp_path):
     store = Store(tmp_path / "calls.db")
     run_call("phishing_otp", 1, store, agents, CONFIG)
     for kw in agents.receiver.calls:
-        assert set(kw) == {"persona", "voice", "stage", "conversation"}
+        assert set(kw) == {"persona", "voice", "stage", "red_flags", "conversation"}
         assert "key" not in kw["persona"]  # the profile key is not for the model
         assert isinstance(kw["persona"]["occupation"], str) and kw["persona"]["occupation"]
         assert isinstance(kw["persona"]["region"], str) and kw["persona"]["region"]
         assert isinstance(kw["persona"]["age"], int)
         assert isinstance(kw["voice"], str) and kw["voice"]
+        # the same general scam warning signs reach every receiver, whatever the call is about
+        assert kw["red_flags"] == CONFIG.red_flags and kw["red_flags"]
 
 
 def test_planner_reads_pattern_notes(tmp_path):
@@ -513,6 +515,39 @@ def test_a_spelling_claim_the_spell_check_backs_is_kept():
     assert drop_false_spelling("none", SPELLED) == "none"
 
 
+def test_a_line_with_several_misspellings_is_rejected_as_garbled():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[1] = Turn(speaker="B", spelling=["จาย", "เทาไร"])  # two different non-words: garbled
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
+def test_one_odd_word_is_not_garbled():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[1] = Turn(speaker="B", spelling=["ลิ้งก์"])  # one loanword the dictionary lacks: tolerated
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
+def test_a_garbled_caller_line_is_not_counted():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[0] = Turn(speaker="A", spelling=["จาย", "เทาไร"])  # caller line: this is a receiver check
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+
+
 def test_the_judge_gives_no_natural_thai_score(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
@@ -544,12 +579,23 @@ LEAKY = [
 
 
 def test_receiver_prompt_stays_small():
-    """The receiver's prompt without the call (#64 added about 30 tokens to 776, #99 about 45
-    more)."""
+    """The receiver's prompt without the call. It grew from 776 as behaviour was added (#64, #99),
+    then two short general few-shot examples replaced some prose (greeting-yourself, re-asking a
+    given detail, concern-not-excitement) for ~1070, and then a short red_flags digest from the
+    scam wiki (red_flags.py: one general warning sign per scam type, same for every call so the
+    receiver stays blind to the label) was added to every receiver prompt for ~1420. Content comes
+    from the wiki, so expect some wording variance; this guard only catches runaway growth. Still
+    tiny against the 100k window."""
     from data_pipeline.budget import prompt_tokens
 
-    inputs = dict(persona="{}", voice="v", stage="s", conversation="[0] ผู้โทร: สวัสดีครับ")
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 880
+    inputs = dict(
+        persona="{}",
+        voice="v",
+        stage="s",
+        red_flags=CONFIG.red_flags,
+        conversation="[0] ผู้โทร: สวัสดีครับ",
+    )
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1500
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):

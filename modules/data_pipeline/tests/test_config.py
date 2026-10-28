@@ -3,6 +3,7 @@ import shutil
 import pytest
 import yaml
 
+from data_pipeline import romance_voice
 from data_pipeline.agents import SIGNATURES, configured
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.synthesize import main
@@ -52,6 +53,68 @@ def test_unknown_key_is_rejected(cfg_dir):
         load_config(cfg_dir)
 
 
+def test_scenario_reveal_turn_replaces_the_type_default(cfg_dir):
+    from data_pipeline.scenarios import sample_config
+
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["romance"][0].update(reveal_turn=[1]))
+    c = load_config(cfg_dir)
+    key = c.scenarios.scams["romance"][0].key
+    calls = [sample_config("romance", s, c) for s in range(200)]
+    assert {x.reveal_turn for x in calls if x.scenario.key == key} == {1}
+    defaults = {x.reveal_turn for x in calls if not x.scenario.reveal_turn}
+    assert defaults <= set(c.scenarios.calls.reveal_turn_slow)
+
+
+def test_scenario_reveal_turn_too_late_is_rejected(cfg_dir):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["romance"][0].update(reveal_turn=[9]))
+    with pytest.raises(ConfigError, match=r"reveal_turn has 9"):
+        load_config(cfg_dir)
+
+
+def test_romance_voice_has_only_the_callers_relation():
+    c = load_config()
+    by_key = {s.key: s for s in c.scenarios.scams["romance"]}
+    family = by_key["identity_hijack_family"]
+    voice = romance_voice.voice(c.romance_voice, "male", "female", family, "romance:1")
+    assert voice.startswith("You are male.")
+    assert "## all" in voice and "## family" in voice and "## endings" in voice
+    assert "## lover" not in voice and "## friend" not in voice and "## threat" not in voice
+    assert "<!--" not in voice  # notes for people stay out of the prompt
+
+
+def test_family_voice_keeps_one_row_that_fits_both_genders():
+    c = load_config()
+    family = next(s for s in c.scenarios.scams["romance"] if s.relation == "family")
+    for caller in ("male", "female"):
+        for receiver in ("male", "female"):
+            for seed in range(20):
+                seed_key = f"romance:{seed}"
+                voice = romance_voice.voice(c.romance_voice, caller, receiver, family, seed_key)
+                row_starts = ("| male", "| female", "| any")
+                rows = [line for line in voice.splitlines() if line.startswith(row_starts)]
+                assert len(rows) == 1
+                gender_cells = [cell.strip() for cell in rows[0].strip("|").split("|")[:2]]
+                assert gender_cells[0] in (caller, "any") and gender_cells[1] in (receiver, "any")
+                assert "| หนู |" not in rows[0] or caller == "female"
+                if caller == "male":  # a male caller never reads หนู anywhere in its voice
+                    assert "หนู" not in voice
+
+
+def test_only_a_threatening_scenario_gets_the_threat_section():
+    c = load_config()
+    romance = c.scenarios.scams["romance"]
+    assert [s.key for s in romance if s.threatens] == ["intimate_photo_blackmail"]
+    for s in romance:
+        voice = romance_voice.voice(c.romance_voice, "female", "male", s, "romance:1")
+        assert ("## threat" in voice) == s.threatens
+
+
+def test_romance_scenario_without_a_known_relation_is_rejected(cfg_dir):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["romance"][0].update(relation="pen_pal"))
+    with pytest.raises(ConfigError, match="needs `relation:`.*pen_pal"):
+        load_config(cfg_dir)
+
+
 def test_unknown_slot_in_scenario_is_rejected(cfg_dir):
     edit(cfg_dir, "scenarios.yaml", lambda d: d["legit"][0].update(goal="visit {HOUSE_NUMBER}"))
     with pytest.raises(ConfigError, match="HOUSE_NUMBER"):
@@ -62,6 +125,13 @@ def test_scam_types_are_fixed(cfg_dir):
     edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"].pop("romance"))
     with pytest.raises(ConfigError, match="scams needs exactly"):
         load_config(cfg_dir)
+
+
+def test_romance_scenarios_carry_a_receiver_relationship():
+    # romance calls tell the receiver it already knows the caller; ordinary calls do not
+    c = load_config()
+    assert all(s.receiver_context for s in c.scenarios.scams["romance"])
+    assert all(not s.receiver_context for s in c.scenarios.scams["phishing_otp"])
 
 
 def test_one_voice_per_gender_is_not_enough(cfg_dir):

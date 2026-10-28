@@ -4,7 +4,12 @@ but slips (a female line that says ผม, seen in testing). wrong_particles fla
 recorded as a turn problem — it does not rewrite the line. Soft flag: a reviewer decides.
 """
 
-from data_pipeline.fill import wrong_particles
+from data_pipeline.fill import (
+    self_identity_question,
+    strip_leading_interjection,
+    unwanted_words,
+    wrong_particles,
+)
 
 
 def test_flags_male_particle_in_a_female_line():
@@ -44,3 +49,47 @@ def test_fee_word_khaa_is_not_mistaken_for_a_female_particle():
 
 def test_unknown_gender_flags_nothing():
     assert wrong_particles("ได้เลยครับ", "") == []
+
+
+def test_flags_over_acted_exclamations():
+    assert "โอ้โห" in unwanted_words("โอ้โห ดีจังเลยค่ะ")
+    assert "โห่" in unwanted_words("โห่ ติดระบบเหรอคะ ฟังดูตึงตังมากเลย")
+    assert "ตึงตัง" in unwanted_words("ฟังดูตึงตังมากเลยนะคะ")
+
+
+def test_plain_reaction_is_not_flagged():
+    assert unwanted_words("จริงเหรอคะ เป็นอะไรไหมคะ ต้องทำยังไงบ้างคะ") == []
+
+
+def test_strip_leading_interjection_removes_the_whole_opener():
+    assert strip_leading_interjection("โธ่เอ้ย ด่วนขนาดนั้นเลยเหรอครับ") == "ด่วนขนาดนั้นเลยเหรอครับ"
+    assert strip_leading_interjection("โอ้โห... ของขวัญเหรอคะ") == "ของขวัญเหรอคะ"
+    # a normal opener is left alone
+    assert strip_leading_interjection("จริงเหรอคะ เป็นอะไรไหมคะ") == "จริงเหรอคะ เป็นอะไรไหมคะ"
+
+
+def test_strip_matches_the_longest_opener_first():
+    # โธ่เอ้ย is matched before the โธ่ inside it: the whole opener goes, not just "โธ่"
+    assert strip_leading_interjection("โธ่เอ้ย เป็นอะไรไปคะ") == "เป็นอะไรไปคะ"
+    # bare โธ่ is stripped too
+    assert strip_leading_interjection("โธ่ ไม่เป็นไรนะ เดี๋ยวช่วยดูให้") == "ไม่เป็นไรนะ เดี๋ยวช่วยดูให้"
+
+
+def test_strip_leaves_a_real_word_that_starts_like_an_opener():
+    # โหยหา ("to long for someone") begins with the opener โหย but is one real word: an opener is
+    # only stripped when the line ends or a non-Thai char follows it, so the word is left whole.
+    assert strip_leading_interjection("โหยหาคุณมากเลยค่ะ") == "โหยหาคุณมากเลยค่ะ"
+
+
+def test_receiver_asking_its_own_name_or_identity_is_flagged():
+    assert self_identity_question("ฉันคือใคร")
+    assert self_identity_question("ผมชื่ออะไรนะครับ")
+
+
+def test_asking_about_the_caller_is_not_flagged():
+    assert not self_identity_question("คุณชื่ออะไรนะคะ")  # asking the caller — correct
+    assert not self_identity_question("ฉันไม่รู้ว่าคุณคือใครนะคะ")
+    assert not self_identity_question("ฉันเป็นอะไรไปเนี่ย")  # "what's wrong with me", not identity
+    # หนู and เรา also mean "you": asking a young caller "หนูชื่ออะไรคะ" = what is YOUR name
+    assert not self_identity_question("อ้าว... หนูชื่ออะไรคะ แล้วโทรมาจากไหน")
+    assert not self_identity_question("แล้วเราชื่ออะไรนะ")

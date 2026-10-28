@@ -196,13 +196,16 @@ def test_cli_sync_and_disable(tmp_path, capsys):
 
 
 def test_seeded_pages_parse():
+    # the pages hold the seed examples and, after them, notes from real reports (scraping/)
     wiki = read_wiki(SEED_FOLDER)
     assert set(wiki) == set(SCAM_TYPES)
     for scam_type, notes in wiki.items():
-        assert 1 <= len(notes) <= 2, scam_type
-        for n in notes:
-            assert n["tactics"] and n["active"] and n["published"] is None
-            assert n["source"] == "general public warnings (seed example)"
+        seeds = [n for n in notes if n["source"] == "general public warnings (seed example)"]
+        assert 1 <= len(seeds) <= 2, scam_type
+        assert all(n["published"] is None for n in seeds), scam_type
+        assert all(n["tactics"] for n in notes), scam_type
+        # a type with no real active note keeps its seeds on, so the planner always has something
+        assert any(n["active"] for n in notes), scam_type
 
 
 def test_sync_refuses_a_folder_with_no_pages(tmp_path):

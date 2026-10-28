@@ -17,6 +17,7 @@ from dspy.utils.exceptions import AdapterParseError
 from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 
+from . import romance_voice
 from .agents import Agents
 from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config
@@ -27,6 +28,9 @@ from .fill import (
     SLOT_RE,
     SlotFiller,
     receiver_leaks,
+    self_identity_question,
+    strip_leading_interjection,
+    unwanted_words,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -57,11 +61,16 @@ def write_turn(
         agent = "receiver"
         pred, tokens = receiver_says(agents, call, config, turns, filler)
     raw = (pred.line or "").strip()
+    if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
+        raw = strip_leading_interjection(raw)
     text, entities, problems = filler.fill(raw)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
+        problems += [f"unwanted_word:{w}" for w in unwanted_words(raw)]
+        if self_identity_question(raw):
+            problems.append("self_identity_question")
     if not text:
         problems.append("empty_line")
     return Turn(
@@ -87,9 +96,19 @@ def caller_says(
 ) -> tuple[str, dspy.Prediction, int]:
     """Ask the scam or legit caller for its next line. Returns (agent, answer, prompt tokens)."""
     scenario = call.scenario
+    if call.call_type == "romance":
+        voice = romance_voice.voice(
+            config.romance_voice,
+            call.caller_gender,
+            call.receiver.gender,
+            call.scenario,
+            f"{call.call_type}:{call.seed}",
+        )
+    else:
+        voice = config.agents.speakers.voice[call.caller_gender]
     inputs = dict(
         role=scenario.role,
-        voice=config.agents.speakers.voice[call.caller_gender],
+        voice=voice,
         org="{ORG}" if scenario.org else "",
         goal=scenario.goal,
         receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
@@ -113,11 +132,15 @@ def receiver_says(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
+    stage_text = stage(config, len(turns) // 2)
+    if call.scenario.receiver_context:  # romance etc.: the receiver already knows this caller
+        stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
         # the profile key is for choosing a profile on the command line, not for the model
         persona=call.receiver.model_dump(exclude={"key"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
-        stage=stage(config, len(turns) // 2),
+        stage=stage_text,
+        red_flags=config.red_flags,
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)

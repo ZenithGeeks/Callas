@@ -1,6 +1,6 @@
 import pytest
 
-from tts_voice_agent.spelling import looks_misspelled
+from tts_voice_agent.spelling import looks_misspelled, spelling_problems
 from tts_voice_agent.templates import TEMPLATES
 
 # Real replies from qwen3.8-27b-fp8 during DSPy tuning.
@@ -23,6 +23,14 @@ def test_garbled_thai_is_caught(text):
 @pytest.mark.parametrize("text", CLEAN + list(TEMPLATES))
 def test_clean_thai_passes(text):
     assert not looks_misspelled(text)
+
+
+def test_doubled_tone_or_vowel_marks_are_caught():
+    # garbled Thai with repeated marks (เต้้น, กััน, นั้้น) is rejected like a tone-order error
+    assert spelling_problems("ผมก็ตื่นเต้้นเหมือนกัันครับ") == ["tone_mark_order"]
+    assert spelling_problems("นั้้นแหละ") == ["tone_mark_order"]
+    # correctly written นี้ (vowel then tone) stays clean
+    assert spelling_problems("ตอนนี้สบายดี") == []
 
 
 def test_safe_reply_uses_template_for_garbled_thai():

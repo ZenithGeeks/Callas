@@ -183,7 +183,7 @@ def test_receiver_details_do_not_change_the_old_values():
     values = filler("romance", 5).values
     assert [
         values[k] for k in ("CALLER_NAME", "RECEIVER_NAME", "PHONE", "BANK_ACCOUNT", "OTP")
-    ] == (["ธิดา", "อนันต์", "081-774-2578", "825-0-44920-4", "510255"])
+    ] == (["พิชชาภา", "ชัยวัฒน์", "081-774-2578", "825-0-44920-4", "510255"])
 
 
 def test_receiver_leaks_are_read_from_the_slots_in_order():
@@ -207,3 +207,16 @@ def test_no_made_up_id_card_passes_the_real_checksum():
 
 def test_id_card_is_the_same_for_the_same_seed():
     assert filler(seed=9).values["ID_CARD"] == filler(seed=9).values["ID_CARD"]
+
+
+def test_friend_calls_use_nicknames():
+    friend = [
+        c
+        for c in (sample_config("romance", s, CONFIG) for s in range(300))
+        if c.scenario.relation == "friend"
+    ]
+    assert friend
+    for c in friend:
+        f = SlotFiller(c, CONFIG.details)
+        assert f.values["CALLER_NAME"] in CONFIG.details.nicknames[c.caller_gender]
+        assert f.values["RECEIVER_NAME"] in CONFIG.details.nicknames[c.receiver.gender]

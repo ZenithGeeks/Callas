@@ -53,24 +53,234 @@ scams:
     org: กรมศุลกากร
     goal: get the receiver to pay a 'customs fee' of {MONEY} to {BANK_ACCOUNT}
     tactics: says a parcel from abroad is held, adds pressure that it will be seized tomorrow
+  - key: ransom_isolation
+    role: police officer, teacher, or government official
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to pay a 'ransom' or avoid consequences
+    tactics: Claim to be a police officer, teacher, or official; Order the victim to keep the matter secret
+      and isolate them from family or friends; Create various reasons or use psychological pressure to force
+      a quick transfer; Threaten or persuade the victim to send money immediately
+  - key: fake_mea_meter_change
+    role: Officer of the Metropolitan Electricity Authority (MEA)
+    org: การไฟฟ้านครหลวง
+    goal: get the receiver to provide ID card, house registration, and meter number to 'refund' meter insurance
+    tactics: Call the victim claiming to be an MEA officer; State the need to change the electricity meter;
+      Ask for personal documents (ID, house registration, meter number); Promise a refund for meter insurance
+  - key: fake_deposit_protection_line
+    role: fake Deposit Protection Fund official
+    org: สถาบันคุ้มครองเงินฝาก
+    goal: get the receiver to provide personal information or transfer money via a fake LINE account
+    tactics: Create a fake LINE account named 'ข่าวสารประชาสัมพันธ์'; Impersonate the Deposit Protection
+      Fund and its officials; Request personal data, invite to LINE groups, or send fake links to steal
+      data or money
+  - key: fake_appliance_service
+    role: appliance service company staff
+    goal: get the receiver to provide personal details or pay {MONEY} in advance for service
+    tactics: Call victims citing hot weather and potential appliance issues; Offer to check, replace, or
+      repair appliances; Ask for personal details or advance payment; Schedule a home visit without verifying
+      identity
+  - key: fake_loan_verification_fee
+    role: Loan officer or credit institution staff
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'verify the account' and get loan approval
+    tactics: Contact victims who have been rejected for loans; Claim that credit history needs to be fixed
+      or account verified; Ask for a transfer to prove the account is active
+  - key: official_line_loan
+    role: high-ranking government official (e.g., Minister, MP, Mayor)
+    org: กระทรวงเกษตรและสหกรณ์
+    goal: get the victim to transfer {MONEY} to {BANK_ACCOUNT} as a loan
+    tactics: Impersonate a government official using their name and photo on LINE; Send a message asking
+      for a loan for a specific reason (e.g., public works, personal need); Exploit the victim's trust in
+      the official's status
+  - key: post_illegal_parcel_case
+    role: Thailand Post officer
+    org: บริษัท ไปรษณีย์ไทย จำกัด
+    goal: get the receiver to transfer {MONEY} to 'close the case' regarding illegal goods
+    tactics: Call the victim using a spoofed official number; Claim the victim received illegal items in
+      a parcel; Offer to close the legal case in exchange for a payment; Request a bank transfer to settle
+      the matter
+  - key: fake_ministry_link_call
+    role: Digital Ministry officer
+    goal: get the receiver to click a malicious link sent via phone
+    tactics: Call the victim claiming to be from the Digital Ministry; Send a link via SMS or message; Instruct
+      the victim to click the link
+  - key: vaccine_followup_scam
+    role: vaccine center staff
+    org: สำนักงานปลัดกระทรวงสาธารณสุข
+    goal: get the victim to provide personal information such as ID card number and bank account
+    tactics: Call the victim claiming to be from a vaccine center; Ask about post-vaccination symptoms to
+      build trust; Request personal data like ID card and bank account numbers
+  - key: post_parcel_issue
+    role: Thailand Post officer
+    org: บริษัท ไปรษณีย์ไทย จำกัด
+    goal: get the receiver to pay a fee or provide personal details to resolve the 'parcel problem'
+    tactics: Call the victim using a fake number; Claim the victim's parcel has an issue or problem; Create
+      urgency to resolve the issue immediately; Ask for payment or personal information
+  - key: bank_account_closure_threat
+    role: Krungthai Bank officer
+    org: ธนาคารกรุงไทย
+    goal: get the receiver to comply with the threat to close the account or provide information
+    tactics: Call the victim claiming to be from Krungthai Bank; Threaten to close the bank account; Use
+      a non-bank phone number
+  - key: fake_bank_phone_inquiry
+    role: Bangkok Bank officer
+    org: ธนาคารกรุงเทพ
+    goal: get the receiver to disclose personal information over the phone
+    tactics: Call the victim claiming to be from Bangkok Bank; Ask for personal details; Use a non-bank
+      phone number
+  - key: fake_gov_project
+    role: Officer from the Ministry of Finance
+    org: กระทรวงการคลัง
+    goal: get the receiver to click a link to cancel rights for a government project
+    tactics: Call the victim claiming to be from the Ministry of Finance; Inform about a government project;
+      Ask to click a link to cancel rights
+  - key: gov_stimulus_data_scam
+    role: Ministry of Finance official
+    org: กระทรวงการคลัง
+    goal: get the victim to provide ID card number and bank account number
+    tactics: Call the victim from a mobile number; Claim to be from the Ministry of Finance; Ask for ID
+      card and bank account numbers to disburse stimulus money
+  - key: pea_meter_upgrade_line
+    role: officer of the Provincial Electricity Authority (PEA)
+    org: การไฟฟ้าส่วนภูมิภาค
+    goal: get the receiver to confirm their full name via LINE to 'verify identity' for a digital meter
+      upgrade
+    tactics: Call the victim claiming to be from PEA; Inform them that their electricity meter is being
+      upgraded to a digital one; Ask the victim to add a LINE contact and confirm their full name
+  - key: fake_land_dept_line_contact
+    role: fake Land Department official
+    org: กรมที่ดิน
+    goal: get the receiver to provide personal information via LINE chat
+    tactics: Contact the victim via a fake LINE account named '{URL} เอกสาร'; Impersonate a Land Department
+      official; Request personal data or documents
+  - key: mof_stimulus_data_collection
+    role: Ministry of Finance officer
+    org: กระทรวงการคลัง
+    goal: get the receiver to provide ID card number and bank account number to 'receive' stimulus money
+    tactics: Call the victim using a fake number; Claim to be from the Ministry of Finance; Ask for ID card
+      number and bank account number; Use the data for identity theft or further fraud
   romance:
   - key: engineer_abroad
+    relation: lover
     role: someone met on a dating app who says they are an engineer working abroad
     goal: get the receiver to pay {MONEY} 'customs tax' for a gift parcel
     tactics: warm and personal for several turns, talks about a future together, then the parcel is stuck
       and only the receiver can help
+    receiver_context: You met this person on a dating app a few months ago and have messaged
+      almost every day since. You have never met in person, but you trust them, feel close, and talk
+      warmly like to someone you are seeing. When they open warmly, answer in kind, in your own words.
   - key: soldier_mission
+    relation: lover
     role: someone met online who says they are a soldier on a peace mission
     goal: get the receiver to send {MONEY} so the caller can take leave and visit
     tactics: affectionate, mentions loneliness and danger, asks for secrecy
+    receiver_context: You have been talking online with this person for months. They feel like a
+      partner; you trust them, worry about them, and talk warmly and familiarly. When they open
+      warmly, answer in kind, in your own words.
   - key: hospital_emergency
+    relation: lover
     role: an online partner of some months
     goal: get an urgent transfer of {MONEY} to {BANK_ACCOUNT} for a hospital bill
     tactics: sounds distressed, says their own card is blocked, promises to pay back next week
+    receiver_context: This is your online partner of several months. You care about them deeply,
+      trust them, and talk warmly and familiarly, the way you would with a partner. When they open
+      warmly, answer in kind, in your own words.
   - key: partner_investment
+    relation: lover
     role: an online partner who says they trade crypto
     goal: get the receiver to register at {URL} and deposit {MONEY}
     tactics: slow trust building, shows own 'profits', suggests building a future fund together
+    receiver_context: You have grown close to this person over months of chatting online. You
+      trust them and talk warmly, like a partner planning a future together. When they open warmly,
+      answer in kind, in your own words.
+  - key: wealthy_businessman
+    relation: lover
+    role: a well-off, charming businessman met on a dating app who says he owns companies abroad
+      and sends photos of his cars, trips and fine dinners
+    goal: get the receiver to help move {MONEY} for a 'joint fund' or a transfer that is 'stuck'
+    tactics: showers attention, flashes his wealth, hints at marriage and a life together, then
+      asks for help with a large sum just this once
+    receiver_context: You met this charming, well-off man online a few months ago. He is
+      attentive and talks about a future together; you trust him and talk warmly and happily. When
+      he opens warmly, answer in kind, in your own words.
+  - key: glamorous_partner
+    relation: lover
+    role: a glamorous, good-looking person met online who sends flattering photos and sweet voice
+      messages
+    goal: get the receiver to send {MONEY} for a visa, flight or emergency so they can finally meet
+    tactics: lavish compliments, promises to visit soon, builds a fast and intense bond, then an
+      urgent cost appears before the trip
+    receiver_context: You have been talking with this attractive person online for a while and the
+      attention feels wonderful. You trust them and talk warmly and openly, excited to meet. When
+      they open warmly, answer in kind, in your own words.
+  - key: identity_hijack_friend
+    relation: friend
+    reveal_turn: [1, 1, 2]  # gets to the point: "are you free?", then the problem and the ask
+    role: the receiver's close friend (impersonated, from a hijacked account), an old friend who talks to them every week
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
+    tactics: Talks like an old friend, blunt and short; says who they are and asks if the receiver is
+      free; then says straight away they need help with an urgent bill and asks to borrow the money,
+      promising to pay back tomorrow; no reminiscing, no small talk
+    receiver_context: This caller is one of your close friends — you talk almost every week and
+      know them well. You trust them, so you talk back casually and warmly, the way old friends do.
+      When they open warmly, answer in kind, in your own words.
+  - key: identity_hijack_family
+    relation: family
+    role: a close member of the receiver's family, such as a sibling, son, daughter, niece or nephew (impersonated, from a hijacked account)
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
+    tactics: Talks like a close relative, warm and a little pleading, with the family words for each
+      other; says they changed phone number; has an accident or urgent bill and is too ashamed to tell
+      anyone else; asks the receiver to keep it between them
+    receiver_context: This caller is a close member of your family. You trust them completely and
+      talk warmly and familiarly, the way you would with your own relative. When they open warmly,
+      answer in kind, in your own words.
+  - key: business_branch_investment
+    relation: lover
+    role: foreign business owner met on a dating app who says they are opening a branch in Thailand
+    goal: get the receiver to transfer {MONEY} today as a 'partner investment' in the business
+    tactics: Shower the receiver with affection and talk about marriage; Pitch a partnership in the new
+      Thailand branch with guaranteed high profit; Says they will handle all the documents; Frames hesitation
+      as not loving them enough
+    receiver_context: You met this person on a dating app a while ago and have grown close; they talk
+      about marriage and a future together. You trust them and talk warmly. When they open warmly,
+      answer in kind, in your own words.
+  - key: inheritance_tax
+    relation: lover
+    role: online lover abroad who plans to settle in Thailand
+    goal: get the receiver to transfer {MONEY} for the tax on a large inheritance
+    tactics: Says a grandparent left a large inheritance that is released only after the tax is paid;
+      Quotes a lawyer's deadline this week or the money goes to the state; Promises to repay double;
+      Says everything they own will be the receiver's too
+    receiver_context: This is your online partner of several months who plans to settle in Thailand
+      with you. You trust them and talk warmly, like a partner building a future together. When they
+      open warmly, answer in kind, in your own words.
+  - key: intimate_photo_blackmail
+    relation: lover
+    threatens: true  # the only romance scenario allowed to threaten (romance_voice.md, threat)
+    role: online lover who already has intimate photos of the receiver
+    goal: get the receiver to transfer {MONEY} tonight so the photos are not sent to family and colleagues
+    tactics: Starts sweet and reminds the receiver how much they trusted each other; Suddenly switches to threats;
+      Says the photos and phone number are saved; Raises the demand each time the receiver hesitates
+    receiver_context: This is your online partner of several months, someone you trusted enough to
+      grow close to. At the start you still care about them and talk warmly and familiarly. When they
+      open warmly, answer in kind, in your own words.
+  - key: wedding_flight_ticket
+    relation: lover
+    role: online lover abroad who has set a wedding date in Thailand
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} today for the flight ticket
+    tactics: Talks about the wedding next month as if everything is ready; Says their own bank account is
+      temporarily frozen; Offers to send passport and ticket copies; Says the fare offer ends today; Asks
+      to keep it secret to surprise the family
+    receiver_context: This is your online partner abroad; you have set a wedding date and are excited
+      to finally meet. You trust them and talk warmly and happily. When they open warmly, answer in
+      kind, in your own words.
+  - key: lonely_friend_loan
+    relation: new_friend
+    role: kind stranger met on social media who has been chatting with the receiver daily
+    goal: get the receiver to lend {MONEY} for a personal emergency
+    tactics: Comforting and understanding, mentions the cold lonely season; Says they are close friends
+      now; Invents a debt or sick relative; Promises quick repayment and asks for more after each transfer
+    receiver_context: You met this person on social media and have chatted almost every day; they feel
+      like a close new friend now. You have come to trust them and talk warmly and openly. When they
+      open warmly, answer in kind, in your own words.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company
@@ -101,7 +311,7 @@ scams:
   - key: card_points
     role: credit card staff
     org: ธนาคาร
-    goal: get the receiver to open {URL} and enter card details to redeem expiring points
+    goal: get the receiver to open {URL} through SMS and enter card details to redeem expiring points
     tactics: points expire today, the gift is valuable, the link is 'official'
   - key: delivery_redelivery
     role: delivery company staff
@@ -118,27 +328,104 @@ scams:
     org: '*'
     goal: get the OTP to 'move the SIM to a new card'
     tactics: says the SIM will be cut off today unless re-registered
+  - key: dbd_business_data_update
+    role: officer of the Department of Business Development
+    org: กรมพัฒนาธุรกิจการค้า
+    goal: get the receiver to open {URL} and update their business registration data to 'verify identity'
+      or avoid penalties
+    tactics: Call the victim or send a fake official letter via social media; Claim that the business registration
+      data needs to be updated urgently; Direct the victim to a fake website resembling the official DBD
+      site; Ask for personal or business details to 'complete the update'
+  - key: fake_pension_verification
+    role: government official (impersonated)
+    goal: get the receiver to reveal personal data or click {URL} to 'verify pension details'
+    tactics: Call the victim claiming to be an official; State that the pension has a problem or needs urgent
+      verification; Use the name of a trusted agency to build credibility; Ask the victim to reveal important
+      data or click a fake link
   lottery:
   - key: gov_lottery
     role: staff of a lottery prize office
     org: สำนักงานสลากกินแบ่งรัฐบาล
     goal: get the receiver to pay a 'tax and fee' of {MONEY} before the prize is released
-    tactics: congratulates loudly, says the prize is large, the fee must be paid today
+    tactics: congratulates loudly, says the receiver won the first prize, the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot), the tax and fee {MONEY} is
+      a small share of that prize, so paying it is clearly worth it, the fee must be paid within N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: shopping_draw
     role: staff of an online shopping platform
     org: '*'
-    goal: get the receiver to pay {MONEY} 'shipping and insurance' for a won car or phone
-    tactics: the receiver was picked in a customer draw, asks to keep it quiet until delivered
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} for 'shipping, insurance and
+      the import tax' on a won item before it is delivered
+    tactics: the receiver was picked in a draw for customers who bought on the platform; the prize
+      is an item, not cash (pick one, a car, a motorbike or a new phone, and keep it for the whole
+      call); asks the receiver to confirm their delivery address, never says it; says the item is
+      waiting at the warehouse and ships once shipping, insurance and the import tax are paid;
+      asks them to keep it quiet until it is delivered; the payment must be made within N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: brand_anniversary
     role: marketing staff of a drink brand
     org: '*'
     goal: get the receiver to open {URL} and fill in bank details to receive prize money
-    tactics: anniversary campaign, random phone numbers won, deadline tonight
+    tactics: anniversary campaign, random phone numbers won, the form closes in N minutes
+      (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
   - key: lucky_sim
     role: telecom promotion staff
     org: '*'
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to 'activate' a prize
-    tactics: the receiver's number won a lucky draw, tone friendly then urgent
+    tactics: the receiver's number won a lucky draw, tone friendly then urgent, transfer within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: glo_sms_first_prize
+    role: officer of the Government Lottery Office following up an SMS about a prize
+    org: สำนักงานสลากกินแบ่งรัฐบาล
+    goal: get the receiver to transfer a 'withholding tax' of {MONEY} to {BANK_ACCOUNT} before the
+      first prize is paid out
+    tactics: Says an SMS was sent about the receiver winning the first prize; the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot); walks them
+      through
+      the claim; asks them to confirm their name and bank account to seem official; the tax {MONEY} is
+      a small share of the prize, held back by law on big prizes; the tax must be
+      paid within N minutes before the prize money can be transferred (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: glo_phone_claim_fee
+    role: officer of the Government Lottery Office
+    org: สำนักงานสลากกินแบ่งรัฐบาล
+    goal: get the receiver to transfer a {MONEY} 'processing fee' to {BANK_ACCOUNT} to confirm
+      their right to claim the prize
+    tactics: Says the receiver's ticket won the first prize but has not been claimed; the first prize is 6,000,000 baht (say หกล้านบาท; a fixed amount, not a slot);
+      because of a
+      system upgrade prizes are now claimed by phone; asks for the bank account; promises the prize
+      within 24 hours once the fee is paid; the fee {MONEY} is a small share of the prize, the fee must be paid within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: company_cash_draw
+    role: prize staff of a well-known company
+    org: '*'
+    goal: get the receiver to transfer a 'tax and insurance' payment of {MONEY} to {BANK_ACCOUNT}
+      before a cash prize is sent
+    tactics: Says the receiver was picked in a customer draw they never entered; the cash prize is
+      P baht (pick P from 200,000, 350,000, 500,000, 800,000, 1,000,000 or 2,000,000, say it in
+      Thai words, not a slot, and keep it for the whole call); asks for the receiver's name and ID
+      card details to 'register' the win; then says tax and insurance {MONEY}, a small share of
+      the prize, must be paid first; when the receiver agrees or hesitates, adds that one more fee
+      may follow after this payment, to keep them paying; the payment must be made within N
+      minutes (a deadline of N minutes, pick N between 5 and 30 and keep it for the whole call)
+  - key: online_seller_reserved_ticket
+    role: CEO of a licensed online lottery seller
+    org: '*'
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to pay for a first-prize ticket
+      reserved for their phone number
+    tactics: Announces good news as the company's CEO; says the receiver's phone number was picked
+      to buy a ticket with the number that will win the first prize; the ticket is only held for
+      them and goes to another buyer if not paid; asks them to transfer {MONEY} to {BANK_ACCOUNT}
+      before the call ends, within N minutes (a deadline of N minutes, pick N between 5 and 30
+      and keep it for the whole call)
+  - key: wholesale_ticket_agent
+    role: wholesale lottery ticket agent
+    org: '*'
+    goal: get the receiver to transfer a 50% deposit of {MONEY} to {BANK_ACCOUNT} for a large
+      wholesale order of lottery tickets
+    tactics: Calls a receiver who bought a small first order last time and got real tickets;
+      says they have connections for government lottery tickets below the usual market price;
+      offers a much bigger wholesale order at a deep discount, with a minimum order; asks for a
+      50% deposit of {MONEY} to {BANK_ACCOUNT} to lock the price; the deposit must be paid within
+      N minutes or the discount is gone (a deadline of N minutes, pick N between 5 and 30 and keep
+      it for the whole call)
 # Normal calls. Several are hard cases on purpose: they mention OTPs, accounts or money, as
 # real banks and couriers do, so the classifier cannot learn "a bank is mentioned = scam".
 legit:
@@ -470,6 +757,45 @@ receivers:
     temperament: 'trusting but slow: asks the caller to repeat, needs things explained twice'
     ending: says he will ask a grandchild first
     speech: slow and friendly, uses Isan words
+  # Lonely, warm people — the group romance scams hit hardest (Thai romance victims are mostly
+  # middle-aged women, many widowed or divorced, especially in Isan from the reference news). The online relationship
+  # itself comes from the scenario's receiver_context, so these also work on any other call type.
+  - key: isan_widow
+    gender: female
+    age: 51
+    occupation: runs a small shop in an Isan town
+    education: secondary school
+    region: a town in Isan
+    family: widowed, lives alone; her children work in Bangkok
+    digital_literacy: uses Facebook and LINE every day to pass the time
+    scam_awareness: has never heard of romance scams and longs for company
+    temperament: 'warm and trusting: opens up quickly to anyone kind, talks like an old friend'
+    ending: keeps talking to someone who is kind to her
+    speech: warm and chatty, uses ค่ะ and soft words
+  - key: divorced_teacher
+    gender: female
+    age: 46
+    occupation: primary school teacher
+    education: bachelor's degree
+    region: a provincial town
+    family: divorced, lives alone
+    digital_literacy: active on Facebook and LINE in the evenings
+    scam_awareness: has seen scam news but believes her own feelings are real
+    temperament: 'warm but a little lonely: friendly and caring, trusts someone she feels close to'
+    ending: wants to believe the other person and keep talking
+    speech: polite and gentle, a bit talkative when happy
+  - key: lonely_widower
+    gender: male
+    age: 60
+    occupation: retired civil servant
+    education: bachelor's degree
+    region: a provincial town
+    family: widowed, lives alone; his children are grown and busy
+    digital_literacy: uses Facebook and LINE, learned from his children
+    scam_awareness: has never heard of romance scams and misses having a partner
+    temperament: 'warm and trusting: glad for the attention, believes someone who is kind to him'
+    ending: keeps talking to someone who seems to care about him
+    speech: gentle and a little formal, warms up quickly
   # Coherent age brackets. Age, occupation, education, family and digital_literacy are drawn
   # together from one stage, so a receiver is a believable person (no 20-year-old with grown
   # children). Each list must be a subset of the matching flat pool below. Other fields
@@ -602,7 +928,8 @@ receivers:
 #   slow_types        scam types that build trust before the first ask
 #   reveal_turn_*     the caller's own turn (0 = first) where it may first ask. With these
 #                     lists about two thirds of scam calls wait until its turn 2 or later
-#                     (speaker turn 4+): the slow-build calls the spec asks for
+#                     (speaker turn 4+): the slow-build calls the spec asks for. A scenario
+#                     can set its own `reveal_turn` list, which replaces these for its calls
 #   max_turns         [low, high] speaker turns, both sides together
 #   caller_knows_name share of calls where the caller already knows the receiver's name
 #   min_turns         shorter calls are rejected
@@ -610,6 +937,7 @@ calls:
   slow_types:
   - romance
   - investment
+  - lottery
   reveal_turn_slow:
   - 2
   - 3
@@ -624,5 +952,5 @@ calls:
   max_turns:
   - 6
   - 14
-  caller_knows_name: 0.5
+  caller_knows_name: 1.0  # always: every caller greets the receiver by name in its first line
   min_turns: 4
