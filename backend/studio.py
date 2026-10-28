@@ -33,7 +33,7 @@ from starlette.concurrency import run_in_threadpool
 from data_pipeline import live
 from data_pipeline.config import BENIGN, CALL_TYPES, Config, ConfigError, ReceiverProfile
 from data_pipeline.config import load_config as load_default_config
-from data_pipeline.scenarios import sample_receiver
+from data_pipeline.scenarios import sample_config, sample_receiver
 from data_pipeline.store import Store
 from llm_serving.client import LLMUnavailable
 
@@ -340,7 +340,16 @@ def _run_view(run: StudioRun) -> dict:
         "label_scam": spec.call_type != BENIGN,
         "receiver": spec.receiver,
         "receiver_name": spec.receiver_name,
+        # the outcome locked for this call (scenarios.sample_config draws it 50/50 by seed); shown
+        # as a badge. "" when no outcome is locked.
+        "scam_outcome": _locked_outcome(spec),
     }
+
+
+def _locked_outcome(spec: live.CallSpec) -> str:
+    """This call's locked scam outcome ("scammed"/"safe"/""). Sampling is deterministic for
+    (call_type, seed, receiver), so this is the outcome the run's receiver was built to lead to."""
+    return sample_config(spec.call_type, spec.seed, _config(), spec.receiver).receiver.scam_outcome
 
 
 def _elapsed(seconds: float) -> str:

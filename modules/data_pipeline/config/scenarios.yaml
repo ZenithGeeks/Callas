@@ -970,6 +970,16 @@ receivers:
   - 'busy: gives short answers, wants the call over quickly'
   - 'skeptical: asks who is calling and how to verify, even with real callers'
   - 'skeptical: refuses to give personal details on the phone to anyone'
+  # The scam-resistant entries above. A "safe" call draws scam_awareness and temperament from these;
+  # a "scammed" call draws from the rest, so the receiver's own traits lead to the outcome.
+  wary_scam_awareness:
+  - a friend lost money to a scam last year
+  - knows the police warnings and checks numbers
+  - was scammed before and is now very careful
+  wary_temperaments:
+  - 'busy: gives short answers, wants the call over quickly'
+  - 'skeptical: asks who is calling and how to verify, even with real callers'
+  - 'skeptical: refuses to give personal details on the phone to anyone'
   endings:
   - goes along with what the caller asks
   - says they will think about it and call back
