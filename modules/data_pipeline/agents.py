@@ -109,12 +109,16 @@ class JudgeCall(dspy.Signature):
     intended: str = dspy.InputField()
     transcript: str = dspy.InputField()
     realism_criteria: list[str] = dspy.InputField()
+    scenario: dict = dspy.InputField()  # the selected scenario's role, org, goal, tactics, context
+    persona: dict = dspy.InputField()  # the selected ReceiverProfile as a dict, without its key
     scam_clear: bool = dspy.OutputField()
     scam_clarity_reason: str = dspy.OutputField()
     label_holds: bool = dspy.OutputField()
     label_reason: str = dspy.OutputField()
     language_realistic: bool = dspy.OutputField()
     language_realism_reason: str = dspy.OutputField()
+    setup_holds: bool = dspy.OutputField()
+    setup_reason: str = dspy.OutputField()
     scam_start_turn: int = dspy.OutputField()
     giveaway: bool = dspy.OutputField()
     summary: str = dspy.OutputField()

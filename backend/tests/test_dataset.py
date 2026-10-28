@@ -110,7 +110,7 @@ def test_call_detail_partial(client, db_path):
     assert "ask for the OTP now" in html
 
 
-def test_call_detail_shows_the_three_scored_judge_checks(client, db_path):
+def test_call_detail_shows_the_four_scored_judge_checks(client, db_path):
     rec = Store(db_path).load("phishing_otp_00001")
     rec["generation"]["judge"].update(
         {
@@ -120,13 +120,31 @@ def test_call_detail_shows_the_three_scored_judge_checks(client, db_path):
             "label_reason": "The caller asks for an OTP.",
             "language_realistic": False,
             "language_realism_reason": "The refusal is repeated like a template.",
+            "setup_holds": True,
+            "setup_reason": "The receiver talks like a retired teacher.",
         }
     )
     Store(db_path).save(rec)
     html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
     assert "Scam clarity" in html and "Yes · +25" in html
-    assert "Selected kind of call" in html and "Realistic language" in html
+    assert "Selected kind of call" in html and "Realistic language · 25 points" in html
     assert "No · +0" in html and "The refusal is repeated like a template." in html
+    assert "Selected persona and scenario · 25 points" in html
+    assert "The receiver talks like a retired teacher." in html
+
+
+def test_call_detail_keeps_50_points_for_language_on_calls_judged_with_three_checks(
+    client, db_path
+):
+    rec = Store(db_path).load("phishing_otp_00001")
+    rec["generation"]["judge"].update(
+        {"scam_clear": True, "label_holds": True, "language_realistic": True}
+    )
+    rec["generation"]["judge"].pop("setup_holds", None)
+    Store(db_path).save(rec)
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Realistic language · 50 points" in html and "Yes · +50" in html
+    assert "Selected persona and scenario" not in html
 
 
 def test_the_natural_score_shows_only_for_calls_judged_with_one(client, db_path):

@@ -15,6 +15,7 @@ from data_pipeline.budget import prompt_tokens
 from data_pipeline.config import DEFAULT_DIR, ConfigError, load_config
 from data_pipeline.finish import _judge_score, drop_false_spelling, scam_start
 from data_pipeline.records import Judge, Turn
+from data_pipeline.scenarios import sample_config
 from data_pipeline.simulate import record_id, run_call
 from data_pipeline.store import Store
 
@@ -33,7 +34,14 @@ class Script:
         return dspy.Prediction(reasoning="thinking", **self.answers.pop(0))
 
 
-def judge(holds=True, start=-1, giveaway=False, scam_clear=True, language_realistic=True):
+def judge(
+    holds=True,
+    start=-1,
+    giveaway=False,
+    scam_clear=True,
+    language_realistic=True,
+    setup_holds=True,
+):
     return dict(
         scam_clear=scam_clear,
         scam_clarity_reason="clear evidence",
@@ -41,6 +49,8 @@ def judge(holds=True, start=-1, giveaway=False, scam_clear=True, language_realis
         label_reason="matches the intended type" if holds else "does not match the intended type",
         language_realistic=language_realistic,
         language_realism_reason="natural dialogue" if language_realistic else "repetitive dialogue",
+        setup_holds=setup_holds,
+        setup_reason="follows its persona and scenario" if setup_holds else "ignores its persona",
         scam_start_turn=start,
         giveaway=giveaway,
         summary="สรุป",
@@ -88,26 +98,48 @@ def test_scam_call_record(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("scam_clear", "label_holds", "language_realistic", "expected"),
+    ("scam_clear", "label_holds", "language_realistic", "setup_holds", "expected"),
     [
-        (True, True, True, 1.0),
-        (True, False, True, 0.75),
-        (True, True, False, 0.5),
-        (False, False, False, 0.0),
+        (True, True, True, True, 1.0),
+        (True, False, True, True, 0.75),
+        (True, True, False, True, 0.75),
+        (True, True, True, False, 0.75),
+        (False, True, False, True, 0.5),
+        (False, False, False, False, 0.0),
     ],
 )
-def test_judge_score_uses_the_three_weighted_checks(
-    scam_clear, label_holds, language_realistic, expected
+def test_judge_score_gives_each_of_the_four_checks_25_points(
+    scam_clear, label_holds, language_realistic, setup_holds, expected
 ):
-    assert _judge_score(scam_clear, label_holds, language_realistic) == expected
+    assert _judge_score(scam_clear, label_holds, language_realistic, setup_holds) == expected
+
+
+def test_the_judge_sees_the_selected_scenario_and_persona(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    asked = agents.judge.calls[0]
+    call = rec["generation"]["call"]
+    assert asked["scenario"]["role"] == call["scenario"]["role"]
+    assert asked["scenario"]["goal"] == call["scenario"]["goal"]
+    assert "key" not in asked["scenario"] and "key" not in asked["persona"]
+    assert asked["persona"]["occupation"] == call["receiver"]["occupation"]
+    assert rec["generation"]["judge"]["setup_holds"] is True
 
 
 @pytest.mark.parametrize(
     "verdict",
     [
-        judge(start=2, language_realistic=False),  # 50: exactly the pass mark
-        judge(start=2, scam_clear=False, holds=False),  # 50 from language alone
-        judge(start=-1, holds=False, giveaway=True, scam_clear=False, language_realistic=False),
+        judge(start=2, language_realistic=False, setup_holds=False),  # 50: exactly the pass mark
+        judge(start=2, scam_clear=False, holds=False),  # 50
+        judge(start=2, holds=False, setup_holds=False),  # 50
+        judge(
+            start=-1,
+            holds=False,
+            giveaway=True,
+            scam_clear=False,
+            language_realistic=False,
+            setup_holds=False,
+        ),
     ],
 )
 def test_a_score_of_50_or_less_rejects_with_only_the_score(tmp_path, verdict):
@@ -124,6 +156,7 @@ NO_ASKS = [dict(d, asks_now=False) for d in SCAM]
     ("caller", "verdict"),
     [
         (SCAM, judge(start=2, holds=False)),  # 75: does not show the intended call
+        (SCAM, judge(start=2, setup_holds=False)),  # 75: strays from its persona or scenario
         (SCAM, judge(start=2, giveaway=True)),  # 100: names the label outright
         (NO_ASKS, judge(start=-1)),  # 100: no scam move from the caller or the judge
     ],
@@ -554,18 +587,22 @@ def test_the_judge_gives_no_natural_thai_score(tmp_path):
 
 
 def test_judge_prompt_stays_small():
-    """The scored verdict fields and editable realism rubric leave room for the transcript."""
+    """The scored verdict fields, editable realism rubric, and selected scenario and persona
+    leave room for the transcript."""
+    call = sample_config("romance", 1, CONFIG).to_dict()  # the longest scenario text
     tokens = prompt_tokens(
         Agents(CONFIG, lms={}).signatures["judge"],
         dict(
             intended="x",
             transcript="[0] ผู้โทร: สวัสดีครับ\n[1] ผู้รับ: ค่ะ",
             realism_criteria=CONFIG.agents.judge.realism_criteria,
+            scenario=call["scenario"],
+            persona=call["receiver"],
         ),
     )
-    # Measured at 1,670 with dspy 3.4.1 (11 output fields and 9 criteria). The prompt budget
-    # is about 96K, so this only guards against large growth.
-    assert tokens <= 1_800
+    # Measured at 2,442 with dspy 3.4.1 (13 output fields, 9 criteria, a romance scenario and
+    # persona). The prompt budget is about 96K, so this only guards against large growth.
+    assert tokens <= 2_600
 
 
 # ---- the receiver gives away its own details ---------------------------------------------

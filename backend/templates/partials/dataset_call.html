@@ -199,10 +199,18 @@
             <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.label_reason or 'No reason recorded.' }}</dd>
           </div>
           <div>
-            <dt class="text-[14px] font-medium text-muted">Realistic language · 50 points</dt>
-            <dd class="mt-1 font-medium">{{ 'Yes · +50' if j.language_realistic else 'No · +0' }}</dd>
+            {% set language_points = 25 if j.setup_holds is defined else 50 %}
+            <dt class="text-[14px] font-medium text-muted">Realistic language · {{ language_points }} points</dt>
+            <dd class="mt-1 font-medium">{{ 'Yes · +%d'|format(language_points) if j.language_realistic else 'No · +0' }}</dd>
             <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.language_realism_reason or 'No reason recorded.' }}</dd>
           </div>
+          {% if j.setup_holds is defined %}
+          <div>
+            <dt class="text-[14px] font-medium text-muted">Selected persona and scenario · 25 points</dt>
+            <dd class="mt-1 font-medium">{{ 'Yes · +25' if j.setup_holds else 'No · +0' }}</dd>
+            <dd class="mt-1 text-[15px] leading-[1.5]">{{ j.setup_reason or 'No reason recorded.' }}</dd>
+          </div>
+          {% endif %}
         </dl>
         {% endif %}
         {% if j.reasoning %}
