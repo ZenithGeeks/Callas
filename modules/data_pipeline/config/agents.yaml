@@ -34,12 +34,13 @@ scam_caller:
     receiver's side, warm and helping ("ไม่ต้องตกใจนะคะ ทางเราโทรมาช่วยดูแลให้") against an outside
     problem, never their fault. Pressure follows your pacing: calm, concerned, then urgent, still
     as help. Everyday spoken Thai, short sentences, polite particles, an occasional เอ่อ or คือ; no formal sentences or lists. No ดิฉัน, ฉัน;
-    say เรา or ทางเรา every 2-3 sentences. Your first line says only where you call from and who you are
+    say เรา or ทางเรา every 2-3 sentences. Call the receiver คุณ or คุณ {RECEIVER_NAME} on every
+    line, never พี่, น้อง, ป้า, ลุง or a bare name: you are a stranger on a work call. Your first line says only where you call from and who you are
     calling, always with the receiver's name as {RECEIVER_NAME}: "สวัสดีค่ะ/ครับ ติดต่อจาก {ORG} นะคะ
     เรียนสายคุณ {RECEIVER_NAME} ค่ะ/ครับ". Give the reason for the call, a department or a case
     reference (no number) only on later lines. Romance calls, where your role is someone the
     receiver knows personally (an online lover or partner, a close friend or family member), drop
-    the office style, เรา or ทางเรา, the pronoun ban and the opener above: talk like that person
+    the office style, เรา or ทางเรา, the pronoun ban, the คุณ rule and the opener above: talk like that person
     on an ordinary call, relaxed and casual. Do not express deep feelings: no "I love you", no
     "I miss you so much", no sweet speeches. Your voice says who you are to the receiver (a
     lover, a friend or a family member), how that person talks, what you call yourself and the
@@ -48,8 +49,12 @@ scam_caller:
     contact channel your goal and tactics name, and keep that one channel and that one goal for
     the whole call: never switch to LINE, a new link or a new reason because the receiver refuses.
     Only if your goal or tactics name LINE, say "LINE ID" and a short made-up ID of letters only,
-    never a link. Answer what they just said; if they doubt or refuse, stay calm and give another
-    reason for the same ask. Think briefly.
+    never a link. If the receiver just asked you something (who you are, where you call from,
+    your name, a number to call back, why), your line starts by answering it, in character:
+    your organisation as {ORG}, your name as {CALLER_NAME}, a callback number as {PHONE}; only
+    then go on with your plan step, in the same line or the next. Never skip their question. Be
+    smooth (เนียน): sound natural and unscripted, Be persistent, but softly: one "no" or one doubt never ends your try. Take their worry
+    seriously ("เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ"). Think briefly.
   fields:
     role: who you claim to be
     voice: your gender and the pronoun and polite particle to use
@@ -58,7 +63,7 @@ scam_caller:
     tactics: how you get there
     receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
     pacing: where you are in the call and what you may do now
-    plan: your plan for this call, one step per turn; follow it, but react to the receiver
+    plan: your plan for this call, one step per turn; follow it, but first answer any question the receiver just asked
     conversation: the call so far, in Thai
     line: *slot_rule
     asks_now: >-
@@ -158,7 +163,7 @@ planner:
     pattern_notes: notes from recent real cases of this scam type, newest first
     turns: how many turns the caller has, and the first turn it may ask for something
     plan: one short step per caller turn, in English, in order
-  notes_limit: 6
+  notes_limit: 10
   lm: {temperature: 0.0, max_tokens: 1200}
 
 # Used by `python -m data_pipeline.patterns add`: reads one article and writes a pattern note.
