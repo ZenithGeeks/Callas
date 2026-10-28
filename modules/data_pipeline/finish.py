@@ -26,9 +26,12 @@ TOO_LONG_FOR_JUDGE = "too_long_for_judge"
 TOO_LONG_FOR_CONTEXT = "too_long_for_context"
 SCAM_CLARITY_POINTS = 25
 LABEL_MATCH_POINTS = 25
-LANGUAGE_REALISM_POINTS = 50
+LANGUAGE_REALISM_POINTS = 25
+SETUP_MATCH_POINTS = 25
 PASS_MARK_POINTS = 50  # a judged call scoring this or less is rejected, more is passed
 JUDGE_LOW_CONFIDENCE = "judge_low_confidence"
+# What the judge is shown of the selected scenario; the rest only steers generation.
+_JUDGED_SCENARIO_FIELDS = ("role", "org", "goal", "tactics", "receiver_context")
 
 # The judge reads clean typed text but still reports typos that are not there (#58).
 _SPELLING_TALK = re.compile(r"spell|typo|tone mark|สะกด", re.IGNORECASE)
@@ -72,7 +75,7 @@ def finish_call(
             {**speaker_turn, "start": start, "end": end}
             for speaker_turn, (start, end) in zip(speaker_turns, times, strict=True)
         ]
-    judge = ask_judge(agents, config, turns, record.label_type)
+    judge = ask_judge(agents, config, turns, record.label_type, record.generation.call)
     start, start_from = None, None
     if record.label_scam:
         reveal_turn = record.generation.call["reveal_turn"]
@@ -132,9 +135,14 @@ def leak_summary(turns: list[Turn]) -> tuple[list[str], int | None]:
     return leaked, first
 
 
-def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str | None) -> Judge:
-    """The judge's answer: does the call show what its label says, and where does the scam
-    start."""
+def ask_judge(
+    agents: Agents, config: Config, turns: list[Turn], label_type: str | None, call: dict
+) -> Judge:
+    """The judge's answer: does the call show what its label says, does it reflect the persona
+    and scenario selected before it started, and where does the scam start.
+
+    `call` is the sampled CallConfig as stored in generation.call.
+    """
     speakers = config.agents.speakers
     tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
     transcript = "\n".join(
@@ -145,6 +153,13 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         intended=intended,
         transcript=transcript,
         realism_criteria=config.agents.judge.realism_criteria,
+        scenario={
+            name: call["scenario"][name]
+            for name in _JUDGED_SCENARIO_FIELDS
+            if call["scenario"].get(name)
+        },
+        # the profile key is for choosing a profile on the command line, not for the model
+        persona={name: value for name, value in call["receiver"].items() if name != "key"},
     )
     tokens = prompt_tokens(agents.signatures["judge"], judge_inputs)
     if tokens > prompt_budget(config, "judge"):
@@ -164,6 +179,7 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
     scam_clear = bool(pred.scam_clear)
     label_holds = bool(pred.label_holds)
     language_realistic = bool(pred.language_realistic)
+    setup_holds = bool(pred.setup_holds)
     return Judge(
         prompt_tokens=tokens,
         label_holds=label_holds,
@@ -172,21 +188,26 @@ def ask_judge(agents: Agents, config: Config, turns: list[Turn], label_type: str
         label_reason=(pred.label_reason or "").strip(),
         language_realistic=language_realistic,
         language_realism_reason=(pred.language_realism_reason or "").strip(),
+        setup_holds=setup_holds,
+        setup_reason=(pred.setup_reason or "").strip(),
         scam_start_turn=int(pred.scam_start_turn),
         giveaway=bool(pred.giveaway),
-        confidence=_judge_score(scam_clear, label_holds, language_realistic),
+        confidence=_judge_score(scam_clear, label_holds, language_realistic, setup_holds),
         summary=(pred.summary or "").strip(),
         issues=drop_false_spelling((pred.issues or "").strip(), turns),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
     )
 
 
-def _judge_score(scam_clear: bool, label_holds: bool, language_realistic: bool) -> float:
+def _judge_score(
+    scam_clear: bool, label_holds: bool, language_realistic: bool, setup_holds: bool
+) -> float:
     """The deterministic score behind the judge's displayed confidence rate."""
     points = (
         SCAM_CLARITY_POINTS * scam_clear
         + LABEL_MATCH_POINTS * label_holds
         + LANGUAGE_REALISM_POINTS * language_realistic
+        + SETUP_MATCH_POINTS * setup_holds
     )
     return points / 100
 
