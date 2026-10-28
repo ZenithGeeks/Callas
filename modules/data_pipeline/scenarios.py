@@ -66,7 +66,13 @@ def sample_config(
     rng = random.Random(f"{call_type}:{seed}")
     scenario = rng.choice(scenarios.legit if call_type == BENIGN else scenarios.scams[call_type])
     pool = scenarios.receivers
-    sampled = sample_receiver(rng, pool)  # always drawn, so the rest of the call is the same
+    # Lock this call's scam outcome 50/50 by seed parity, so the dataset is balanced between
+    # receivers who get scammed and those who stay safe. From the seed, not rng, so it does not
+    # shift any other sampled value; sample_receiver then draws a persona that fits it.
+    outcome = "scammed" if seed % 2 == 0 else "safe"
+    sampled = sample_receiver(
+        rng, pool, outcome
+    )  # always drawn, so the rest of the call is the same
     receiver = receiver or sampled
     calls = scenarios.calls
     slow = call_type in calls.slow_types
@@ -97,12 +103,36 @@ def _caller_gender(
     return others[0] if scenario.relation == "lover" and others else drawn
 
 
-def sample_receiver(rng: random.Random, pool: Receivers) -> ReceiverProfile:
+def _outcome_pools(pool: Receivers, outcome: str) -> tuple[list[str], list[str]]:
+    """The scam_awareness and temperament lists to draw from for a locked `outcome`: the wary group
+    for "safe", the rest (gullible) for "scammed", so the person leads to the outcome. Falls back to
+    the full pools when no outcome is locked or no wary group is configured."""
+
+    def group(full: list[str], wary: list[str]) -> list[str]:
+        if not wary or outcome not in ("scammed", "safe"):
+            return full
+        wary_set = set(wary)
+        gullible = [v for v in full if v not in wary_set]
+        return wary if outcome == "safe" else (gullible or full)
+
+    return (
+        group(pool.scam_awareness, pool.wary_scam_awareness),
+        group(pool.temperaments, pool.wary_temperaments),
+    )
+
+
+def sample_receiver(rng: random.Random, pool: Receivers, outcome: str = "") -> ReceiverProfile:
     """One of the hand-written profiles (profile_share of the time), else one built from pools.
 
     When the config has life_stages, the age-linked fields (age, occupation, education, family,
     digital_literacy) are drawn together from one stage so the person is believable; without them
     every field is drawn independently (the old behaviour).
+
+    `outcome` ("scammed"/"safe") is the call's locked result; scam_awareness and temperament are
+    drawn from the group that fits it (Receivers.wary_*), and it is stamped on the receiver.
+
+    A hand-written profile is a fixed persona with its own nature, so it is left unlocked (its own
+    scam_outcome, usually ""): the 50/50 lock is not forced onto it, only onto pool-built receivers.
     """
     if pool.profiles and rng.random() < pool.profile_share:
         return rng.choice(pool.profiles)
@@ -112,6 +142,7 @@ def sample_receiver(rng: random.Random, pool: Receivers) -> ReceiverProfile:
     education = stage.education if stage else pool.education
     family = stage.family if stage else pool.family
     digital_literacy = stage.digital_literacy if stage else pool.digital_literacy
+    awareness_pool, temperament_pool = _outcome_pools(pool, outcome)
     return ReceiverProfile(
         gender=rng.choice(pool.genders),
         age=rng.randint(*age_range),
@@ -120,8 +151,9 @@ def sample_receiver(rng: random.Random, pool: Receivers) -> ReceiverProfile:
         region=rng.choice(pool.regions),
         family=rng.choice(family),
         digital_literacy=rng.choice(digital_literacy),
-        scam_awareness=rng.choice(pool.scam_awareness),
-        temperament=rng.choice(pool.temperaments),
+        scam_awareness=rng.choice(awareness_pool),
+        temperament=rng.choice(temperament_pool),
         ending=rng.choice(pool.endings),
         speech=rng.choice(pool.speech),
+        scam_outcome=outcome,
     )

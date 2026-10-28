@@ -136,8 +136,9 @@ def receiver_says(
     if call.scenario.receiver_context:  # romance etc.: the receiver already knows this caller
         stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
-        # the profile key is for choosing a profile on the command line, not for the model
-        persona=call.receiver.model_dump(exclude={"key"}),
+        # key picks a profile on the command line; scam_outcome is the call's locked label, and
+        # the persona (drawn to fit it) carries the behaviour, so neither is shown to the model
+        persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
         stage=stage_text,
         red_flags=config.red_flags,

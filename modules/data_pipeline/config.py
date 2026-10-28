@@ -36,6 +36,9 @@ DEFAULT_DIR = Path(__file__).resolve().parent / "config"
 FILES = ("agents.yaml", "scenarios.yaml", "details.yaml")
 BENIGN = "benign"
 CALL_TYPES: tuple[str, ...] = (*SCAM_TYPES, BENIGN)
+# Which way a scam call is meant to end for the receiver (ReceiverProfile.scam_outcome). Drawn
+# 50/50 per call so the dataset is balanced between receivers who get scammed and those who do not.
+SCAM_OUTCOMES = ("scammed", "safe")
 SLOT_NAMES = (
     "CALLER_NAME",
     "RECEIVER_NAME",
@@ -279,10 +282,15 @@ PROFILE_KEY_RE = re.compile(r"^[a-z][a-z_]*[a-z]$")
 
 
 class ReceiverProfile(_Strict):
-    """Who answers the phone. The receiver agent sees every field, as written.
+    """Who answers the phone. The receiver agent sees every field as written, except `key` and
+    `scam_outcome`, which are control metadata (see turns.receiver_says).
 
     `key` names a hand-written profile so a run can ask for it (--receiver); profiles built
-    from the pools have no key.
+    from the pools have no key. `scam_outcome` records which way a scam call is meant to end for
+    this receiver ("scammed" or "safe"): it is drawn 50/50 per call so the dataset is balanced,
+    and the receiver's scam_awareness and temperament are then drawn from the matching group
+    (gullible or wary, Receivers.wary_*), so the person — not a forced instruction — leads to the
+    outcome. It is kept in the stored record as the label; it is not shown to the model.
     """
 
     key: str = ""
@@ -297,12 +305,21 @@ class ReceiverProfile(_Strict):
     temperament: str  # how they react to a stranger asking for things
     ending: str  # how they end a call they are unsure about
     speech: str  # how they talk: politeness, dialect words, pace
+    # "" for a hand-written profile that does not lock an outcome; sampling sets "scammed"/"safe".
+    scam_outcome: str = ""
 
     @field_validator("key")
     @classmethod
     def _key_shape(cls, v: str) -> str:
         if v and not PROFILE_KEY_RE.match(v):
             raise ValueError("a profile key uses lowercase letters and _ only, e.g. teacher_cm")
+        return v
+
+    @field_validator("scam_outcome")
+    @classmethod
+    def _outcome_value(cls, v: str) -> str:
+        if v not in ("", *SCAM_OUTCOMES):
+            raise ValueError(f"scam_outcome must be one of {['', *SCAM_OUTCOMES]}, got {v!r}")
         return v
 
 
@@ -341,6 +358,11 @@ class Receivers(_Strict):
     digital_literacy: list[str] = Field(min_length=1)
     scam_awareness: list[str] = Field(min_length=1)
     temperaments: list[str] = Field(min_length=1)
+    # The scam_awareness / temperaments entries that make a receiver resist a scam. A call's locked
+    # scam_outcome (scenarios.sample_config, 50/50 by seed) draws from these for a "safe" call and
+    # from the rest (the "gullible" group) for a "scammed" call, so the person fits the outcome.
+    wary_scam_awareness: list[str] = []
+    wary_temperaments: list[str] = []
     endings: list[str] = Field(min_length=1)
     speech: list[str] = Field(min_length=1)
 
@@ -371,6 +393,23 @@ class Receivers(_Strict):
                         f"receivers.life_stages[{i}].{field} has values not in "
                         f"receivers.{field}: {extra}"
                     )
+        return self
+
+    @model_validator(mode="after")
+    def _wary_groups_are_subsets(self) -> Receivers:
+        # the wary group must be drawn from the pool and leave at least one entry for the gullible
+        # group, so both a "safe" and a "scammed" receiver can be built
+        for field in ("scam_awareness", "temperaments"):
+            pool = getattr(self, field)
+            wary = getattr(self, f"wary_{field}")
+            if extra := [v for v in wary if v not in pool]:
+                raise ValueError(
+                    f"receivers.wary_{field} has values not in receivers.{field}: {extra}"
+                )
+            if wary and len(set(wary)) >= len(set(pool)):
+                raise ValueError(
+                    f"receivers.wary_{field} must leave at least one entry for the gullible group"
+                )
         return self
 
     @model_validator(mode="after")
