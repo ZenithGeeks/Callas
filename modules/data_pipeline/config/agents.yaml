@@ -4,7 +4,7 @@
 # reads those fields by name, and the loader rejects a config that changes them.
 # Slots ({PHONE}, {URL}, ...) are filled with made-up values after each line; see details.yaml.
 #
-# lm: model (empty = VLLM_MODEL in .env; typhoon-* = Typhoon's server, see llm.py), temperature,
+# lm: model (empty = VLLM_MODEL in .env), temperature,
 # max_tokens. max_tokens must cover the chain-of-thought reasoning as well as the answer.
 
 # Shared by both callers. YAML anchors (&name / *name) reuse the same text below.
@@ -72,8 +72,7 @@ scam_caller:
     start: "Turn {turn} of at most {turns}. Gently move toward your goal: concerned, acting soon helps them."
     push: "Turn {turn} of at most {turns}. More urgent: time is short and you want to help them in time."
     last: "Turn {turn} of at most {turns}. Make your ask now, clearly and urgently, as their last chance."
-  # a typhoon-* model runs on the TYPHOON_* server in .env; without those lines, the vLLM model
-  lm: {model: typhoon-v2.5-30b-a3b-instruct, temperature: 0.5, max_tokens: 1000}
+  lm: {temperature: 0.5, max_tokens: 1000}
 
 legit_caller:
   instructions: >-
