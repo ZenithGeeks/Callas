@@ -103,7 +103,10 @@ class SlotFiller:
         elif org in ("*", ""):
             org = rng.choice(details.made_up_orgs)
         money = details.money
-        amount = rng.choice(money.big if call.call_type in money.big_types else money.small)
+        amounts = money.big if call.call_type in money.big_types else money.small
+        if call.scenario.money_max is not None:
+            amounts = [a for a in amounts if a <= call.scenario.money_max]
+        amount = rng.choice(amounts)
         # The order of every rng draw in this method, above and below, fixes each value for a
         # given seed; do not reorder.
         self.values = {
