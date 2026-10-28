@@ -102,6 +102,38 @@ def test_judge_score_uses_the_three_weighted_checks(
     assert _judge_score(scam_clear, label_holds, language_realistic) == expected
 
 
+@pytest.mark.parametrize(
+    "verdict",
+    [
+        judge(start=2, language_realistic=False),  # 50: exactly the pass mark
+        judge(start=2, scam_clear=False, holds=False),  # 50 from language alone
+        judge(start=-1, holds=False, giveaway=True, scam_clear=False, language_realistic=False),
+    ],
+)
+def test_a_score_of_50_or_less_rejects_with_only_the_score(tmp_path, verdict):
+    agents = make_agents(SCAM, REPLIES, verdict)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "rejected"
+    assert rec["generation"]["reasons"] == ["judge_low_confidence"]
+
+
+NO_ASKS = [dict(d, asks_now=False) for d in SCAM]
+
+
+@pytest.mark.parametrize(
+    ("caller", "verdict"),
+    [
+        (SCAM, judge(start=2, holds=False)),  # 75: does not show the intended call
+        (SCAM, judge(start=2, giveaway=True)),  # 100: names the label outright
+        (NO_ASKS, judge(start=-1)),  # 100: no scam move from the caller or the judge
+    ],
+)
+def test_a_score_above_50_accepts_whatever_the_other_judge_answers_say(tmp_path, caller, verdict):
+    agents = make_agents(caller, REPLIES, verdict)
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "accepted", rec["generation"]["reasons"]
+
+
 def test_each_turn_sees_the_log_so_far(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
@@ -124,23 +156,14 @@ def test_judge_supplies_start_turn_when_caller_does_not_flag(tmp_path):
     assert rec["generation"]["scam_start_from"] == "judge"
 
 
-def test_scam_without_any_ask_is_rejected(tmp_path):
-    caller = [dict(d, asks_now=False) for d in SCAM]
-    agents = make_agents(caller, REPLIES, judge(holds=False, start=-1))
-    store = Store(tmp_path / "calls.db")
-    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
-    assert rec["generation"]["status"] == "rejected"
-    assert {"no_scam_move", "judge_label_does_not_hold"} <= set(rec["generation"]["reasons"])
-
-
-def test_normal_call_the_judge_calls_a_scam_is_rejected(tmp_path):
+def test_a_scam_start_in_a_normal_call_no_longer_rejects_it(tmp_path):
     legit = [dict(line="สวัสดีครับ", end_call=False), dict(line="ขอบคุณครับ", end_call=True)]
     agents = make_agents(legit, [dict(line="ค่ะ", end_call=False)], judge(start=0))
     store = Store(tmp_path / "calls.db")
     rec = run_call("benign", 1, store, agents, CONFIG).to_dict()
     assert rec["label_scam"] is False and rec["scam_start_turn"] is None
-    assert "judge_saw_scam_in_normal_call" in rec["generation"]["reasons"]
-    assert "too_short" in rec["generation"]["reasons"]
+    # only the code check holds: the judge's score of 100 passes the call
+    assert rec["generation"]["reasons"] == ["too_short"]
 
 
 def test_resume_continues_from_saved_turns(tmp_path, monkeypatch):
@@ -498,7 +521,7 @@ def test_a_line_with_several_misspellings_is_rejected_as_garbled():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_one_odd_word_is_not_garbled():
@@ -509,7 +532,7 @@ def test_one_odd_word_is_not_garbled():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_a_garbled_caller_line_is_not_counted():
@@ -520,7 +543,7 @@ def test_a_garbled_caller_line_is_not_counted():
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, True, 2, CONFIG)
+    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
 
 
 def test_the_judge_gives_no_natural_thai_score(tmp_path):
@@ -540,7 +563,9 @@ def test_judge_prompt_stays_small():
             realism_criteria=CONFIG.agents.judge.realism_criteria,
         ),
     )
-    assert tokens <= 1_400
+    # Measured at 1,670 with dspy 3.4.1 (11 output fields and 9 criteria). The prompt budget
+    # is about 96K, so this only guards against large growth.
+    assert tokens <= 1_800
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
