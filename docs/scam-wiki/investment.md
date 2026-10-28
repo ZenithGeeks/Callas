@@ -78,13 +78,13 @@ Tactics:
 - Build a credible podcast profile with celebrity guests and a few real episodes
 - Cold-call fans who engaged with the podcast and invite them to a private chat group
 - Pitch a 'VIP investor' opportunity with guaranteed high returns in a short window
-- Direct the victim to add a LINE group via {URL} and transfer {MONEY} to {BANK_ACCOUNT}
+- Ask the victim to add the host on LINE, invite them into the VIP LINE group, and have them transfer {MONEY} to {BANK_ACCOUNT}
 - Keep the victim on the phone to walk them through the transfer and verify the slip
 
 Phrases:
 - ผม {CALLER_NAME} จากพอดแคสต์ดัง ตอนนี้ผมมีโครงการลงทุนระดับ VIP ให้แฟนพอดแคสต์เท่านั้น
 - ต้องการเงินลงทุนขั้นต่ำ {MONEY} บาท ผลตอบแทน 30% ใน 7 วัน
-- เข้ากลุ่มไลน์ผ่านลิงก์ {URL} แล้วโอนเงินมาที่บัญชี {BANK_ACCOUNT} พร้อมแจ้งสลิปทางโทรศัพท์
+- แอดไลน์ผมไว้นะครับ เดี๋ยวผมเชิญเข้ากลุ่ม VIP ให้ แล้วโอนเงินมาที่บัญชี {BANK_ACCOUNT} แล้วส่งสลิปในกลุ่มไลน์
 
 ## Fake Hua Seng Heng staff claim SEC approval and push a guaranteed 20% monthly return before midnight
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/ไลน์เจ้าหน้าที่ฝ่ายบริการของฮั่วเซ่งเฮง-ได้รับการรับรองโดย-ก-ล-ต/
@@ -118,7 +118,7 @@ Tactics:
 Phrases:
 - สวัสดีครับ ผม {CALLER_NAME} จากแผนก IPO ของ OR ปตท. บริษัทกำลังเปิดขายหุ้นสามัญรอบใหม่
 - ขั้นต่ำ {MONEY} บาท รับสิทธิ์หุ้นละ {MONEY} ราคาต่ำกว่า IPO ปกติ 20%
-- สนใจโอนมัดจำ 50% ที่ {BANK_ACCOUNT} แล้วแจ้งสลิปกลับมาทางเบอร์นี้ {PHONE} ภายในวันนี้
+- สนใจโอนมัดจำ 50% ที่ {BANK_ACCOUNT} แล้วส่งสลิปทางไลน์ภายในวันนี้
 
 ## Fake Hua Seng Heng gold advisor on LINE calls to confirm a gold purchase that is never delivered
 - source: https://www.facebook.com/AntiFakeNewsCenter/photos/1054715723847433
