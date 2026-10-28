@@ -56,23 +56,32 @@ class CallConfig:
 
 
 def sample_config(
-    call_type: str, seed: int, config: Config, receiver: ReceiverProfile | None = None
+    call_type: str,
+    seed: int,
+    config: Config,
+    receiver: ReceiverProfile | None = None,
+    outcome: str = "",
 ) -> CallConfig:
     """The call for this type and seed. `receiver` replaces the sampled receiver (a person
-    chosen by hand); everything else is sampled exactly as without it."""
+    chosen by hand); everything else is sampled exactly as without it. `outcome`
+    ("scammed"/"safe") forces this call's scam outcome; "" draws it 50/50 by seed parity."""
     if call_type not in CALL_TYPES:
         raise ValueError(f"call type must be one of {CALL_TYPES}, got {call_type!r}")
+    if outcome not in ("", "scammed", "safe"):
+        raise ValueError(f"outcome must be '', 'scammed' or 'safe', got {outcome!r}")
     scenarios = config.scenarios
     rng = random.Random(f"{call_type}:{seed}")
     scenario = rng.choice(scenarios.legit if call_type == BENIGN else scenarios.scams[call_type])
     pool = scenarios.receivers
-    # Lock this call's scam outcome 50/50 by seed parity, so the dataset is balanced between
-    # receivers who get scammed and those who stay safe. From the seed, not rng, so it does not
-    # shift any other sampled value; sample_receiver then draws a persona that fits it.
-    outcome = "scammed" if seed % 2 == 0 else "safe"
-    sampled = sample_receiver(
-        rng, pool, outcome
-    )  # always drawn, so the rest of the call is the same
+    # Lock this call's scam outcome so the data is balanced: the studio may ask for "scammed" or
+    # "safe"; otherwise it is 50/50 by seed parity. From the seed, not rng, so it does not shift
+    # any other sampled value; sample_receiver then draws a persona that fits it. When the studio
+    # forces an outcome, a pool receiver is built (not a fixed profile) so the choice always holds.
+    forced = bool(outcome)
+    outcome = outcome or ("scammed" if seed % 2 == 0 else "safe")
+    sampled = sample_receiver(  # always drawn, so the rest of the call is the same
+        rng, pool, outcome, force=forced
+    )
     receiver = receiver or sampled
     calls = scenarios.calls
     slow = call_type in calls.slow_types
@@ -121,7 +130,9 @@ def _outcome_pools(pool: Receivers, outcome: str) -> tuple[list[str], list[str]]
     )
 
 
-def sample_receiver(rng: random.Random, pool: Receivers, outcome: str = "") -> ReceiverProfile:
+def sample_receiver(
+    rng: random.Random, pool: Receivers, outcome: str = "", force: bool = False
+) -> ReceiverProfile:
     """One of the hand-written profiles (profile_share of the time), else one built from pools.
 
     When the config has life_stages, the age-linked fields (age, occupation, education, family,
@@ -133,8 +144,9 @@ def sample_receiver(rng: random.Random, pool: Receivers, outcome: str = "") -> R
 
     A hand-written profile is a fixed persona with its own nature, so it is left unlocked (its own
     scam_outcome, usually ""): the 50/50 lock is not forced onto it, only onto pool-built receivers.
+    `force` (the studio asked for a specific outcome) skips profiles so that outcome always holds.
     """
-    if pool.profiles and rng.random() < pool.profile_share:
+    if not force and pool.profiles and rng.random() < pool.profile_share:
         return rng.choice(pool.profiles)
     stage = rng.choice(pool.life_stages) if pool.life_stages else None
     age_range = stage.age if stage else pool.age

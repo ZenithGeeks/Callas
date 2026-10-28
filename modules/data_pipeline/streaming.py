@@ -48,6 +48,7 @@ class CallSpec:
     scenario: Scenario | None = None  # None: the one the seed picks
     receiver: ReceiverProfile | None = None  # None: the one the seed picks
     receiver_name: str = ""  # the name the caller hears; "" keeps the one the seed picks
+    outcome: str = ""  # force the scam outcome: "scammed" / "safe"; "" = 50/50 by seed
 
     @property
     def record_id(self) -> str:
@@ -125,7 +126,7 @@ def _open_context(
     spec: CallSpec, store: Store, agents: Agents, config: Config, voices: Any
 ) -> SimContext:
     """The context the graph runs with: the stored call, or a new one with the form's choices."""
-    call = sample_config(spec.call_type, spec.seed, config, spec.receiver)
+    call = sample_config(spec.call_type, spec.seed, config, spec.receiver, spec.outcome)
     if spec.scenario is not None:
         call = replace(call, scenario=spec.scenario)
     record = _open_record(store, call, config, agents, spec.receiver)
