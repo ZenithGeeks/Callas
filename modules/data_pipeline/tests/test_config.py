@@ -71,6 +71,24 @@ def test_scenario_reveal_turn_too_late_is_rejected(cfg_dir):
         load_config(cfg_dir)
 
 
+def test_scenario_money_max_caps_the_amount(cfg_dir):
+    from data_pipeline.fill import SlotFiller
+    from data_pipeline.scenarios import sample_config
+
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["investment"][0].update(money_max=30000))
+    c = load_config(cfg_dir)
+    key = c.scenarios.scams["investment"][0].key
+    calls = [sample_config("investment", s, c) for s in range(200)]
+    amounts = {SlotFiller(x, c.details).values["MONEY"] for x in calls if x.scenario.key == key}
+    assert amounts and amounts <= {"15,000 บาท", "30,000 บาท"}
+
+
+def test_scenario_money_max_below_every_amount_is_rejected(cfg_dir):
+    edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["investment"][0].update(money_max=100))
+    with pytest.raises(ConfigError, match=r"money_max is 100"):
+        load_config(cfg_dir)
+
+
 def test_romance_voice_has_only_the_callers_relation():
     c = load_config()
     by_key = {s.key: s for s in c.scenarios.scams["romance"]}

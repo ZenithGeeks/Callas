@@ -42,6 +42,14 @@ def test_money_unit_is_not_doubled():
     assert spans[0]["text"].endswith("บาท")
 
 
+def test_podcast_org_comes_from_the_podcast_list():
+    calls = [sample_config("investment", s, CONFIG) for s in range(200)]
+    podcast = [c for c in calls if c.scenario.org == "พอดแคสต์"]
+    assert podcast
+    for c in podcast:
+        assert SlotFiller(c, CONFIG.details).values["ORG"] in CONFIG.details.podcasts
+
+
 def test_unknown_slot_and_loose_number_are_flagged():
     _, _, problems = filler().fill("บ้านเลขที่ {HOUSE_NUMBER} โทร 0812345678")
     assert "unknown_slot:HOUSE_NUMBER" in problems

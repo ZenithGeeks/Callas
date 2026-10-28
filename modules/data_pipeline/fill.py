@@ -84,6 +84,7 @@ _LOOSE_DIGITS = re.compile(r"\d{4}|\d+(?:[,. -]\d{3,4})+")
 _LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its line
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
+PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
 NICKNAME_RELATIONS = ("friend", "family")  # relations whose two names come from details.nicknames
 
 
@@ -100,10 +101,15 @@ class SlotFiller:
         org = call.scenario.org
         if org == BANK_SCENARIO_ORG:
             org = rng.choice(details.banks)
+        elif org == PODCAST_SCENARIO_ORG:
+            org = rng.choice(details.podcasts or details.made_up_orgs)
         elif org in ("*", ""):
             org = rng.choice(details.made_up_orgs)
         money = details.money
-        amount = rng.choice(money.big if call.call_type in money.big_types else money.small)
+        amounts = money.big if call.call_type in money.big_types else money.small
+        if call.scenario.money_max is not None:
+            amounts = [a for a in amounts if a <= call.scenario.money_max]
+        amount = rng.choice(amounts)
         # The order of every rng draw in this method, above and below, fixes each value for a
         # given seed; do not reorder.
         self.values = {

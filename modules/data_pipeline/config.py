@@ -265,6 +265,8 @@ class Scenario(_Strict):
     # the caller's own turn of the first ask, one drawn per call; empty: calls.reveal_turn_slow
     # or reveal_turn_fast by scam type
     reveal_turn: list[Annotated[int, Field(ge=0)]] = []
+    # the highest {MONEY} in baht; amounts above it are left out of the draw. None: no cap
+    money_max: Annotated[int, Field(gt=0)] | None = None
 
     @model_validator(mode="after")
     def _slots(self) -> Scenario:
@@ -472,6 +474,7 @@ class DetailsFile(_Strict):
     nicknames: dict[str, list[str]] = {}  # gender -> nicknames; older config folders have none
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
+    podcasts: list[str] = []  # older config folders have none; made_up_orgs is used instead
     urls: Urls
     money: Money
     addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
@@ -531,6 +534,15 @@ def _cross_check(agents: AgentsFile, scenarios: ScenariosFile, details: DetailsF
     unknown |= set(details.money.big_types) - set(CALL_TYPES)
     if unknown:
         raise ConfigError(f"unknown call type(s) {sorted(unknown)}")
+    for call_type, group in scenarios.scams.items():
+        amounts = details.money.big if call_type in details.money.big_types else details.money.small
+        for scenario in group:
+            if scenario.money_max is not None and min(amounts) > scenario.money_max:
+                raise ConfigError(
+                    f"scenarios.yaml scenario {scenario.key}.money_max is {scenario.money_max}, "
+                    f"below every details.yaml money amount for {call_type} "
+                    f"({min(amounts)} is the lowest)"
+                )
     low, high = scenarios.calls.max_turns
     if not (scenarios.calls.min_turns <= low <= high):
         raise ConfigError(
