@@ -87,6 +87,8 @@ def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
         label_reason="The scripted transcript follows its intended call type.",
         language_realistic=True,
         language_realism_reason="The demo fixture is intentionally concise and internally consistent.",
+        setup_holds=True,
+        setup_reason="The scripted caller and receiver follow their selected scenario and persona.",
         scam_start_turn=2 if scam else -1,
         giveaway=False,
         summary="ผู้โทรขอรหัสจากผู้รับสาย" if scam else "ผู้โทรแจ้งเรื่องการส่งพัสดุ",
