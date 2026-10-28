@@ -27,7 +27,7 @@ from .audio import speak_turn
 from .budget import ContextTooLong
 from .config import Config
 from .fill import SlotFiller
-from .finish import Ending, ended_early, finish_call
+from .finish import Ending, clean_turns, ended_early, finish_call
 from .records import Briefing, CallRecord, GenerationStatus, Turn
 from .scenarios import CallConfig
 from .store import Store
@@ -171,12 +171,16 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     """Build the text, join the audio, ask the judge, and set accepted or rejected."""
     ctx = runtime.context
     update = {}
+    turns = state["turns"]
     # Not in progress: a turn ended the call early and already put ended_early() in the state.
     if state["status"] == "in_progress":
-        record = to_record(ctx.record, state)
+        # The judge and the stored call get the turns with garbled Thai fixed. They are not
+        # returned in the update: the turns reducer appends, so they would be added again.
+        turns = clean_turns(turns, ctx.filler)
+        record = to_record(ctx.record, {**state, "turns": turns})
         ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
-    finished = to_record(ctx.record, {**state, **update})
+    finished = to_record(ctx.record, {**state, "turns": turns, **update})
     ctx.store.save_call(finished)
     if finished.generation.status in ("accepted", "rejected"):
         ctx.store.set_review(finished.id, finished.review.status, finished.review.note)

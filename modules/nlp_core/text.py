@@ -26,6 +26,28 @@ def normalize_text(text: str) -> str:
 
 
 @cache
+def _spelling_fix_pattern() -> re.Pattern[str]:
+    from .spelling_fixes import SPELLING_FIXES
+
+    # longest first, so ใหคณุ is replaced as a whole before its part ใหคณ
+    wrong = sorted(SPELLING_FIXES, key=len, reverse=True)
+    return re.compile("|".join(map(re.escape, wrong)))
+
+
+def fix_thai_spelling(text: str) -> str:
+    """normalize_text, then the reviewed garbles in spelling_fixes.SPELLING_FIXES.
+
+    Fixes marks (doubled vowels and tone marks, a tone mark before its vowel, เเ for แ) and the
+    listed words only, so it never guesses: a word it does not know stays as written. Digits,
+    English, {SLOTS} and names are left alone.
+    """
+    from .spelling_fixes import SPELLING_FIXES
+
+    text = normalize_text(text)
+    return _spelling_fix_pattern().sub(lambda m: SPELLING_FIXES[m.group()], text)
+
+
+@cache
 def _dictionary() -> frozenset[str]:
     from pythainlp.corpus import thai_words
 

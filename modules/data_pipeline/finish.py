@@ -9,16 +9,19 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+
+from nlp_core.text import fix_thai_spelling
 
 from .agents import Agents
 from .audio import join_audio
 from .budget import prompt_budget, prompt_tokens
 from .config import Config
+from .fill import SlotFiller
 from .records import CallRecord, Judge, Turn
 from .tts import Voices
-from .turns import CALLER, RECEIVER, ask
+from .turns import CALLER, RECEIVER, ask, spelling
 
 log = logging.getLogger("data_pipeline")
 
@@ -50,6 +53,24 @@ class Ending:
     scam_start_turn: int | None = None
     scam_start_from: str | None = None  # caller | judge: who pointed at scam_start_turn
     judge: Judge | None = None
+
+
+def clean_turns(turns: list[Turn], filler: SlotFiller) -> list[Turn]:
+    """The turns with garbled Thai fixed (nlp_core.text.fix_thai_spelling), before the judge.
+
+    A changed line is filled again so its entity spans match the new text, and its spelling is
+    checked again. `raw` keeps what the model wrote; `spoken_text` and `audio` keep what was
+    already spoken (fixing marks does not change the sound).
+    """
+    cleaned = []
+    for turn in turns:
+        clean = fix_thai_spelling(turn.raw)
+        if clean == turn.raw:
+            cleaned.append(turn)
+            continue
+        text, entities, _ = filler.fill(clean)
+        cleaned.append(replace(turn, text=text, entities=entities, spelling=spelling(clean)))
+    return cleaned
 
 
 def finish_call(

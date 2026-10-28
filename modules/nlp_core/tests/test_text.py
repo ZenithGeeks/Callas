@@ -2,7 +2,8 @@ import pytest
 
 from asr_diarization.types import Turn
 from nlp_core import text
-from nlp_core.text import autocorrect_text, normalize_text
+from nlp_core.spelling_fixes import SPELLING_FIXES
+from nlp_core.text import autocorrect_text, fix_thai_spelling, normalize_text
 from tts_voice_agent.memory import clean_turn
 
 
@@ -11,6 +12,48 @@ def test_normalize_same_as_the_notebook():
     assert normalize_text("สวัสดี   ครับ。ผม\n\tชื่อ") == "สวัสดี ครับ ผม ชื่อ"
     assert normalize_text("เกิด่่ขึ้น") == "เกิด่ขึ้น"
     assert normalize_text("  ") == ""
+
+
+@pytest.mark.parametrize(
+    ("garbled", "fixed"),
+    [
+        ("โอนเงิิน", "โอนเงิน"),  # doubled vowel
+        ("ส่่งสลิป", "ส่งสลิป"),  # doubled tone mark
+        ("เป็็นแค่เอกสาร", "เป็นแค่เอกสาร"),
+        ("ของท่ีทางเรา", "ของที่ทางเรา"),  # tone mark before its vowel
+        ("เเปลก", "แปลก"),  # two Sara E
+        ("อยากให้คณุ เพิ่ม LINE", "อยากให้คุณ เพิ่ม LINE"),  # listed garbles
+        ("ซื้อมาใหคณุ", "ซื้อมาให้คุณ"),  # the longer form wins over ใหคณ
+        ("คนแปลกหน้าดวยค่ะ", "คนแปลกหน้าด้วยค่ะ"),
+    ],
+)
+def test_fix_thai_spelling(garbled, fixed):
+    assert fix_thai_spelling(garbled) == fixed
+    assert fix_thai_spelling(fixed) == fixed  # fixing twice changes nothing
+
+
+@pytest.mark.parametrize(
+    "keep",
+    [
+        "โอน {MONEY} เข้า {BANK_ACCOUNT} นะคะ",  # slots
+        "โทร 0812345678 หรือ https://gift-promo12.com",
+        "คณะกรรมการ ไม้ ใหญ่ หนุ่ม",  # real words holding unlisted garbles (คณ, ไม, ให, หนุ่)
+        "ผมชื่อสมชาย จาก ฮั่วเซ่งเฮง",  # names
+    ],
+)
+def test_fix_thai_spelling_leaves_correct_text(keep):
+    assert fix_thai_spelling(keep) == keep
+
+
+def test_spelling_fixes_never_hit_a_real_word():
+    from pythainlp.corpus import thai_words
+    from pythainlp.tokenize import word_tokenize
+
+    words = thai_words()
+    for wrong, right in SPELLING_FIXES.items():
+        assert not [w for w in words if wrong in w], f"{wrong} is part of a real word"
+        assert normalize_text(wrong) == wrong, f"{wrong} is changed by normalize first"
+        assert all(t in words for t in word_tokenize(right, engine="newmm")), right
 
 
 @pytest.fixture

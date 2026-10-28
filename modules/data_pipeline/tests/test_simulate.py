@@ -102,6 +102,22 @@ def test_judge_score_uses_the_three_weighted_checks(
     assert _judge_score(scam_clear, label_holds, language_realistic) == expected
 
 
+def test_garbled_thai_is_fixed_before_the_judge(tmp_path):
+    caller = [dict(SCAM[0]), dict(SCAM[1]), dict(SCAM[2], line="โอนเงิินมาที่ {BANK_ACCOUNT} นะครับ")]
+    agents = make_agents(caller, REPLIES, judge(start=2))
+    store = Store(tmp_path / "calls.db")
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG)
+
+    assert rec.generation.status == "accepted", rec.generation.reasons
+    last = rec.generation.turns[4]
+    assert last.raw == "โอนเงิินมาที่ {BANK_ACCOUNT} นะครับ"  # what the model wrote is kept
+    assert last.text.startswith("โอนเงินมาที่ ") and "tone_mark_order" not in last.spelling
+    assert "โอนเงินมาที่" in agents.judge.calls[0]["transcript"]
+    data = rec.to_dict()
+    for e in data["entities"]:  # spans still index into the cleaned text
+        assert data["text"][e["start"] : e["end"]] == e["text"]
+
+
 def test_each_turn_sees_the_log_so_far(tmp_path):
     agents = make_agents(SCAM, REPLIES, judge(start=2))
     store = Store(tmp_path / "calls.db")
