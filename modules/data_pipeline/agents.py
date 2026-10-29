@@ -10,7 +10,8 @@ never goes into the call text the classifier trains on. The receiver is never to
 so its reactions cannot give the label away.
 
 `Agents` holds the six programs and the dspy LM of each. `config.agents` is agents.yaml, with
-one `AgentSettings` per agent (its `lm` is the model settings, not a dspy LM).
+one `AgentSettings` per agent (its `lm` is the model settings, not a dspy LM). The scam caller
+is one program per scam type (`ScamCaller`), each with that type's instructions.
 """
 
 from __future__ import annotations
@@ -19,7 +20,9 @@ from typing import Any
 
 import dspy
 
-from .config import AgentSettings, Config, ConfigError
+from nlp_core.types import SCAM_TYPES
+
+from .config import AgentSettings, Config, ConfigError, ScamCallerSettings
 
 # Each docstring below is the agent's job in one line. `configured` swaps it for the full
 # instructions in agents.yaml, found under the key named in the comment.
@@ -28,7 +31,7 @@ from .config import AgentSettings, Config, ConfigError
 class ScamCallerTurn(dspy.Signature):
     """Play the scam caller and write its next line."""
 
-    # Full instructions: agents.yaml, scam_caller.instructions
+    # Full instructions: agents.yaml, scam_caller.instructions + scam_caller.by_type.<scam type>
 
     role: str = dspy.InputField()
     voice: str = dspy.InputField()
@@ -135,8 +138,13 @@ SIGNATURES: dict[str, type[dspy.Signature]] = {
 }
 
 
-def configured(name: str, settings: AgentSettings) -> type[dspy.Signature]:
-    """The signature for `name` with its instructions and field descriptions from config."""
+def configured(
+    name: str, settings: AgentSettings, instructions: str | None = None
+) -> type[dspy.Signature]:
+    """The signature for `name` with its instructions and field descriptions from config.
+
+    `instructions` replaces settings.instructions (the scam caller's text for one scam type).
+    """
     signature = SIGNATURES[name]
     fields = set(signature.input_fields) | set(signature.output_fields)
     if missing := fields - set(settings.fields):
@@ -146,7 +154,7 @@ def configured(name: str, settings: AgentSettings) -> type[dspy.Signature]:
             f"agents.yaml {name}.fields has unknown {sorted(extra)}; "
             f"the fields are fixed in code: {sorted(fields)}"
         )
-    signature = signature.with_instructions(settings.instructions.strip())
+    signature = signature.with_instructions((instructions or settings.instructions).strip())
     for field, desc in settings.fields.items():
         signature = signature.with_updated_fields(field, desc=desc.strip())
     return signature
@@ -179,22 +187,52 @@ class Agents:
 
     def __init__(self, config: Config, lms: dict[str, Any] | None = None) -> None:
         settings = config.agents
-        self.scam_caller = _program("scam_caller", settings.scam_caller)
+        self.scam_caller = ScamCaller(settings.scam_caller)
         self.legit_caller = _program("legit_caller", settings.legit_caller)
         self.receiver = _program("receiver", settings.receiver)
         self.planner = _program("planner", settings.planner)
         self.pattern_extractor = _program("pattern_extractor", settings.pattern_extractor)
         self.judge = _program("judge", settings.judge)
         # the signature each program really sends (with ChainOfThought's reasoning field), kept
-        # apart so the prompt can be measured even when a test swaps a program for a stand-in
+        # apart so the prompt can be measured even when a test swaps a program for a stand-in.
+        # The scam caller has one per scam type, in scam_caller_signatures.
         self.signatures: dict[str, type[dspy.Signature]] = {
-            name: getattr(self, name).predict.signature for name in SIGNATURES
+            name: getattr(self, name).predict.signature
+            for name in SIGNATURES
+            if name != "scam_caller"
+        }
+        self.scam_caller_signatures: dict[str, type[dspy.Signature]] = {
+            scam_type: program.predict.signature
+            for scam_type, program in self.scam_caller.programs.items()
         }
         self.lms = lms if lms is not None else build_lms(config)
+
+    def signature(self, agent: str, scam_type: str | None = None) -> type[dspy.Signature]:
+        """The signature `agent` sends; the scam caller's depends on the scam type."""
+        if agent == "scam_caller":
+            return self.scam_caller_signatures[scam_type]
+        return self.signatures[agent]
 
     def models(self) -> dict[str, str]:
         """Model name per agent, for the record."""
         return {name: getattr(lm, "model", str(lm)) for name, lm in self.lms.items()}
+
+
+class ScamCaller(dspy.Module):
+    """The scam caller: one ChainOfThought program per scam type, each told the shared rules and
+    that type's own (agents.yaml scam_caller.by_type). Called with the call's `scam_type`."""
+
+    def __init__(self, settings: ScamCallerSettings) -> None:
+        super().__init__()
+        self.programs = {
+            scam_type: dspy.ChainOfThought(
+                configured("scam_caller", settings, settings.instructions_for(scam_type))
+            )
+            for scam_type in SCAM_TYPES
+        }
+
+    def forward(self, *, scam_type: str, **inputs: Any) -> dspy.Prediction:
+        return self.programs[scam_type](**inputs)
 
 
 def _program(name: str, settings: AgentSettings) -> dspy.ChainOfThought:

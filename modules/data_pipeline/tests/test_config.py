@@ -200,6 +200,16 @@ def test_a_pacing_text_with_both_fields_and_an_escaped_brace_loads(cfg_dir):
     assert load_config(cfg_dir).agents.scam_caller.pacing.before == text
 
 
+@pytest.mark.parametrize(
+    "change",
+    [lambda by_type: by_type.pop("romance"), lambda by_type: by_type.update(sextortion=["x"])],
+)
+def test_scam_caller_by_type_needs_every_scam_type(cfg_dir, change):
+    edit(cfg_dir, "agents.yaml", lambda d: change(d["scam_caller"]["by_type"]))
+    with pytest.raises(ConfigError, match="by_type"):
+        load_config(cfg_dir)
+
+
 @pytest.mark.parametrize("age", [[5, 30], [40, 30], [20, 120], [9, 100]])
 def test_receiver_age_range_is_checked(cfg_dir, age):
     edit(cfg_dir, "scenarios.yaml", lambda d: d["receivers"].update(age=age))

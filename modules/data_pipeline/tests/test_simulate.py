@@ -743,6 +743,39 @@ def test_the_prompts_list_the_receiver_slots_only_for_the_receiver():
     assert "{RECEIVER_NAME}" in agents.scam_caller.fields["line"]
 
 
+def test_each_scam_type_gets_the_shared_rules_and_only_its_own():
+    signatures = Agents(CONFIG, lms={}).scam_caller_signatures
+    assert set(signatures) == set(CONFIG.agents.scam_caller.by_type)
+    shared = CONFIG.agents.scam_caller.instructions.strip()
+    text = {scam_type: s.instructions for scam_type, s in signatures.items()}
+    assert all(t.startswith(shared) for t in text.values())
+    office = ("เรียนสายคุณ {RECEIVER_NAME}", "never ฉัน", "ทางเราส่งลิงก์", "{ORG}")
+    for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
+        assert all(rule in text[scam_type] for rule in office)
+    # romance talks like someone the receiver knows: no office words, org or slip form
+    banned = ("ทางเรา", "{ORG}", "สลิป", "form in the link")
+    assert not any(word in text["romance"] for word in banned)
+    assert "แอดไลน์ไอดี" in text["fake_authority"] and "แอดไลน์ไอดี" in text["investment"]
+    assert "แอดไลน์ไอดี" not in text["phishing_otp"] and "สลิป" not in text["phishing_otp"]
+
+
+@pytest.mark.parametrize("call_type", ["phishing_otp", "romance"])
+def test_the_scam_caller_is_asked_with_its_call_type(tmp_path, call_type):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call(call_type, 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert {kw["scam_type"] for kw in agents.scam_caller.calls} == {call_type}
+
+
+def test_an_office_scam_caller_without_a_scenario_org_still_gets_the_org_slot(tmp_path):
+    seed = next(s for s in range(200) if not sample_config("phishing_otp", s, CONFIG).scenario.org)
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call("phishing_otp", seed, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert {kw["org"] for kw in agents.scam_caller.calls} == {"{ORG}"}  # its opener says {ORG}
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call("romance", 1, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert {kw["org"] for kw in agents.scam_caller.calls} == {""}
+
+
 def test_a_command_line_resume_keeps_the_studio_scenario_and_name(tmp_path):
     import threading
 

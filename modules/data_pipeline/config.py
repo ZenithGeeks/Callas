@@ -120,9 +120,25 @@ class Pacing(_Strict):
 
 
 class ScamCallerSettings(AgentSettings):
-    """The scam caller, with the pacing text it gets on each turn."""
+    """The scam caller, with the pacing text it gets on each turn.
+
+    `instructions` are the rules every scam type shares; `by_type` adds each type's own rules.
+    """
 
     pacing: Pacing
+    by_type: dict[str, list[str]]  # scam type -> its rules, added after `instructions`
+
+    @field_validator("by_type")
+    @classmethod
+    def _every_scam_type(cls, v: dict[str, list[str]]) -> dict[str, list[str]]:
+        if set(v) != set(SCAM_TYPES):
+            raise ValueError(f"by_type needs exactly the keys {list(SCAM_TYPES)}")
+        return v
+
+    def instructions_for(self, scam_type: str) -> str:
+        """The full instructions of one scam type: the shared rules, then the type's own."""
+        parts = [self.instructions, *self.by_type[scam_type]]
+        return "\n\n".join(part.strip() for part in parts)
 
 
 class ReceiverStage(_Strict):
