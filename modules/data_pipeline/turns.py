@@ -16,6 +16,7 @@ from dspy.utils.exceptions import AdapterParseError
 
 from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
+from nlp_core.text import autocorrect_text, normalize_text
 
 from . import romance_voice
 from .agents import Agents
@@ -63,7 +64,11 @@ def write_turn(
     raw = (pred.line or "").strip()
     if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
         raw = strip_leading_interjection(raw)
-    text, entities, problems = filler.fill(raw)
+    # text (what the judge, the record and the voice get) is the cleaned line; the checks
+    # below and Turn.spelling read raw, so they still see the model's own mistakes. Autocorrect
+    # is always on here: typed lines have real misspellings, unlike ASR text
+    # (docs/eval/autocorrect.md), so the AUTOCORRECT setting only covers live calls.
+    text, entities, problems = filler.fill(autocorrect_text(normalize_text(raw), mode="pythainlp"))
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:

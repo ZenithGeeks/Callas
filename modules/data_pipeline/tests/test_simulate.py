@@ -97,6 +97,34 @@ def test_scam_call_record(tmp_path):
     assert store.load(record_id("phishing_otp", 1)) == rec
 
 
+def test_turn_text_is_cleaned_and_raw_keeps_the_model_line(tmp_path):
+    messy = "เกิด่่ขึ้น   กับ  {ORG} ครับ"  # doubled tone mark and extra spaces
+    caller = [dict(SCAM[0], line=messy), *SCAM[1:]]
+    agents = make_agents(caller, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    first = rec["generation"]["turns"][0]
+    assert first["raw"] == messy
+    assert first["text"].startswith("เกิด่ขึ้น กับ ")
+    assert "  " not in first["text"]
+    assert "[0]" in agents.judge.calls[0]["transcript"]
+    assert first["text"] in agents.judge.calls[0]["transcript"]
+    for e in rec["entities"]:  # spans index into the cleaned text
+        assert rec["text"][e["start"] : e["end"]] == e["text"]
+
+
+def test_a_misspelled_word_is_corrected_in_text_whatever_the_setting(tmp_path, monkeypatch):
+    from nlp_core import text as nlp_text
+
+    monkeypatch.setattr(nlp_text, "_fix_word", lambda w: "ขอบคุณ" if w == "ขอบคนุ" else w)
+    replies = [dict(REPLIES[0], line="ขอบคนุ ค่ะ มีอะไรคะ"), *REPLIES[1:]]
+    agents = make_agents(SCAM, replies, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    reply = rec["generation"]["turns"][1]
+    assert reply["raw"] == "ขอบคนุ ค่ะ มีอะไรคะ"
+    assert reply["text"] == "ขอบคุณ ค่ะ มีอะไรคะ"
+    assert "ขอบคุณ ค่ะ" in agents.judge.calls[0]["transcript"]
+
+
 @pytest.mark.parametrize(
     ("scam_clear", "label_holds", "language_realistic", "setup_holds", "expected"),
     [
