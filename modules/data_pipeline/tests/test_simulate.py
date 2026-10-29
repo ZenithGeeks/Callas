@@ -454,6 +454,8 @@ def test_which_errors_count_as_model_errors():
     assert simulate.is_model_error(RateLimitError())
     assert simulate.is_model_error(status(429)) and simulate.is_model_error(status(503))
     assert not simulate.is_model_error(status(400))
+    assert simulate.is_model_error(dspy.LMServerError("502 from the gateway"))
+    assert not simulate.is_model_error(dspy.LMTimeoutError("timed out"))
     for other in (KeyError("k"), ValueError("v"), RuntimeError("r"), ConfigError("c")):
         assert not simulate.is_model_error(other)
 

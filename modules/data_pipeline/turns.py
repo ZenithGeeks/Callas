@@ -198,7 +198,8 @@ def is_model_error(exc: BaseException) -> bool:
     """True for a failure that comes from the model's answer or from rate limiting: a reply
     DSPy could not parse, or a 429 / 5xx answer. Anything else (a bug, a bad config, a store
     error) is not the model's fault, so it is neither retried nor blamed on the model."""
-    if isinstance(exc, (AdapterParseError, openai.RateLimitError)):
+    # DSPy 3.4 turns a 5xx answer into dspy.LMServerError, not openai.APIStatusError
+    if isinstance(exc, (AdapterParseError, openai.RateLimitError, dspy.LMServerError)):
         return True
     if isinstance(exc, openai.APIStatusError) and (
         exc.status_code == 429 or exc.status_code >= 500
