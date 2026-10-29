@@ -145,6 +145,15 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert "Leaked" not in render(leaked=[])
 
 
+def test_the_footing_step_renders_the_receivers_footing_line():
+    html = studio.render(
+        "partials/studio_footing.html",
+        footing="น้องสาวที่ไว้ใจ เรียกตัวเองว่าหนู เรียกเขาว่าพี่ คุยกันไม่เป็นทางการ",
+        tag=None,
+    )
+    assert "Receiver's footing" in html and "เรียกตัวเองว่าหนู" in html
+
+
 def test_a_verdict_without_confidence_does_not_make_up_a_percentage():
     html = studio.render(
         "partials/studio_verdict.html",

@@ -52,6 +52,7 @@ def write_turn(
     filler: SlotFiller,
     plan_steps: list[str],
     speaker: str,
+    footing: str = "",
 ) -> Turn:
     """Ask the speaker's agent for its next line, fill the line's slots and note its problems."""
     started = time.perf_counter()
@@ -59,7 +60,7 @@ def write_turn(
         agent, pred, tokens = caller_says(agents, call, config, turns, plan_steps)
     else:
         agent = "receiver"
-        pred, tokens = receiver_says(agents, call, config, turns, filler)
+        pred, tokens = receiver_says(agents, call, config, turns, filler, footing)
     raw = (pred.line or "").strip()
     if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
         raw = strip_leading_interjection(raw)
@@ -129,11 +130,18 @@ def caller_says(
 
 
 def receiver_says(
-    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
+    agents: Agents,
+    call: CallConfig,
+    config: Config,
+    turns: list[Turn],
+    filler: SlotFiller,
+    footing: str = "",
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
     stage_text = stage(config, len(turns) // 2)
-    if call.scenario.receiver_context:  # romance etc.: the receiver already knows this caller
+    # `footing` now carries the prior relationship for romance/family/friend calls; fall back to
+    # the scenario's own context only when no footing was worked out (e.g. a stranger call).
+    if call.scenario.receiver_context and not footing:
         stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
         # key picks a profile on the command line; scam_outcome is the call's locked label, and
@@ -141,11 +149,30 @@ def receiver_says(
         persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
         voice=config.agents.speakers.voice[call.receiver.gender],
         stage=stage_text,
+        footing=footing,
         red_flags=config.red_flags,
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)
     return ask(agents, "receiver", **inputs, conversation=text), tokens
+
+
+def read_footing(
+    agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
+) -> str:
+    """Work out once, from the caller's opening, who the caller is to the receiver and how it
+    should talk back. Empty for a stranger call: the scenario sets no prior relationship, so the
+    receiver stays politely formal and no extra model call is made."""
+    if not call.scenario.receiver_context:
+        return ""
+    opening = receiver_view(turns, filler, config)  # the opening, as the receiver hears it
+    pred = ask(
+        agents,
+        "footing",
+        persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
+        opening=opening,
+    )
+    return (getattr(pred, "footing", "") or "").strip()
 
 
 def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> Briefing:

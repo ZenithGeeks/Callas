@@ -32,7 +32,7 @@ from .records import Briefing, CallRecord, GenerationStatus, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import CALLER, RECEIVER, is_model_error, write_plan, write_turn
+from .turns import CALLER, RECEIVER, is_model_error, read_footing, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
 
@@ -57,6 +57,7 @@ class SimContext:
     voices: Voices | None  # None: text only
     filler: SlotFiller  # this call's values for the {SLOTS}
     record: CallRecord  # the call as loaded or created; to_record() lays the state over it
+    footing: str = ""  # relationship calls: decided once from the opening, then held
 
 
 def initial_state(record: CallRecord) -> CallState:
@@ -152,8 +153,17 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     """
     turns = state["turns"]
     plan_steps = state["briefing"].plan if state["briefing"] else []  # a normal call has none
+    footing = ""
+    if speaker == RECEIVER:
+        # a call where the receiver already knows the caller: work out the footing once, from the
+        # caller's opening, and keep it for the rest of the call so the register never drifts
+        if not ctx.footing and ctx.call.scenario.receiver_context:
+            ctx.footing = read_footing(ctx.agents, ctx.call, ctx.config, turns, ctx.filler)
+        footing = ctx.footing
     try:
-        turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
+        turn = write_turn(
+            ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker, footing
+        )
     except ContextTooLong as exc:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.

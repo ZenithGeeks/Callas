@@ -58,11 +58,12 @@ class CallSpec:
 class Event:
     """One step for the studio page to show."""
 
-    kind: str  # thinking | plan | turn | ended | verdict
-    agent: str  # who is working or worked: planner, scam_caller, legit_caller, receiver, judge
+    kind: str  # thinking | footing | plan | turn | ended | verdict
+    agent: str  # planner, scam_caller, legit_caller, receiver, judge, footing
     record: dict  # the call as the store keeps it (CallRecord.to_dict)
     index: int | None = None  # turn: 0-based position
     modules: list[ModuleRun] = field(default_factory=list)
+    detail: str = ""  # footing: the worked-out footing line the receiver follows
 
 
 def stream_call(
@@ -114,7 +115,15 @@ def stream_call(
             continue  # the finish step follows at once
         else:
             written = len(turns)
-            yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, modules)
+            # the receiver's footing is worked out on its first turn; show it as its own step,
+            # before the turn it shaped, the way the caller's plan is shown before the first turn
+            foot = [m for m in modules if m.agent == "footing"]
+            if foot and context.footing:
+                yield Event(
+                    "footing", "footing", record.to_dict(), detail=context.footing, modules=foot
+                )
+            rest = [m for m in modules if m.agent != "footing"]
+            yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, rest)
         if cancel is not None and cancel.is_set():
             return
         pending = _thinking(record, context)

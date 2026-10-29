@@ -73,7 +73,7 @@
     source.addEventListener("open", function () {
       status.textContent = "The call is being written.";
     });
-    ["thinking", "plan", "turn", "ended", "verdict"].forEach(function (name) {
+    ["thinking", "footing", "plan", "turn", "ended", "verdict"].forEach(function (name) {
       source.addEventListener(name, function (e) {
         put(thread, e.data);
       });

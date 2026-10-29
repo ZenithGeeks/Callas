@@ -64,6 +64,8 @@ def make_agents(caller, receiver, verdict, config=CONFIG):
     a.receiver = Script(receiver)
     a.judge = Script([verdict])
     a.planner = Script([dict(plan=["build trust", "ask for the OTP", "push for a transfer"])])
+    # relationship calls work out the footing once; strangers never call it
+    a.footing = Script([dict(footing="พี่สาวที่ไว้ใจ คุยกันเองไม่เป็นทางการ เรียกตัวเองว่าหนู เรียกเขาว่าพี่")] * 5)
     return a
 
 
@@ -295,7 +297,8 @@ def test_receiver_gets_structured_persona(tmp_path):
     store = Store(tmp_path / "calls.db")
     run_call("phishing_otp", 1, store, agents, CONFIG)
     for kw in agents.receiver.calls:
-        assert set(kw) == {"persona", "voice", "stage", "red_flags", "conversation"}
+        assert set(kw) == {"persona", "voice", "stage", "footing", "red_flags", "conversation"}
+        assert kw["footing"] == ""  # a stranger call sets no prior relationship, so no footing
         assert "key" not in kw["persona"]  # the profile key is not for the model
         assert isinstance(kw["persona"]["occupation"], str) and kw["persona"]["occupation"]
         assert isinstance(kw["persona"]["region"], str) and kw["persona"]["region"]
@@ -620,18 +623,22 @@ def test_receiver_prompt_stays_small():
     scam wiki (red_flags.py: one general warning sign per scam type, same for every call so the
     receiver stays blind to the label) was added to every receiver prompt for ~1420, and then a
     register-matching line (mirror the caller's level: formal, affectionate pet names and เค้า, or
-    casual) for ~1540. Content comes partly from the wiki, so expect some wording variance; this
-    guard only catches runaway growth. Still tiny against the 100k window."""
+    casual) for ~1540, and then that enumerated register prose was replaced by a `footing` field (a
+    one-time read decides the relationship and register, so the receiver no longer re-derives it per
+    turn) for ~1610. Content comes partly from the wiki, so expect some wording variance; this guard
+    only catches runaway growth. Still tiny against the 100k window. A stranger call sets footing to
+    "", measured here."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(
         persona="{}",
         voice="v",
         stage="s",
+        footing="",
         red_flags=CONFIG.red_flags,
         conversation="[0] ผู้โทร: สวัสดีครับ",
     )
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1600
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1650
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):

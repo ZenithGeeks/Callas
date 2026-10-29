@@ -500,6 +500,8 @@ def _render_event(event: live.Event) -> str:
     match event.kind:
         case "thinking":
             return _thinking_html(event)
+        case "footing":
+            return _footing_html(event)
         case "plan":
             return _plan_html(event)
         case "turn":
@@ -513,6 +515,16 @@ def _render_event(event: live.Event) -> str:
 def _thinking_html(event: live.Event) -> str:
     turns_so_far = len(event.record["generation"]["turns"])
     return render("partials/studio_thinking.html", agent=event.agent, n=turns_so_far + 1)
+
+
+def _footing_html(event: live.Event) -> str:
+    """The receiver's footing: who the caller is to it and how to talk, worked out from the
+    opening (relationship calls only), shown once before the receiver's first line."""
+    return render(
+        "partials/studio_footing.html",
+        footing=event.detail,
+        tag=_tag(event.modules, "footing"),
+    )
 
 
 def _plan_html(event: live.Event) -> str:

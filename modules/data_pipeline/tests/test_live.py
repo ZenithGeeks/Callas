@@ -115,6 +115,23 @@ def test_a_normal_call_has_no_plan_step(tmp_path):
     assert events[0].kind == "thinking" and events[0].agent == "legit_caller"
 
 
+def test_a_relationship_call_shows_the_receiver_footing_as_its_own_step(tmp_path):
+    _, events = collect(live.CallSpec("romance", 2), tmp_path)
+    footings = [e for e in events if e.kind == "footing"]
+    assert len(footings) == 1  # worked out once, shown as its own step like the caller's plan
+    assert footings[0].agent == "footing" and footings[0].detail  # carries the footing line
+    assert footings[0].modules and footings[0].modules[0].agent == "footing"
+    # it is shown before the receiver's first line, and that line no longer carries the footing run
+    replies = [i for i, e in enumerate(events) if e.kind == "turn" and e.agent == "receiver"]
+    assert events.index(footings[0]) < replies[0]
+    assert all(m.agent != "footing" for m in events[replies[0]].modules)
+
+
+def test_a_stranger_call_has_no_footing_step(tmp_path):
+    _, events = collect(live.CallSpec("phishing_otp", 1), tmp_path)
+    assert not any(e.kind == "footing" for e in events)
+
+
 def test_cancel_stops_after_the_step_and_leaves_the_call_unfinished(tmp_path):
     cancel = threading.Event()
     store, events = collect(live.CallSpec("romance", 0), tmp_path, cancel)
