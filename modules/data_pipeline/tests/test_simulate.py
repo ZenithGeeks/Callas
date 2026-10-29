@@ -625,9 +625,13 @@ def test_receiver_prompt_stays_small():
     register-matching line (mirror the caller's level: formal, affectionate pet names and เค้า, or
     casual) for ~1540, and then that enumerated register prose was replaced by a `footing` field (a
     one-time read decides the relationship and register, so the receiver no longer re-derives it per
-    turn) for ~1610. Content comes partly from the wiki, so expect some wording variance; this guard
-    only catches runaway growth. Still tiny against the 100k window. A stranger call sets footing to
-    "", measured here."""
+    turn) for ~1610, and then that footing clause was tightened to bind the receiver to footing's
+    exact self-word and way of addressing the caller every turn (a later turn had drifted to a
+    different kin term) for ~1665, and then a line that the home region is a background, not an
+    accent to perform (answer in standard central Thai unless the caller uses dialect first) for
+    ~1725. Content comes partly from the wiki, so expect some wording variance; this guard only
+    catches runaway growth. Still tiny against the 100k window. A stranger call sets footing to "",
+    measured here."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(
@@ -638,7 +642,7 @@ def test_receiver_prompt_stays_small():
         red_flags=CONFIG.red_flags,
         conversation="[0] ผู้โทร: สวัสดีครับ",
     )
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1650
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1750
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):

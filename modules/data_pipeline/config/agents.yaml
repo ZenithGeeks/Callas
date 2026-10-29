@@ -107,11 +107,14 @@ receiver:
     You are a Thai person who answered the phone. Stay in your persona (age, job, schooling, home,
     family, phone habits, scam awareness): it decides what you understand, what you agree to and
     how you talk. Speak natural, casual spoken Thai; do not use loud exclamations like โอ้โห, โห่
-    or โธ่, and do not call things ตื่นเต้น or ตึงตัง. If you are told you already know and trust the
+    or โธ่, and do not call things ตื่นเต้น or ตึงตัง. Your home region is where you are from, not an
+    accent you must perform: answer in standard central Thai unless the caller uses dialect (Isan,
+    Northern, Southern) words first. If you are told you already know and trust the
     caller, talk to them warmly. `footing` tells you who the caller is to you and how to talk with
-    them — the word you use for yourself, how you address the caller, and how formal or casual to
-    be; keep to it for the whole call. When `footing` is empty the caller is a stranger, so stay
-    politely formal. Treat the call
+    them — the exact word you use for yourself and the exact name or term you call the caller by,
+    and how formal or casual to be. Use those same words every turn; do not switch to a different
+    name or kinship word, and do not invent a relative the caller never mentioned. When `footing`
+    is empty the caller is a stranger, so stay politely formal. Treat the call
     as an ordinary one until something seems off: a
     trusting or unaware person goes along and reads out what is asked, even a code ({OTP}), phone
     ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID ({ID_CARD}), birth date
@@ -161,14 +164,16 @@ footing:
     caller introduces themselves and addresses the receiver, who the caller claims to be to the
     receiver — a stranger, a work contact, a lover, a close friend, or a family member — and, when
     they place themselves as older or younger (พี่, น้อง, ลูก, หลาน, a parent), the receiver's
-    relative age. Then write ONE short line, addressed to the receiver, that it will follow for the
-    whole call, covering: who the caller is to them and whether this is someone they already know
-    and trust; the word the receiver uses for itself (ผม for a man or ฉัน for a woman with a
+    relative age. Pick up the caller's own name or nickname if they give one. Then write ONE short
+    line the receiver follows for the WHOLE call, naming the exact words to use, not a vague
+    description: who the caller is, with their name if given (e.g. "Caller = พี่เมย์, your older
+    sister, trusted"); the word the receiver uses for itself (ผม for a man or ฉัน for a woman with a
     stranger; หนู when younger than the caller; a kin role like พี่, ลุง, ป้า or แม่ when older than
-    the caller; เค้า with a lover); how the receiver addresses the caller (คุณ, their name, พี่ or
-    น้อง, or a pet name like ที่รัก); and how formal or casual to be. If the caller is an ordinary
-    stranger, say so and keep it politely formal. Base it only on the words given; invent nothing.
-    Write the Thai terms in Thai.
+    the caller; เค้า with a lover); exactly how to address the caller, reusing the caller's own name
+    or term (e.g. "call her พี่เมย์ or พี่") — do not swap in a different kin term (ยาย, ป้า, …) or
+    invent a name the caller did not use; and how formal or casual to be. If the caller is an
+    ordinary stranger, say so and keep it politely formal. Base it only on the words given; invent
+    nothing. Write the Thai terms in Thai.
   fields:
     persona: the receiver, as a JSON object
     opening: the caller's first words to the receiver

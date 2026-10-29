@@ -152,6 +152,7 @@ def test_the_footing_step_renders_the_receivers_footing_line():
         tag=None,
     )
     assert "Receiver's footing" in html and "เรียกตัวเองว่าหนู" in html
+    assert 'data-side="right"' in html  # sits on the receiver's side of the chat
 
 
 def test_the_run_header_tags_the_scam_outcome():

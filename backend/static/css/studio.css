@@ -100,6 +100,11 @@
 .studio-card[data-tone="unsure"] {
   box-shadow: inset 0 0 0 1.5px var(--unsure-line), var(--shadow-slip);
 }
+/* The receiver answers on the right, so its footing sits on the same side, to read as the
+   receiver's rather than a neutral, full-width note like the caller's plan. */
+.footing-card {
+  margin-left: auto;
+}
 .studio-card .facts {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
