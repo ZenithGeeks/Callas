@@ -232,17 +232,28 @@ def parse_form(form: Any, config: Config, taken_ids: set[str]) -> live.CallSpec:
     scenario = _parse_scenario(form, config, call_type)
     receiver = _parse_receiver(form, config)
     name = _clean(form.get("receiver_name", ""))
+    outcome = _parse_outcome(form)
     seed_text = str(form.get("seed", "")).strip()
     if not seed_text:
         seed = live.next_free_seed(call_type, taken_ids, receiver)
-        return live.CallSpec(call_type, seed, scenario, receiver, name)
-    spec = live.CallSpec(call_type, _parse_seed(seed_text), scenario, receiver, name)
+        return live.CallSpec(call_type, seed, scenario, receiver, name, outcome)
+    spec = live.CallSpec(call_type, _parse_seed(seed_text), scenario, receiver, name, outcome)
     if spec.record_id in taken_ids:
         raise FormProblem(
             f"{spec.record_id} is already in the dataset. "
             "Choose another seed, or leave the seed empty to take the next free one."
         )
     return spec
+
+
+def _parse_outcome(form: Any) -> str:
+    """The forced scam outcome from the form: "scammed" or "safe", or "" for random (50/50)."""
+    value = str(form.get("outcome", "")).strip()
+    if value in ("", "random"):
+        return ""
+    if value not in ("scammed", "safe"):
+        raise FormProblem("Outcome must be random, scammed or safe.")
+    return value
 
 
 def _parse_scenario(form: Any, config: Config, call_type: str) -> Any:
@@ -347,9 +358,22 @@ def _run_view(run: StudioRun) -> dict:
 
 
 def _locked_outcome(spec: live.CallSpec) -> str:
-    """This call's locked scam outcome ("scammed"/"safe"/""). Sampling is deterministic for
-    (call_type, seed, receiver), so this is the outcome the run's receiver was built to lead to."""
-    return sample_config(spec.call_type, spec.seed, _config(), spec.receiver).receiver.scam_outcome
+    """This call's locked scam outcome ("scammed"/"safe"/""): the forced choice, or the 50/50 the
+    seed gives. Sampling is deterministic, so it is the outcome the run's receiver was built for. A
+    resume keeps the outcome it was started with, so read that from the store, not from the form."""
+    started = _started_outcome(spec)
+    outcome = spec.outcome if started is None else started
+    call = sample_config(spec.call_type, spec.seed, _config(), spec.receiver, outcome)
+    return call.receiver.scam_outcome
+
+
+def _started_outcome(spec: live.CallSpec) -> str | None:
+    """The forced outcome a resumable call was started with, or None for a fresh call. Read-only, so
+    computing the badge never takes a write lock against the worker thread writing the same call."""
+    path = dataset.db_path()
+    if not path.is_file():
+        return None
+    return live.started_outcome(spec, Store(path, read_only=True))
 
 
 def _elapsed(seconds: float) -> str:

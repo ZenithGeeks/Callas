@@ -40,6 +40,19 @@ def test_a_pool_built_receiver_persona_fits_its_outcome():
     assert checked, "expected some pool-built receivers"
 
 
+def test_a_forced_outcome_overrides_parity_and_skips_profiles():
+    # the studio can force an outcome; it then holds for any seed and type, always on a pool-built
+    # receiver (never an unlocked profile), with a persona that fits
+    recv = CONFIG.scenarios.receivers
+    wary_a = set(recv.wary_scam_awareness)
+    for forced, want_wary in (("scammed", False), ("safe", True)):
+        for seed in range(1, 40):
+            r = sample_config("phishing_otp", seed, CONFIG, outcome=forced).receiver
+            assert not r.key  # forced -> pool-built, never a profile
+            assert r.scam_outcome == forced
+            assert (r.scam_awareness in wary_a) == want_wary
+
+
 def test_hand_written_profiles_are_left_unlocked():
     # a profile is a fixed persona with its own nature; the 50/50 lock is not forced onto it
     profiles = [

@@ -242,6 +242,25 @@ def test_a_resumed_call_keeps_its_scenario_and_name_and_refuses_others(tmp_path)
     assert "สมหญิง" in record["text"]
 
 
+def test_a_resumed_call_keeps_its_forced_outcome_and_refuses_a_different_one(tmp_path):
+    # Forcing the scam outcome skips the profile draw, so it changes the whole sampling path. A
+    # resume must keep the outcome, or the caller would end up talking to a different person over
+    # the turns already written.
+    cancel = threading.Event()
+    store, _ = collect(live.CallSpec("romance", 3, outcome="scammed"), tmp_path, cancel)
+    started = store.load("romance_00003")["generation"]["call"]["receiver"]
+    assert started["scam_outcome"] == "scammed"
+    assert sample_config("romance", 3, CONFIG).receiver.scam_outcome != "scammed"  # parity differs
+    # resuming with the opposite outcome is refused, like a different scenario or name
+    with pytest.raises(live.CallConflict, match="outcome"):
+        collect(live.CallSpec("romance", 3, outcome="safe"), tmp_path)
+    # resuming on Random keeps the very person the call was started with
+    collect(live.CallSpec("romance", 3), tmp_path)
+    record = store.load("romance_00003")
+    assert record["generation"]["call"]["receiver"] == started
+    assert record["generation"]["status"] == "accepted"
+
+
 def test_a_call_that_ends_early_yields_an_ended_step_then_a_verdict(tmp_path, monkeypatch):
     from data_pipeline import graph
     from data_pipeline.budget import ContextTooLong

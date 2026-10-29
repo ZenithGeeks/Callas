@@ -775,3 +775,32 @@ def test_a_command_line_resume_keeps_the_studio_scenario_and_name(tmp_path):
     assert all(kw["goal"] == chosen.goal for kw in resumed.scam_caller.calls)
     assert "คุณสมหญิงครับ" in rec["generation"]["turns"][2]["text"]
     assert rec["generation"]["call"]["scenario"]["key"] == chosen.key
+
+
+def test_a_command_line_resume_keeps_the_studio_forced_outcome(tmp_path):
+    import threading
+
+    from data_pipeline import live
+
+    # The studio can force the scam outcome; forcing skips the profile draw, so it changes the whole
+    # sampling path. A command line resume passes no outcome, so it must read the forced one back
+    # from the stored call and rebuild the same receiver, not a fresh one.
+    store = Store(tmp_path / "calls.db")
+    agents = live.fake_agents(CONFIG, "romance")
+    capture, cancel = live.Capture(agents), threading.Event()
+    spec = live.CallSpec("romance", 3, outcome="scammed")
+    for event in live.stream_call(spec, store, agents, CONFIG, None, capture, cancel):
+        if event.kind == "turn" and event.index == 1:
+            cancel.set()  # stopped in the studio after two turns
+    started = store.load("romance_00003")["generation"]["call"]["receiver"]
+    assert started["scam_outcome"] == "scammed"
+    assert simulate.sample_config("romance", 3, CONFIG).receiver.scam_outcome != "scammed"
+
+    caller = [
+        dict(line="ขอรหัส {OTP} ด้วยครับ", asks_now=True, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    resumed = make_agents(caller, [dict(line="ค่ะ", end_call=False)], judge(start=2))
+    rec = run_call("romance", 3, store, resumed, CONFIG).to_dict()  # --resume, no outcome
+    assert rec["generation"]["call"]["receiver"] == started  # the same person, not a fresh draw
+    assert rec["generation"]["status"] == "accepted"
