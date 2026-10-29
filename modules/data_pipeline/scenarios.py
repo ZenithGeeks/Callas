@@ -36,6 +36,10 @@ class CallConfig:
     caller_knows_name: bool
     max_turns: int  # speaker turns in total, both sides
     reveal_turn: int  # scam calls: the caller's earliest own turn (0-based) to ask
+    # The studio's forced scam outcome ("scammed"/"safe"), "" when the outcome was left 50/50 by
+    # seed. Stored so a resume can sample the very same call: forcing changes the rng path (it skips
+    # the profile draw), so without it a resumed call would rebuild a different receiver.
+    forced_outcome: str = ""
 
     @property
     def label_scam(self) -> bool:
@@ -78,6 +82,7 @@ def sample_config(
     # any other sampled value; sample_receiver then draws a persona that fits it. When the studio
     # forces an outcome, a pool receiver is built (not a fixed profile) so the choice always holds.
     forced = bool(outcome)
+    requested = outcome  # the studio's forced request; "" means 50/50 by seed parity
     outcome = outcome or ("scammed" if seed % 2 == 0 else "safe")
     sampled = sample_receiver(  # always drawn, so the rest of the call is the same
         rng, pool, outcome, force=forced
@@ -100,6 +105,7 @@ def sample_config(
         # room for the reveal turn plus a few exchanges after it
         max_turns=rng.randint(shortest_call(calls, reveal), high),
         reveal_turn=reveal,
+        forced_outcome=requested,
     )
 
 

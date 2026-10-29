@@ -17,6 +17,7 @@ from .streaming import (
     Event,
     mark_model_error,
     next_free_seed,
+    started_outcome,
     stream_call,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "fake_agents",
     "mark_model_error",
     "next_free_seed",
+    "started_outcome",
     "stream_call",
 ]

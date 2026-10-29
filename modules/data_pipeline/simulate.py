@@ -71,7 +71,7 @@ def run_call(
     record = _open_record(store, call, config, agents, receiver)
     if record.generation.status != "in_progress":
         return record
-    call, filler = _as_started(call, record, config)
+    call, filler = _as_started(call, record, config, receiver)
     context = SimContext(agents, config, call, store, voices, filler, record)
     # One step per turn plus plan and finish; a call that runs past this is a bug.
     limit = call.max_turns + 5
@@ -171,12 +171,19 @@ def _open_record(
 
 
 def _as_started(
-    call: CallConfig, record: CallRecord, config: Config
+    call: CallConfig,
+    record: CallRecord,
+    config: Config,
+    receiver: ReceiverProfile | None = None,
 ) -> tuple[CallConfig, SlotFiller]:
     """The call and its slot values as the record was started. The studio can pick another
-    scenario and receiver name than the seed does; both are kept in generation.call, so a
-    command line resume must use them too (#63)."""
+    scenario, receiver name and scam outcome than the seed does; all are kept in generation.call,
+    so a command line resume must use them too (#63). A forced outcome changes the sampling path,
+    so resample with it to rebuild the same receiver the earlier turns were written for."""
     stored = record.generation.call
+    forced_outcome = stored.get("forced_outcome", "")
+    if forced_outcome:
+        call = sample_config(call.call_type, call.seed, config, receiver, forced_outcome)
     call = replace(call, scenario=Scenario.model_validate(stored["scenario"]))
     filler = SlotFiller(call, config.details)
     if stored.get("receiver_name"):

@@ -359,9 +359,21 @@ def _run_view(run: StudioRun) -> dict:
 
 def _locked_outcome(spec: live.CallSpec) -> str:
     """This call's locked scam outcome ("scammed"/"safe"/""): the forced choice, or the 50/50 the
-    seed gives. Sampling is deterministic, so it is the outcome the run's receiver was built for."""
-    call = sample_config(spec.call_type, spec.seed, _config(), spec.receiver, spec.outcome)
+    seed gives. Sampling is deterministic, so it is the outcome the run's receiver was built for. A
+    resume keeps the outcome it was started with, so read that from the store, not from the form."""
+    started = _started_outcome(spec)
+    outcome = spec.outcome if started is None else started
+    call = sample_config(spec.call_type, spec.seed, _config(), spec.receiver, outcome)
     return call.receiver.scam_outcome
+
+
+def _started_outcome(spec: live.CallSpec) -> str | None:
+    """The forced outcome a resumable call was started with, or None for a fresh call. Read-only, so
+    computing the badge never takes a write lock against the worker thread writing the same call."""
+    path = dataset.db_path()
+    if not path.is_file():
+        return None
+    return live.started_outcome(spec, Store(path, read_only=True))
 
 
 def _elapsed(seconds: float) -> str:
