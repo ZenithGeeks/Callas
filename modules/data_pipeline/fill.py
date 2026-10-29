@@ -216,17 +216,6 @@ def wrong_particles(raw: str, gender: str) -> list[str]:
     return [m for m in found if not any(m != other and m in other for other in found)]
 
 
-# Loud exclamations and exaggerations the receiver should not use: the model keeps reaching for
-# them ("โอ้โห ... ฟังดูตึงตังมากเลย"), and they read as over-acted, not like a real person. The
-# prompt forbids them; this catches any that slip through.
-_UNWANTED_RECEIVER_WORDS = ("โอ้โห", "โอ้โฮ", "โห่", "โธ่", "ตึงตัง", "น่าตื่นเต้น")
-
-
-def unwanted_words(raw: str) -> list[str]:
-    """Over-acted exclamations in a receiver line that the team asked to drop, in order found."""
-    return [w for w in _UNWANTED_RECEIVER_WORDS if w in raw]
-
-
 # Leading interjections the model keeps opening with (โอ้โห, โธ่เอ้ย, ...). Longest first so a
 # longer opener (โธ่เอ้ย) is matched before the shorter one inside it (โธ่), and the whole opener
 # is dropped, not just its first word.
