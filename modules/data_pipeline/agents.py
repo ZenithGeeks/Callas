@@ -81,6 +81,7 @@ class ReadFooting(dspy.Signature):
     # Full instructions: agents.yaml, footing.instructions
 
     persona: dict = dspy.InputField()  # the receiver, as a dict, without its key
+    context: str = dspy.InputField()  # the backstory the receiver already knows of this caller
     opening: str = dspy.InputField()  # the caller's first words
     footing: str = dspy.OutputField()  # one short line the receiver follows for the whole call
 

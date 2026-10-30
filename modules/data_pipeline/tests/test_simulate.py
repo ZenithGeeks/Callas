@@ -308,6 +308,18 @@ def test_receiver_gets_structured_persona(tmp_path):
         assert kw["red_flags"] == CONFIG.red_flags and kw["red_flags"]
 
 
+def test_a_romance_call_gives_the_receiver_and_footing_the_scenario_backstory(tmp_path):
+    # the footing step and the receiver both get the scenario's prior relationship, so the ground
+    # truth ("met on a dating app", a family role) reaches them, not just the footing model's guess
+    call = sample_config("romance", 2, CONFIG)
+    context = call.scenario.receiver_context
+    assert context  # romance scenarios set a prior relationship the receiver believes in
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call("romance", 2, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert agents.footing.calls and agents.footing.calls[0]["context"] == context
+    assert agents.receiver.calls and all(context in c["stage"] for c in agents.receiver.calls)
+
+
 def test_planner_reads_pattern_notes(tmp_path):
     store = Store(tmp_path / "calls.db")
     store.add_note(

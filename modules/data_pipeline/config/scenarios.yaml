@@ -239,10 +239,13 @@ scams:
     tactics: Talks like a close relative, warm and a little pleading, with the family words for each
       other; says they changed phone number; has an accident or urgent bill and is too ashamed to tell
       anyone else; asks the receiver to keep it between them
-    receiver_context: This caller is a close member of your family, younger than you. You trust them
-      completely and talk warmly the way you would with your own relative. They address you by your
-      family role; reply the way an older relative does — call yourself by that role (ลุง ป้า น้า พ่อ
-      แม่ พี่) rather than ผม or ฉัน, and talk casually, without the formal ครับ or ค่ะ.
+    receiver_context: This caller is a close member of your family. You trust them completely and
+      talk warmly the way you would with your own relative. Match the footing they set — if they
+      call themselves พี่ or speak as someone older than you, you are the younger one, so call
+      yourself หนู (if female) or ผม (if male) and call them พี่; if they speak as someone younger
+      (a child, niece, nephew or younger sibling), you are the elder, so call yourself by your
+      family role (ลุง ป้า น้า พ่อ แม่ พี่) and talk casually without the formal ครับ or ค่ะ. Never
+      treat an older caller as if they were a child.
   - key: business_branch_investment
     relation: lover
     role: foreign business owner met on a dating app who says they are opening a branch in Thailand
@@ -314,11 +317,13 @@ scams:
     tactics: Sounds just like the relative, warm and a little distressed; says they are calling from
       someone else's phone; has an accident, debt or legal trouble and is ashamed to tell the rest of
       the family; begs the receiver to send money quietly and not tell anyone else yet
-    receiver_context: The caller sounds just like a close member of your family, younger than you —
-      the same voice, the same manner. You are sure it is really them, so you talk warmly, worried
-      for them. They address you by your family role; reply the way an older relative does — call
-      yourself by that role (ลุง ป้า น้า พ่อ แม่ พี่) rather than ผม or ฉัน, and talk casually,
-      without the formal ครับ or ค่ะ.
+    receiver_context: The caller sounds just like a close member of your family — the same voice,
+      the same manner. You are sure it is really them, so you talk warmly, worried for them. Match
+      the footing they set — if they call themselves พี่ or speak as someone older than you, you are
+      the younger one, so call yourself หนู (if female) or ผม (if male) and call them พี่; if they
+      speak as someone younger (a child, grandchild or younger sibling), you are the elder, so call
+      yourself by your family role (ลุง ป้า น้า พ่อ แม่ พี่) and talk casually without the formal
+      ครับ or ค่ะ. Never treat an older caller as if they were a child.
   investment:
   - key: gold_signal
     role: investment advisor from a gold trading company

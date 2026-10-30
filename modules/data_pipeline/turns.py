@@ -139,9 +139,10 @@ def receiver_says(
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
     stage_text = stage(config, len(turns) // 2)
-    # `footing` now carries the prior relationship for romance/family/friend calls; fall back to
-    # the scenario's own context only when no footing was worked out (e.g. a stranger call).
-    if call.scenario.receiver_context and not footing:
+    # The receiver always hears the scenario's backstory (romance/family/friend): who the caller is
+    # and the prior relationship. `footing` adds to this, setting the register from the opening; the
+    # two agree because footing is worked out from this same context plus the caller's first line.
+    if call.scenario.receiver_context:
         stage_text = f"{call.scenario.receiver_context} {stage_text}"
     inputs = dict(
         # key picks a profile on the command line; scam_outcome is the call's locked label, and
@@ -160,16 +161,20 @@ def receiver_says(
 def read_footing(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
 ) -> str:
-    """Work out once, from the caller's opening, who the caller is to the receiver and how it
-    should talk back. Empty for a stranger call: the scenario sets no prior relationship, so the
-    receiver stays politely formal and no extra model call is made."""
+    """Work out once, from the scenario's backstory and the caller's opening, who the caller is to
+    the receiver and how it should talk back. Empty for a stranger call: the scenario sets no prior
+    relationship, so the receiver stays politely formal and no extra model call is made.
+
+    Only the caller's first line is given as the opening, never the whole call, so a resume (which
+    runs this again) gets the same footing it did the first time."""
     if not call.scenario.receiver_context:
         return ""
-    opening = receiver_view(turns, filler, config)  # the opening, as the receiver hears it
+    opening = receiver_view(turns[:1], filler, config)  # the caller's first line, as heard
     pred = ask(
         agents,
         "footing",
         persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
+        context=call.scenario.receiver_context,
         opening=opening,
     )
     return (getattr(pred, "footing", "") or "").strip()
