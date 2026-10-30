@@ -144,6 +144,10 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert "Leaked" not in render()
     assert "Leaked" not in render(leaked=[])
 
+    fixed = render(fixes=[{"before": "ท่ีรัก", "after": "ที่รัก"}])
+    assert "<del>ท่ีรัก</del> → <ins" in fixed and ">ที่รัก</ins>" in fixed
+    assert "data-fixes" not in render()  # an older turn without fixes
+
 
 def test_a_verdict_without_confidence_does_not_make_up_a_percentage():
     html = studio.render(

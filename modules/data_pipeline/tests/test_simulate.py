@@ -125,6 +125,34 @@ def test_a_misspelled_word_is_corrected_in_text_whatever_the_setting(tmp_path, m
     assert "ขอบคุณ ค่ะ" in agents.judge.calls[0]["transcript"]
 
 
+def test_a_fixed_tone_mark_is_listed_in_fixes_not_flagged_or_rejected(tmp_path):
+    garbled = "ผมไม่สะดวกโอนเงินเข้าบัญชีอื่่นๆ แบบนั้้นนะ"  # doubled tone marks (studio, #romance)
+    replies = [dict(REPLIES[0], line=garbled), *REPLIES[1:]]
+    agents = make_agents(SCAM, replies, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    reply = rec["generation"]["turns"][1]
+    assert reply["raw"] == garbled
+    assert reply["text"] == "ผมไม่สะดวกโอนเงินเข้าบัญชีอื่นๆ แบบนั้นนะ"
+    assert "tone_mark_order" not in reply["spelling"]  # the spell check reads the cleaned line
+    assert reply["fixes"] == [
+        {"before": "อื่่นๆ", "after": "อื่นๆ"},
+        {"before": "นั้้น", "after": "นั้น"},
+    ]
+    assert "tone_mark_order" not in rec["generation"]["reasons"]
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "fixes"),
+    [
+        ("สวัสดี   ครับ", "สวัสดี ครับ", []),  # spacing alone is not listed
+        ("เยอะมากเลยท่ีรัก", "เยอะมากเลยที่รัก", [{"before": "ท่ีรัก", "after": "ที่รัก"}]),
+        ("ให้คณุนะคะ", "ให้คุณนะคะ", [{"before": "คณุ", "after": "คุณ"}]),
+    ],
+)
+def test_text_fixes_lists_each_changed_word(before, after, fixes):
+    assert turn_module.text_fixes(before, after) == fixes
+
+
 @pytest.mark.parametrize(
     ("scam_clear", "label_holds", "language_realistic", "setup_holds", "expected"),
     [

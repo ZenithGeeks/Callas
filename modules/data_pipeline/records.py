@@ -38,7 +38,9 @@ class Turn:
     reasoning: str = ""
     problems: list[str] = field(default_factory=list)  # reasons to reject the call
     leaked: list[str] = field(default_factory=list)  # receiver only: own details given away
-    spelling: list[str] = field(default_factory=list)  # words that look misspelled
+    spelling: list[str] = field(default_factory=list)  # words still misspelled in the cleaned line
+    # {"before", "after"}: what the cleanup changed between raw and text (turns.text_fixes)
+    fixes: list[dict] = field(default_factory=list)
     latency_s: float | None = None
     prompt_tokens: int | None = None  # estimated size of the prompt that was sent
     audio: str | None = None  # the spoken line, relative to the store's folder

@@ -8,7 +8,9 @@ its context window, so the conversation is cut to fit first (budget.py).
 from __future__ import annotations
 
 import logging
+import re
 import time
+from difflib import SequenceMatcher
 
 import dspy
 import openai
@@ -64,11 +66,12 @@ def write_turn(
     raw = (pred.line or "").strip()
     if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
         raw = strip_leading_interjection(raw)
-    # text (what the judge, the record and the voice get) is the cleaned line; the checks
-    # below and Turn.spelling read raw, so they still see the model's own mistakes. Autocorrect
-    # is always on here: typed lines have real misspellings, unlike ASR text
+    # text (what the judge, the record and the voice get) is the cleaned line. Autocorrect is
+    # always on here: typed lines have real misspellings, unlike ASR text
     # (docs/eval/autocorrect.md), so the AUTOCORRECT setting only covers live calls.
-    text, entities, problems = filler.fill(autocorrect_text(normalize_text(raw), mode="pythainlp"))
+    # Turn.spelling checks the cleaned line (what is still wrong); Turn.fixes lists what changed.
+    cleaned = autocorrect_text(normalize_text(raw), mode="pythainlp")
+    text, entities, problems = filler.fill(cleaned)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
@@ -90,7 +93,8 @@ def write_turn(
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
         problems=problems,
         leaked=receiver_leaks(raw) if speaker == RECEIVER else [],
-        spelling=spelling(raw),
+        spelling=spelling(cleaned),
+        fixes=text_fixes(raw, cleaned),
         latency_s=round(time.perf_counter() - started, 3),
         prompt_tokens=tokens,
     )
@@ -295,6 +299,32 @@ def stage(config: Config, own_turn: int) -> str:
 def speech_style(call: CallConfig, config: Config) -> str:
     """How this call's numbers are said, "dash" or "pause" (see spoken.py)."""
     return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
+
+
+_THAI_CONSONANT = re.compile("[ก-ฮ]")
+
+
+def text_fixes(before: str, after: str) -> list[dict]:
+    """What the cleanup changed in a line, as {"before", "after"} pairs, for the review pages.
+
+    Changes in spacing alone are not listed.
+    """
+    if before == after:
+        return []
+    from pythainlp.tokenize import word_tokenize
+
+    old, new = (word_tokenize(s, engine="newmm", keep_whitespace=False) for s in (before, after))
+    fixes = []
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        was, now = "".join(old[i1:i2]), "".join(new[j1:j2])
+        # a lone tone mark or vowel ("่่") cannot be read alone: show the words around it too
+        if not (_THAI_CONSONANT.search(was) and _THAI_CONSONANT.search(now)):
+            was = "".join(old[max(i1 - 1, 0) : i2 + 1])
+            now = "".join(new[max(j1 - 1, 0) : j2 + 1])
+        fixes.append({"before": was, "after": now})
+    return fixes
 
 
 def spelling(raw: str) -> list[str]:

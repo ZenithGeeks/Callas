@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS turns (
     problems   TEXT NOT NULL DEFAULT '[]',
     leaked     TEXT NOT NULL DEFAULT '[]',   -- JSON labels this receiver turn gave away
     spelling   TEXT NOT NULL DEFAULT '[]',
+    fixes      TEXT NOT NULL DEFAULT '[]',   -- JSON {"before", "after"}: what cleanup changed
     latency_s  REAL,
     prompt_tokens INTEGER,                   -- estimated size of the prompt sent for this turn
     audio      TEXT,                         -- path relative to the store's folder
@@ -141,12 +142,13 @@ _TURN_COLUMNS = (
     "problems",
     "leaked",
     "spelling",
+    "fixes",
     "latency_s",
     "prompt_tokens",
     "audio",
     "audio_s",
 )
-_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling")
+_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling", "fixes")
 # Columns added after the first release: (table, column, definition). An existing
 # database gets them with ALTER TABLE when it is opened.
 _ADDED_COLUMNS = (
@@ -156,6 +158,7 @@ _ADDED_COLUMNS = (
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
+    ("turns", "fixes", "TEXT NOT NULL DEFAULT '[]'"),
 )
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")
 

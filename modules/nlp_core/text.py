@@ -16,6 +16,12 @@ _TITLES = frozenset({"คุณ", "นาย", "นาง", "นางสาว"
 # Thai letters, vowels and tone marks only: no digits (Thai or Arabic), Latin, URLs, symbols
 # or the repeat mark ๆ (U+0E46).
 _THAI_WORD = re.compile("[ก-ฺเ-ๅ็-๎]+")
+# A vowel or tone mark written above or below a letter (ั ิ ี ึ ื ุ ู ฺ ็ ่ ้ ๊ ๋ ์ ...).
+_MARK = re.compile("[ัิ-ฺ็-๎]")
+# A consonant typed twice (ดด, มม) is a doubled letter, not a misplaced mark; รร is real Thai.
+_DOUBLED = re.compile(r"([ก-ฮ])\1")
+# Words the call simulator uses that no PyThaiNLP word list has, so they are not "corrected".
+_KEEP_WORDS = frozenset({"คริปโต", "คอนเนกชัน", "แอคเคาท์", "พอดแคสต์", "ไฮแลนด์", "แอป", "เฮ้", "ฟิน"})
 
 
 def normalize_text(text: str) -> str:
@@ -27,9 +33,24 @@ def normalize_text(text: str) -> str:
 
 @cache
 def _dictionary() -> frozenset[str]:
+    """The words a fix may produce: PyThaiNLP's main word list."""
     from pythainlp.corpus import thai_words
 
     return frozenset(thai_words())
+
+
+@cache
+def _known() -> frozenset[str]:
+    """Words left alone: the dictionary plus _KEEP_WORDS."""
+    return _dictionary() | _KEEP_WORDS
+
+
+@cache
+def _known_trie():
+    """The known words for the tokenizer, so a loanword stays one piece (แอป, not แอ ป)."""
+    from pythainlp.util import Trie
+
+    return Trie(_known())
 
 
 @cache
@@ -41,23 +62,42 @@ def _names() -> frozenset[str]:
 
 @lru_cache(maxsize=4096)
 def _fix_word(word: str) -> str:
-    """PyThaiNLP's best spelling for a word outside the dictionary; kept only if it is a word."""
+    """The word with one misplaced vowel or tone mark moved back (คณุ to คุณ), else unchanged.
+
+    Only marks move, so a fix never turns a word into a different-sounding one; the result must
+    be the one dictionary word made that way, or split into fewer words, all known. Words
+    PyThaiNLP's spell() would guess are left as they are: on stored calls its guesses were
+    wrong far more often than right (โอนเงนิ to ถอนเงิน, แอป to แผน).
+    """
     if len(word) < 3:  # one or two letters have too many near words to pick from
         return word
-    from pythainlp.spell import correct
+    if any(m.group(1) != "ร" for m in _DOUBLED.finditer(word)):  # ก็ดดี, not a moved mark
+        return word
+    from pythainlp.tokenize import word_tokenize
 
-    fixed = correct(word)
-    # Never shorten: correct("แอป") is "แอ", so a loanword would lose its last letter.
-    return fixed if len(fixed) >= len(word) and fixed in _dictionary() else word
+    words = _dictionary()
+    pieces = len(word_tokenize(word, engine="newmm", keep_whitespace=False))
+
+    def is_better(spelling: str) -> bool:
+        if spelling in words:
+            return True
+        split = word_tokenize(spelling, engine="newmm", keep_whitespace=False)
+        return len(split) < pieces and all(len(p) > 1 and p in words for p in split)
+
+    swaps = {
+        word[:i] + word[i + 1] + word[i] + word[i + 2 :]
+        for i in range(len(word) - 1)
+        if _MARK.match(word[i]) or _MARK.match(word[i + 1])
+    }
+    found = {s for s in swaps if is_better(s)}
+    return found.pop() if len(found) == 1 else word
 
 
 def autocorrect_text(text: str, mode: str | None = None) -> str:
-    """Fix Thai words that are not in the dictionary. Leaves digits, English, names and URLs.
+    """Fix misplaced vowels and tone marks in Thai words that are not known. Leaves digits,
+    English, names, URLs and known loanwords.
 
     mode is "pythainlp" or "off"; None reads the AUTOCORRECT setting, which is "off" by default.
-    It is off because PyThaiNLP's correct() takes about 0.4 s per unknown word and can pick a
-    wrong word ("โอนเงนิ" becomes "ถอนเงิน"). Swap in a context-aware model if the three
-    checks in issue #30 do not pass.
     """
     if mode is None:
         from callas_settings import get_settings
@@ -67,13 +107,13 @@ def autocorrect_text(text: str, mode: str | None = None) -> str:
         return text
     from pythainlp.tokenize import word_tokenize
 
-    tokens = word_tokenize(text, engine="newmm", keep_whitespace=True)
+    tokens = word_tokenize(text, custom_dict=_known_trie(), engine="newmm", keep_whitespace=True)
     return "".join(_correct_tokens(tokens))
 
 
 def _correct_tokens(tokens: list[str]) -> list[str]:
-    """Replace each unknown Thai token (with its Thai neighbours) by its best spelling."""
-    words, names = _dictionary(), _names()
+    """Fix each unknown Thai token: alone first, else together with its Thai neighbours."""
+    known, names = _known(), _names()
     # `corrected` is the output so far. The previous Thai token is taken back out of it so it
     # can be corrected together with the unknown one; `i` skips the next token only when the
     # corrected word already includes it.
@@ -84,15 +124,22 @@ def _correct_tokens(tokens: list[str]) -> list[str]:
         # a name the lists do not know is cut into several pieces after its title
         after_title = any(t in _TITLES for t in corrected[-4:])
         is_unknown_word = (
-            bool(_THAI_WORD.fullmatch(token)) and token not in words and token not in names
+            bool(_THAI_WORD.fullmatch(token)) and token not in known and token not in names
         )
         if not is_unknown_word or after_title:
             corrected.append(token)
             i += 1
             continue
 
-        # A misspelled word is cut into pieces ("ขอบ" "ค" "นุ"), so correct the unknown
-        # piece together with the Thai pieces next to it.
+        # The piece alone first (ให้|คณุ|นะคะ), so its neighbours are never rewritten.
+        alone = _fix_word(token)
+        if alone != token:
+            corrected.append(alone)
+            i += 1
+            continue
+
+        # A misspelled word can be cut into pieces ("ขอบ" "ค" "นุ"), so try the unknown piece
+        # together with the Thai pieces next to it.
         before = corrected.pop() if corrected and _THAI_WORD.fullmatch(corrected[-1]) else ""
         next_token = tokens[i + 1] if i + 1 < len(tokens) else ""
         after = next_token if _THAI_WORD.fullmatch(next_token) else ""
