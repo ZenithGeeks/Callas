@@ -30,7 +30,6 @@ from .fill import (
     receiver_leaks,
     self_identity_question,
     strip_leading_interjection,
-    unwanted_words,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -68,7 +67,6 @@ def write_turn(
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
-        problems += [f"unwanted_word:{w}" for w in unwanted_words(raw)]
         if self_identity_question(raw):
             problems.append("self_identity_question")
     if not text:
