@@ -17,8 +17,8 @@ log = logging.getLogger("data_pipeline")
 
 
 def speak_turn(voices: Voices, turn: Turn, index: int, record: CallRecord, folder: Path) -> Turn:
-    """The turn with its audio file and length, or with a tts_failed problem. A turn with no
-    text is returned as it is.
+    """The turn with its audio file and length. A turn with no text, or one whose speech
+    failed, is returned as it is: the call is kept for its text either way.
 
     `record` is the stored call, for its id and the voice of each speaker.
     """
@@ -29,9 +29,9 @@ def speak_turn(voices: Voices, turn: Turn, index: int, record: CallRecord, folde
     voice = record.generation.voices[turn.speaker]
     try:
         seconds = round(voices.speak(said, voice, folder / rel), 3)
-    except Exception as exc:  # a turn without audio is flagged, the call text is still kept
+    except Exception as exc:  # the dataset is the text: a turn without audio does not reject it
         log.warning("tts failed for %s turn %d: %s", record.id, index, type(exc).__name__)
-        return replace(turn, problems=[*turn.problems, "tts_failed"])
+        return turn
     return replace(turn, audio=rel, audio_s=seconds)
 
 

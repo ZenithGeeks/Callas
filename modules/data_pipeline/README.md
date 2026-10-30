@@ -149,7 +149,7 @@ Everything the agents are told lives in `config/`:
 
 | File | What it holds |
 |---|---|
-| `agents.yaml` | each agent's instructions and field descriptions, model, temperature and max_tokens; caller pacing text; receiver persona and when it may hang up; the judge's description of each call type; TTS voices; `speech` and `context` |
+| `agents.yaml` | each agent's instructions and field descriptions, model, temperature and max_tokens; the scam caller's rules per scam type (`scam_caller.by_type`, added after its shared `instructions`); caller pacing text; receiver persona and when it may hang up; the judge's description of each call type; TTS voices; `speech` and `context` |
 | `scenarios.yaml` | the scam and normal scenarios, the receiver pools (jobs, temperaments, endings), call length and pacing numbers |
 | `details.yaml` | names, banks, made-up companies, link words, amounts and address parts that fill the slots |
 

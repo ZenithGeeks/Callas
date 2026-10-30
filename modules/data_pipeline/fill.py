@@ -85,6 +85,7 @@ _LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
 PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
+SCHOOL_SCENARIO_ORG = "โรงเรียน"  # scenarios.yaml org value: "pick a school from details"
 NICKNAME_RELATIONS = ("friend", "family")  # relations whose two names come from details.nicknames
 
 
@@ -103,6 +104,8 @@ class SlotFiller:
             org = rng.choice(details.banks)
         elif org == PODCAST_SCENARIO_ORG:
             org = rng.choice(details.podcasts or details.made_up_orgs)
+        elif org == SCHOOL_SCENARIO_ORG:
+            org = rng.choice(details.schools or details.made_up_orgs)
         elif org in ("*", ""):
             org = rng.choice(details.made_up_orgs)
         money = details.money
@@ -214,17 +217,6 @@ def wrong_particles(raw: str, gender: str) -> list[str]:
             found.append("คะ")
     # drop a marker already covered by a longer one that contains it (กระผม contains ผม)
     return [m for m in found if not any(m != other and m in other for other in found)]
-
-
-# Loud exclamations and exaggerations the receiver should not use: the model keeps reaching for
-# them ("โอ้โห ... ฟังดูตึงตังมากเลย"), and they read as over-acted, not like a real person. The
-# prompt forbids them; this catches any that slip through.
-_UNWANTED_RECEIVER_WORDS = ("โอ้โห", "โอ้โฮ", "โห่", "โธ่", "ตึงตัง", "น่าตื่นเต้น")
-
-
-def unwanted_words(raw: str) -> list[str]:
-    """Over-acted exclamations in a receiver line that the team asked to drop, in order found."""
-    return [w for w in _UNWANTED_RECEIVER_WORDS if w in raw]
 
 
 # Leading interjections the model keeps opening with (โอ้โห, โธ่เอ้ย, ...). Longest first so a

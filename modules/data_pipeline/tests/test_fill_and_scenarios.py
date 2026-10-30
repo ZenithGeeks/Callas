@@ -50,6 +50,19 @@ def test_podcast_org_comes_from_the_podcast_list():
         assert SlotFiller(c, CONFIG.details).values["ORG"] in CONFIG.details.podcasts
 
 
+def test_school_org_comes_from_the_school_list():
+    calls = [sample_config("benign", s, CONFIG) for s in range(300)]
+    school = [c for c in calls if c.scenario.org == "โรงเรียน"]
+    assert school
+    for c in school:
+        org = SlotFiller(c, CONFIG.details).values["ORG"]
+        assert org in CONFIG.details.schools  # a school's name, not the word โรงเรียน
+        assert SlotFiller(c, CONFIG.details).values["ORG"] == org  # same seed, same school
+    # an older config folder without schools still gets an organisation's name
+    old_details = CONFIG.details.model_copy(update={"schools": []})
+    assert SlotFiller(school[0], old_details).values["ORG"] in CONFIG.details.made_up_orgs
+
+
 def test_unknown_slot_and_loose_number_are_flagged():
     _, _, problems = filler().fill("บ้านเลขที่ {HOUSE_NUMBER} โทร 0812345678")
     assert "unknown_slot:HOUSE_NUMBER" in problems

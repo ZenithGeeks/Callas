@@ -33,7 +33,6 @@ from .fill import (
     receiver_leaks,
     self_identity_question,
     strip_leading_interjection,
-    unwanted_words,
     wrong_particles,
 )
 from .patterns import render_notes
@@ -76,7 +75,6 @@ def write_turn(
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
         problems += [f"wrong_particle:{p}" for p in wrong_particles(raw, call.receiver.gender)]
-        problems += [f"unwanted_word:{w}" for w in unwanted_words(raw)]
         if self_identity_question(raw):
             problems.append("self_identity_question")
     if not text:
@@ -118,7 +116,9 @@ def caller_says(
     inputs = dict(
         role=scenario.role,
         voice=voice,
-        org="{ORG}" if scenario.org else "",
+        # an office-style scam caller always has an org: the filler makes one up if the scenario
+        # has none, and its opener says it; a romance caller is someone the receiver knows
+        org="{ORG}" if scenario.org or (call.label_scam and call.call_type != "romance") else "",
         goal=scenario.goal,
         receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
     )
@@ -133,8 +133,11 @@ def caller_says(
         inputs["manner"] = scenario.tactics
     # callers read their own slots ({PHONE}), not the values the receiver heard
     lines = conversation_lines(turns, config, raw=True)
-    text, tokens = _fit_conversation(agents, config, agent, inputs, lines)
-    return agent, ask(agents, agent, **inputs, conversation=text), tokens
+    # the scam caller has one prompt per scam type (agents.ScamCaller)
+    scam_type = call.call_type if call.label_scam else None
+    text, tokens = _fit_conversation(agents, config, agent, inputs, lines, scam_type)
+    extra = {"scam_type": scam_type} if scam_type else {}
+    return agent, ask(agents, agent, **inputs, **extra, conversation=text), tokens
 
 
 def receiver_says(
@@ -219,12 +222,18 @@ def is_model_error(exc: BaseException) -> bool:
 
 
 def _fit_conversation(
-    agents: Agents, config: Config, agent: str, inputs: dict, lines: list[str]
+    agents: Agents,
+    config: Config,
+    agent: str,
+    inputs: dict,
+    lines: list[str],
+    scam_type: str | None = None,
 ) -> tuple[str, int]:
     """The conversation text for this agent's prompt and the prompt's estimated size. When the
     whole call does not fit the agent's budget, the first turns and the newest turns are kept
-    and the middle is replaced by a marker (budget.trim_turns)."""
-    signature, budget = agents.signatures[agent], prompt_budget(config, agent)
+    and the middle is replaced by a marker (budget.trim_turns). `scam_type` picks the scam
+    caller's prompt."""
+    signature, budget = agents.signature(agent, scam_type), prompt_budget(config, agent)
 
     def tokens(conversation: str) -> int:
         return prompt_tokens(signature, {**inputs, "conversation": conversation})

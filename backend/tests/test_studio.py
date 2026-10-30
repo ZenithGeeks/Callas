@@ -106,7 +106,8 @@ def test_events_come_in_order_with_tags_and_prompts(client):
     first_turn = next(d for n, d in events if n == "turn")
     assert 'id="msg-1"' in first_turn  # it replaces the bubble with the same id
     assert 'agent-tag-name">scam_caller' in first_turn
-    assert "ChainOfThought" in first_turn and "scripted-demo" in first_turn
+    # the scam caller's module picks the ChainOfThought program of the call's scam type
+    assert "ScamCaller" in first_turn and "scripted-demo" in first_turn
     assert "Agent reasoning" in first_turn
     assert "Prompt and answer" in first_turn and "[[ ## conversation ## ]]" in first_turn
     assert "[[ ## line ## ]]" in first_turn  # the answer the model gave
