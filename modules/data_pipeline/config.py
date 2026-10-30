@@ -514,6 +514,7 @@ class DetailsFile(_Strict):
     banks: list[str] = Field(min_length=1)
     made_up_orgs: list[str] = Field(min_length=1)
     podcasts: list[str] = []  # older config folders have none; made_up_orgs is used instead
+    schools: list[str] = []  # older config folders have none; made_up_orgs is used instead
     urls: Urls
     money: Money
     addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
