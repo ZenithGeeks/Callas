@@ -241,3 +241,49 @@ def test_friend_calls_use_nicknames():
         f = SlotFiller(c, CONFIG.details)
         assert f.values["CALLER_NAME"] in CONFIG.details.nicknames[c.caller_gender]
         assert f.values["RECEIVER_NAME"] in CONFIG.details.nicknames[c.receiver.gender]
+
+
+def test_line_id_is_filled_from_the_part_list_and_labelled():
+    f = filler("investment", 5)
+    text, spans, problems = f.fill("แอดไลน์ไอดี {LINE_ID} ไว้นะครับ")
+    value = f.values["LINE_ID"]
+    assert problems == []
+    assert spans == [{"text": value, "label": "LINE_ID", "start": 12, "end": 12 + len(value)}]
+    assert text[12 : 12 + len(value)] == value
+    assert f.fill("ไอดี {LINE_ID} นะครับ")[0].count(value) == 1  # the same ID all call
+    assert "LINE_ID" in ENTITY_LABELS
+
+
+def test_line_ids_are_two_different_parts_in_lowercase_letters():
+    parts = CONFIG.details.line_ids
+    for seed in range(50):
+        value = filler("investment", seed).values["LINE_ID"]
+        assert re.fullmatch(r"[a-z]{6,8}", value)
+        assert any(value == a + b for a in parts for b in parts if a != b)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "แอดไลน์ไอดี viphost01 ไว้นะครับ",
+        "ไลน์ landdoc นะคะ",
+        "แอด LINE kx92b4c1 ได้เลยค่ะ",
+        "ไอดีไลน์ HomeProRefund2025 นะคะ",
+        "ไลน์ไอดี land_doc_24 ค่ะ",
+    ],
+)
+def test_a_made_up_line_id_is_flagged(line):
+    assert "line_id_without_slot" in filler().fill(line)[2]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "แอดไลน์ไอดี {LINE_ID} ไว้นะครับ",
+        'แอด LINE ชื่อ "PEA Digital Meter Support" นะคะ',
+        "ส่งสลิปทาง LINE ได้เลยค่ะ",
+        "เดี๋ยวส่ง SMS ไปนะ verify ที่ลิงก์",  # no LINE named: not checked
+    ],
+)
+def test_line_slots_and_names_are_not_flagged(line):
+    assert "line_id_without_slot" not in filler().fill(line)[2]

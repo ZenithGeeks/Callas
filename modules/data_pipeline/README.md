@@ -174,7 +174,7 @@ The loader refuses a config that would break the run:
 Before you edit:
 
 - Field names under `fields:` are fixed, because the code reads them. Change the text, not the keys.
-- Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY}` and the receiver's own `{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values. This gives exact entity spans and keeps real numbers out of the data.
+- Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY} {LINE_ID}` and the receiver's own `{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values. This gives exact entity spans and keeps real numbers out of the data.
 - Seeds pick scenarios by list position. Adding a scenario in the middle of a list changes which call a seed makes. The config hash keeps old and new records apart.
 - All agents run at temperature 0.0, because a model garbled Thai spelling at 0.3. Variety comes from the sampled scenario, receiver, plan and pacing.
 
@@ -191,9 +191,11 @@ A real victim sometimes gives personal details away. Those are the calls a scam 
 | `{BIRTH_DATE}` | day, month and Buddhist-era year, for example `12 มีนาคม 2511`, matching the receiver's age on 1 July 2025 | `BIRTH_DATE` |
 | `{ADDRESS}` | built from the made-up parts under `addresses` in `details.yaml` | `ADDRESS` |
 
-The receiver also hears the caller's numbers and links as slots (`{MONEY}`, `{PHONE}`, `{BANK_ACCOUNT}`, `{URL}`, and `{OTP}` if the caller says one), so a receiver that repeats one writes the slot instead of digits that would get the call rejected as `number_without_slot`. Repeating the caller's slots is not a leak: only the slots in the table above are.
+The receiver also hears the caller's numbers and links as slots (`{MONEY}`, `{PHONE}`, `{BANK_ACCOUNT}`, `{URL}`, `{LINE_ID}`, and `{OTP}` if the caller says one), so a receiver that repeats one writes the slot instead of digits that would get the call rejected as `number_without_slot`. Repeating the caller's slots is not a leak: only the slots in the table above are.
 
 `ID_CARD`, `BIRTH_DATE` and `ADDRESS` are in `nlp_core.types.ENTITY_LABELS`.
+
+When a scam caller's goal or tactics name LINE, it gives its LINE ID as `{LINE_ID}`: two different parts from `line_ids` in `details.yaml` joined, for example `viphost`, lowercase letters only. The label is `LINE_ID` (#143). Calls made before this change have the ID as plain text with no label, so leave them out when you train an NER on `LINE_ID`. A line that names LINE and still has a made-up ID (`viphost01`, `landdoc`) gets the problem `line_id_without_slot`, and the call is rejected.
 
 Code finds leaks from the slots a receiver line uses. The model never reports them. `{RECEIVER_NAME}` does not count, because saying your name when you answer is not a leak. A caller cannot know the receiver's details. A caller turn that uses one of those slots gets the problem `caller_used_receiver_slot`, and the call is rejected.
 
@@ -210,6 +212,7 @@ VachanaTTS reads `158-5-96045-2` as one number with minus signs. So the voice is
 | `MONEY` | place value: `49,500 บาท` is "สี่หมื่นเก้าพันห้าร้อยบาท" |
 | `BIRTH_DATE` | day and year as numbers, month as written |
 | `ADDRESS` | house and soi numbers by place value (`45` is สี่สิบห้า, `12/3` is สิบสองทับสาม). A 5-digit postcode digit by digit |
+| `LINE_ID` | letter by letter in Thai: `viphost` is "วี ไอ พี เอช โอ เอส ที" |
 | `PERSON`, `ORG`, `URL` | as written |
 
 People do not always say "ขีด". Often they only pause between groups. In the audio a pause is a comma, because VachanaTTS barely pauses on a plain space. Each call picks one style from its seed (`generation.speech_style`, `dash` or `pause`). The share of `dash` calls is `speech.say_dash_share` in `agents.yaml` (0 to 1, default 0.5). Text outside the spans is never changed.
@@ -237,6 +240,7 @@ A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 - a line has a number the agent wrote itself (`number_without_slot`): 4 or more digits in a row, or digit groups joined by `,` `.` `-` or a space with 3 or 4 digits after the first group (`50,000`, `5 000`, `081.234.5678`). Small numbers (`3`, `15`) and times (`10.30`) are fine
 - a slot is left unfilled, so `{` or `}` is in the line (`stray_brace`)
 - a line has a line break or starts with `A:` or `B:` (`line_break`)
+- a line names LINE (ไลน์, ไอดี or LINE) and has a Latin word of 5 or more characters that is all lowercase or has a digit or `_`: a LINE ID the agent made up instead of `{LINE_ID}` (`line_id_without_slot`)
 - a tone mark comes before a vowel
 - the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points each for a clear scam or not-scam, showing the intended call, realistic language, and reflecting the persona and scenario selected before the call started (`setup_holds`). Calls judged before the fourth check scored realistic language at 50. It is the judge's only say: above 50% the judge passes the call, whatever its other answers (`giveaway`, `scam_start_turn`) are
 
