@@ -177,6 +177,8 @@ class Generation:
     briefing: Briefing | None = None  # None for a normal call, and before the plan is written
     # The receiver's footing (relationship calls): None until it is read, "" for a stranger
     footing: str | None = None
+    # the tokens reading the footing used (usage.py); {} for a stranger and in older calls
+    footing_usage: dict = field(default_factory=dict)
     turns: list[Turn] = field(default_factory=list)
     receiver_leaked: list[str] = field(default_factory=list)  # every kind given away, sorted
     first_leak_turn: int | None = None

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS calls (
     voices           TEXT NOT NULL DEFAULT '{}',           -- JSON: speaker -> TTS voice
     briefing         TEXT,                                 -- JSON: scam caller's plan, if any
     footing          TEXT,                                 -- receiver's footing; NULL = not read
+    footing_usage    TEXT NOT NULL DEFAULT '{}',           -- JSON tokens the footing used
     judge            TEXT,                                 -- JSON: the judge's answer
     scam_start_turn  INTEGER,
     scam_start_from  TEXT,                                 -- caller | judge
@@ -112,16 +113,17 @@ CREATE INDEX IF NOT EXISTS notes_by_type ON pattern_notes (scam_type, active);
 _UPSERT_CALL = """
 INSERT INTO calls (
     id, call_type, seed, label_scam, label_type, status, reasons,
-    config_name, config_hash, models, call, voices, briefing, footing, judge,
+    config_name, config_hash, models, call, voices, briefing, footing, footing_usage, judge,
     scam_start_turn, scam_start_from, receiver_leaked, first_leak_turn,
     speech_style,
     reference_summary, audio_path,
     review_status, review_note, reviewed_at, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?)
+        ?, ?, ?, ?)
 ON CONFLICT (id) DO UPDATE SET
     status = excluded.status, reasons = excluded.reasons,
     models = excluded.models, briefing = excluded.briefing, footing = excluded.footing,
+    footing_usage = excluded.footing_usage,
     judge = excluded.judge, scam_start_turn = excluded.scam_start_turn,
     scam_start_from = excluded.scam_start_from,
     receiver_leaked = excluded.receiver_leaked,
@@ -159,6 +161,7 @@ _ADDED_COLUMNS = (
     ("calls", "first_leak_turn", "INTEGER"),
     ("calls", "speech_style", "TEXT NOT NULL DEFAULT ''"),
     ("calls", "footing", "TEXT"),
+    ("calls", "footing_usage", "TEXT NOT NULL DEFAULT '{}'"),
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
@@ -529,6 +532,7 @@ def _call_values(record: dict, stamp: str) -> tuple:
         json.dumps(generation.get("voices", {}), ensure_ascii=False),
         _dump_or_none(generation.get("briefing")),
         generation.get("footing"),
+        json.dumps(generation.get("footing_usage", {}), ensure_ascii=False),
         _dump_or_none(generation.get("judge")),
         record.get("scam_start_turn"),
         generation.get("scam_start_from"),
@@ -617,6 +621,7 @@ def _record_from_rows(row: sqlite3.Row, turns: list[sqlite3.Row]) -> dict:
             "voices": json.loads(row["voices"]),
             "briefing": json.loads(row["briefing"]) if row["briefing"] else None,
             "footing": row["footing"],
+            "footing_usage": json.loads(row["footing_usage"]),
             "turns": [_turn_from_row(t) for t in turns],
             "receiver_leaked": json.loads(row["receiver_leaked"]),
             "first_leak_turn": row["first_leak_turn"],

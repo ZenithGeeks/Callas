@@ -84,6 +84,29 @@ def test_call_usage_sums_each_agent_in_call_order():
     assert (got["total"]["requests"], got["total"]["failed"]) == (6, 1)
 
 
+def test_the_footing_step_has_its_own_row_after_the_planner():
+    record = _record()
+    record["generation"]["footing_usage"] = _step(500, 80)
+    got = usage.call_usage(record)
+    assert [r["agent"] for r in got["rows"]] == [
+        "planner",
+        "footing",
+        "scam_caller",
+        "receiver",
+        "judge",
+    ]
+    assert (got["rows"][1]["input"], got["rows"][1]["output"]) == (500, 80)
+    assert got["total"]["input"] == 1000 + 500 + 2000 + 1500 + 2200 + 3000
+
+
+def test_a_call_without_footing_usage_has_no_footing_row():
+    for footing_usage in (None, {}):  # older calls have no key; stranger calls keep {}
+        record = _record()
+        if footing_usage is not None:
+            record["generation"]["footing_usage"] = footing_usage
+        assert "footing" not in [r["agent"] for r in usage.call_usage(record)["rows"]]
+
+
 def test_a_call_without_usage_is_not_recorded():
     assert usage.call_usage(_record(with_usage=False)) is None
 

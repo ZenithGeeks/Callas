@@ -28,7 +28,7 @@ from typing import Any
 import dspy
 
 # Steps in the order a call runs them, for the per-call table.
-AGENTS = ("planner", "scam_caller", "legit_caller", "receiver", "judge")
+AGENTS = ("planner", "footing", "scam_caller", "legit_caller", "receiver", "judge")
 _COUNTS = ("input", "output", "requests", "failed")
 
 # Usage of attempts that raised, kept until the step succeeds on a retry:
@@ -95,6 +95,7 @@ def call_usage(record: dict) -> dict[str, Any] | None:
     generation = record.get("generation", {})
     steps = [(turn.get("agent", ""), turn.get("usage")) for turn in generation.get("turns", [])]
     steps.append(("planner", (generation.get("briefing") or {}).get("usage")))
+    steps.append(("footing", generation.get("footing_usage")))
     steps.append(("judge", (generation.get("judge") or {}).get("usage")))
     rows: dict[str, dict[str, Any]] = {}
     for agent, usage in steps:

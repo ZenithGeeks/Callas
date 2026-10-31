@@ -180,24 +180,26 @@ def receiver_says(
 
 def read_footing(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
-) -> str:
+) -> tuple[str, dict]:
     """Work out once, from the scenario's backstory and the caller's opening, who the caller is to
-    the receiver and how it should talk back. Empty for a stranger call: the scenario sets no prior
-    relationship, so the receiver stays politely formal and no extra model call is made.
+    the receiver and how it should talk back. Returns the footing and the tokens it used (see
+    usage.py). Empty for a stranger call: the scenario sets no prior relationship, so the
+    receiver stays politely formal and no extra model call is made.
 
     Only the caller's first line is given as the opening, never the whole call, so a resume (which
     runs this again) gets the same footing it did the first time."""
     if not call.scenario.receiver_context:
-        return ""
+        return "", {}
     opening = receiver_view(turns[:1], filler, config)  # the caller's first line, as heard
     pred = ask(
         agents,
         "footing",
+        call_key(call),
         persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
         context=call.scenario.receiver_context,
         opening=opening,
     )
-    return (getattr(pred, "footing", "") or "").strip()
+    return (getattr(pred, "footing", "") or "").strip(), pred.get_lm_usage() or {}
 
 
 def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> Briefing:
