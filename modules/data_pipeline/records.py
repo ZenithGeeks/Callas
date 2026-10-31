@@ -104,6 +104,8 @@ class Judge:
     natural_thai: int | None = None
     prompt_tokens: int | None = None  # None in answers stored before prompt sizes were kept
     skipped: str = ""  # finish.TOO_LONG_FOR_JUDGE when the call was not judged at all
+    # summaries of the wiki notes the judge read; empty for a normal call and in older answers
+    notes_used: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> Judge:
@@ -139,6 +141,7 @@ class Judge:
             "summary": self.summary,
             "issues": self.issues,
             "reasoning": self.reasoning,
+            **({} if not self.notes_used else {"notes_used": self.notes_used}),
         }
         if self.skipped:
             return {**answer, "skipped": self.skipped, "prompt_tokens": self.prompt_tokens}

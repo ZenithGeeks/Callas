@@ -223,7 +223,7 @@ People do not always say "ขีด". Often they only pause between groups. In t
 - speakers (both callers and the receiver) keep the first 2 turns and as many of the newest turns as fit. The turns between are replaced by one line, `(... N earlier turns not shown ...)`
 - the planner drops the oldest pattern notes until it fits (`generation.briefing.notes_used` lists the ones it used)
 - if the prompt still does not fit (a huge newest turn, or 3 turns or fewer), the model is not asked and the call ends `rejected` with the reason `too_long_for_context`
-- the judge must read the whole call, so a call that does not fit is `rejected` with `too_long_for_judge`
+- the judge must read the whole call, so a call that does not fit is `rejected` with `too_long_for_judge`. It also reads the wiki notes the planner used, as examples for the intended-call and language-realism checks; it drops the oldest of those first (`generation.judge.notes_used` lists the ones it read). A normal call has none
 - `patterns add` cuts the article to the longest start that fits, never more than `MAX_ARTICLE_CHARS` (12000)
 
 Every turn stores the estimated size of its prompt as `prompt_tokens`. A normal call is a few thousand tokens, so none of this changes a normal run.

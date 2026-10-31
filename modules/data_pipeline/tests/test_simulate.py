@@ -369,6 +369,57 @@ def test_planner_reads_pattern_notes(tmp_path):
     assert rec["generation"]["briefing"]["notes_used"] == ["Callers pose as bank security"]
 
 
+def test_the_judge_reads_the_notes_the_planner_read(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    store.add_note(
+        "phishing_otp",
+        "Callers pose as bank security",
+        ["say an account was hacked", "ask for the OTP"],
+        ["มีคนพยายามเข้าบัญชีของคุณ"],
+    )
+    store.add_note("romance", "A lover needs money for a ticket", ["build trust"], [])
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
+    notes = agents.judge.calls[0]["pattern_notes"]
+    assert "Callers pose as bank security" in notes and "tactic: ask for the OTP" in notes
+    assert "A lover" not in notes  # another scam type's note
+    assert rec["generation"]["judge"]["notes_used"] == ["Callers pose as bank security"]
+
+
+def test_a_normal_call_gives_the_judge_no_notes(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    store.add_note("phishing_otp", "Callers pose as bank security", ["ask for the OTP"], [])
+    legit = [dict(line="สวัสดีครับ", end_call=False), dict(line="ขอบคุณครับ", end_call=True)]
+    agents = make_agents(legit, [dict(line="ค่ะ", end_call=False)], judge())
+    rec = run_call("benign", 1, store, agents, CONFIG).to_dict()
+    assert "no scam pattern notes" in agents.judge.calls[0]["pattern_notes"]
+    assert "notes_used" not in rec["generation"]["judge"]
+
+
+def test_the_judge_drops_oldest_notes_to_fit_but_still_judges(tmp_path):
+    from data_pipeline.finish import ask_judge
+
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    call = sample_config("phishing_otp", 1, CONFIG).to_dict()
+    turns = [Turn(speaker="A", text="สวัสดีครับ"), Turn(speaker="B", text="ค่ะ")]
+    notes = [
+        dict(summary=f"note {i}", tactics=["tactic " + "ก" * 3000], phrases=[]) for i in range(60)
+    ]
+    answer = ask_judge(agents, CONFIG, turns, "phishing_otp", call, notes)
+    assert not answer.skipped and len(agents.judge.calls) == 1
+    kept = answer.notes_used
+    assert 0 < len(kept) < 60 and kept == [f"note {i}" for i in range(len(kept))]
+
+
+def test_notes_named_keeps_the_order_and_skips_missing(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    for summary in ("first", "second", "third"):
+        store.add_note("lottery", summary, ["t"], [])
+    found = store.notes_named("lottery", ["third", "gone", "first"])
+    assert [n["summary"] for n in found] == ["third", "first"]
+    assert store.notes_named("lottery", []) == []
+
+
 def test_receiver_hears_its_own_name_as_the_slot(tmp_path):
     store = Store(tmp_path / "calls.db")
     greet = [dict(line="สวัสดีค่ะ คุณ{RECEIVER_NAME} ผมจาก {ORG}", asks_now=False, end_call=False)]
@@ -650,11 +701,13 @@ def test_judge_prompt_stays_small():
             realism_criteria=CONFIG.agents.judge.realism_criteria,
             scenario=call["scenario"],
             persona=call["receiver"],
+            pattern_notes="(no recent notes for this scam type)",
         ),
     )
-    # Measured at 2,442 with dspy 3.4.1 (13 output fields, 9 criteria, a romance scenario and
-    # persona). The prompt budget is about 96K, so this only guards against large growth.
-    assert tokens <= 2_600
+    # Measured at 2,817 with dspy 3.4.1 (13 output fields, 9 criteria, a romance scenario and
+    # persona, the pattern-notes field without notes). The prompt budget is about 96K, so this
+    # only guards against large growth; the notes themselves are cut to fit (finish.ask_judge).
+    assert tokens <= 3_000
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
