@@ -507,6 +507,9 @@ class Urls(_Strict):
     tlds: list[str] = Field(min_length=1)
 
 
+DEFAULT_LINE_ID_PARTS = ["host", "vip", "land", "doc", "care", "help", "gold", "team"]
+
+
 class AddressParts(_Strict):
     """Pieces of the receiver's made-up {ADDRESS}: <house> ซอย<soi> <district> <province>."""
 
@@ -541,6 +544,8 @@ class DetailsFile(_Strict):
     podcasts: list[str] = []  # older config folders have none; made_up_orgs is used instead
     schools: list[str] = []  # older config folders have none; made_up_orgs is used instead
     urls: Urls
+    # parts of a made-up {LINE_ID}; older config folders have none
+    line_ids: list[str] = Field(default=DEFAULT_LINE_ID_PARTS, min_length=2)
     money: Money
     addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
 

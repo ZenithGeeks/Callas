@@ -27,6 +27,17 @@ DASH_WORD = "ขีด"
 PAUSE_JOINER = ", "
 
 _DIGIT_GROUPS = ("PHONE", "BANK_ACCOUNT", "ID_CARD")
+# How a Thai speaker names each English letter. A LINE ID is spelled out letter by letter, as
+# people read one over the phone, and VachanaTTS reads Thai script only.
+_LETTER_NAMES = dict(
+    zip(
+        "abcdefghijklmnopqrstuvwxyz",
+        (
+            "เอ บี ซี ดี อี เอฟ จี เอช ไอ เจ เค แอล เอ็ม เอ็น โอ พี คิว อาร์ เอส ที ยู วี ดับเบิลยู เอ็กซ์ วาย แซด"
+        ).split(),
+        strict=True,
+    )
+)
 
 
 def pick_speech_style(call_type: str, seed: int, say_dash_share: float) -> str:
@@ -79,6 +90,11 @@ def _address(value: str) -> str:
     return re.sub(r"\d+", number, value).replace("/", "ทับ")
 
 
+def _letters(value: str) -> str:
+    """viphost -> วี ไอ พี เอช โอ เอส ที. Anything that is not a letter is said as written."""
+    return " ".join(_LETTER_NAMES.get(char, char) for char in value.lower())
+
+
 def say(label: str, value: str, style: str) -> str:
     """How one entity is said. Anything not listed is said as written."""
     try:
@@ -92,6 +108,8 @@ def say(label: str, value: str, style: str) -> str:
             return _birth_date(value)
         if label == "ADDRESS":
             return _address(value)
+        if label == "LINE_ID":
+            return _letters(value)
     except ValueError:  # a value in an unexpected shape is better said as written than lost
         return value
     return value

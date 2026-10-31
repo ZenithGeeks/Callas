@@ -1002,3 +1002,24 @@ def test_a_command_line_resume_keeps_the_studio_forced_outcome(tmp_path):
     rec = run_call("romance", 3, store, resumed, CONFIG).to_dict()  # --resume, no outcome
     assert rec["generation"]["call"]["receiver"] == started  # the same person, not a fresh draw
     assert rec["generation"]["status"] == "accepted"
+
+
+def test_the_receiver_hears_the_callers_line_id_as_a_slot(tmp_path):
+    caller = [
+        dict(line="แอดไลน์ไอดี {LINE_ID} ไว้นะครับ", asks_now=True, end_call=False),
+        dict(line="แอดแล้วทักมานะครับ", asks_now=False, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    echo = [dict(line="ไอดี {LINE_ID} ใช่ไหมคะ", end_call=False)] * 2
+    agents = make_agents(caller, echo, judge(start=0))
+    rec = run_call("investment", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    call = simulate.sample_config("investment", 1, CONFIG)
+    line_id = simulate.SlotFiller(call, CONFIG.details).values["LINE_ID"]
+    last_view = agents.receiver.calls[-1]["conversation"]
+    assert "{LINE_ID}" in last_view and line_id not in last_view
+    turns = rec["generation"]["turns"]
+    # the same ID on every turn that says it, stored as a LINE_ID span
+    for turn in (turns[0], turns[1]):
+        assert line_id in turn["text"]
+        assert {"text": line_id, "label": "LINE_ID"}.items() <= turn["entities"][0].items()
+    assert all(t["problems"] == [] for t in turns)

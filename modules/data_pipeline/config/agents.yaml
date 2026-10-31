@@ -12,7 +12,7 @@ slot_rule: &slot_rule >-
   Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
   directions, no speaker name. Never write a real number, account, code, link or name: write
   the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
-  {MONEY}). These are the only slots: for any other detail (another person's name, an
+  {MONEY} {LINE_ID}). These are the only slots: for any other detail (another person's name, an
   address, the receiver's own phone, account or ID) stay vague instead of inventing a slot or
   claiming to know it. Do not repeat a line already said.
 
@@ -62,9 +62,9 @@ scam_caller:
         a worry with "เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ".
       - &line_id >-
         Only if your goal or tactics name LINE, give your own LINE ID aloud in the same line and tell
-        the receiver to add you: "แอดไลน์ไอดี <your ID> ไว้นะครับ", where the ID is 5 to 8 lowercase
-        English letters you make up for this call (no link, no digits). Never send the ID by SMS and
-        never ask for the receiver's LINE ID.
+        the receiver to add you, writing the ID as {LINE_ID}: "แอดไลน์ไอดี {LINE_ID} ไว้นะครับ".
+        Never make up an ID or write one in English letters. Never send the ID by SMS and never
+        ask for the receiver's LINE ID.
       - &transfer_slip >-
         A transfer slip (สลิป) is a picture: never ask for it to a phone number, by call
         or by SMS reply; ask for it on LINE if your goal or tactics name LINE, otherwise through the
@@ -148,7 +148,7 @@ receiver:
     Write any detail only as its slot, never as digits or an invented value, and never any other
     number. {RECEIVER_NAME} is your own name: if the caller greets you by it, greet them back, do
     not greet yourself by it. The caller's numbers and links reach you as slots too ({MONEY},
-    {PHONE}, {BANK_ACCOUNT}, {URL}): a slot is a detail already given, so do not ask for it again;
+    {PHONE}, {BANK_ACCOUNT}, {URL}, {LINE_ID}): a slot is a detail already given, so do not ask for it again;
     to repeat one, write its slot.
     Plan before you speak: in your reasoning first say what is going on and what the caller wants,
     then what you will do this turn and why; then write your line to match.

@@ -16,7 +16,17 @@ DIARIZER_LABELS = {
 }
 
 SENSITIVE_LABELS = frozenset(
-    {"PHONE", "BANK_ACCOUNT", "OTP", "MONEY", "URL", "ID_CARD", "BIRTH_DATE", "ADDRESS"}
+    {
+        "PHONE",
+        "BANK_ACCOUNT",
+        "OTP",
+        "MONEY",
+        "URL",
+        "LINE_ID",
+        "ID_CARD",
+        "BIRTH_DATE",
+        "ADDRESS",
+    }
 )
 # In a recording, speaker A is the person being called. Generated calls in the dataset use
 # the opposite letters: see dataset.GENERATED_CALLER.
