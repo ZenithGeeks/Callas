@@ -228,7 +228,15 @@ class Context(_Strict):
     safety_margin_tokens: int = Field(2_000, gt=0)  # left free on top of the answer
 
 
-AGENT_NAMES = ("scam_caller", "legit_caller", "receiver", "planner", "pattern_extractor", "judge")
+AGENT_NAMES = (
+    "scam_caller",
+    "legit_caller",
+    "receiver",
+    "footing",
+    "planner",
+    "pattern_extractor",
+    "judge",
+)
 
 
 class AgentsFile(_Strict):
@@ -239,6 +247,7 @@ class AgentsFile(_Strict):
     scam_caller: ScamCallerSettings
     legit_caller: AgentSettings
     receiver: ReceiverSettings
+    footing: AgentSettings
     planner: PlannerSettings
     pattern_extractor: AgentSettings
     judge: JudgeSettings

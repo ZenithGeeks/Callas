@@ -5,8 +5,14 @@
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-3">
         <span class="label-pill" data-tone="{{ 'alarm' if run.label_scam else 'safe' }}">{{ 'Scam' if run.label_scam else 'Not a scam' }}</span>
-        {% if run.label_scam and run.scam_outcome %}
-        <span class="label-pill" data-tone="{{ 'alarm' if run.scam_outcome == 'scammed' else 'safe' }}" title="This call is balanced 50/50 by seed. The receiver's persona is drawn to lead to this outcome.">🔒 {{ 'Gets scammed' if run.scam_outcome == 'scammed' else 'Stays safe' }}</span>
+        {% if run.label_scam %}
+          {% if run.scam_outcome == 'scammed' %}
+          <span class="label-pill" data-tone="alarm" title="Locked outcome: the receiver's persona is drawn so this call ends in a scam.">🔒 Gets scammed</span>
+          {% elif run.scam_outcome == 'safe' %}
+          <span class="label-pill" data-tone="safe" title="Locked outcome: the receiver's persona is drawn so this call stays safe.">🔒 Stays safe</span>
+          {% else %}
+          <span class="label-pill" data-tone="unsure" title="This call uses a hand-written persona, so its outcome is not locked.">🎲 Outcome not locked</span>
+          {% endif %}
         {% endif %}
         <span class="text-[15px] text-muted">{{ run.record_id }}</span>
       </div>

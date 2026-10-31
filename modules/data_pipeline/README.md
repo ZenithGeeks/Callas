@@ -73,7 +73,7 @@ graph TD;
 - `finish`: builds the text, joins the audio, asks the judge, and sets accepted or rejected.
 - LangGraph's `RetryPolicy` retries only errors that come from the model: a reply DSPy cannot parse, and rate limits or 5xx answers (`turns.is_model_error`). Waits are 5, 15 and 45 s. A bug or a store error fails at once and leaves the call unfinished. A server that is down stops the run.
 
-The state (`CallState`) holds only what changes during a call: the briefing, the turns, the status and the ending. Each node returns only the fields it changed. The agents, the store, the config and the call as it was loaded reach the nodes as LangGraph run context (`context_schema`), not as state. `to_record` lays the state over the loaded call to get the record the store saves.
+The state (`CallState`) holds only what changes during a call: the briefing, the receiver's footing, the turns, the status and the ending. Each node returns only the fields it changed. The agents, the store, the config and the call as it was loaded reach the nodes as LangGraph run context (`context_schema`), not as state. `to_record` lays the state over the loaded call to get the record the store saves.
 
 A call is a `CallRecord` (`records.py`): the spec's fields, a `Generation` block with the turns (`Turn`), the scam caller's plan (`Briefing`) and the judge's answer (`Judge`), and a `Review` block. They are dataclasses. Dicts appear only at the edge: `Store.load_call`, `Store.save_call` and `Store.calls` convert with `from_dict` and `to_dict`, and the JSON export and the studio's events carry the dict. `to_dict` keeps the key order the store has always written, so the stored JSON does not change. The web pages read the dicts from `Store.load` and `Store.call_dicts`.
 

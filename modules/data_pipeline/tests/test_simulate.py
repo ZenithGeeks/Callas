@@ -64,6 +64,8 @@ def make_agents(caller, receiver, verdict, config=CONFIG):
     a.receiver = Script(receiver)
     a.judge = Script([verdict])
     a.planner = Script([dict(plan=["build trust", "ask for the OTP", "push for a transfer"])])
+    # relationship calls work out the footing once; strangers never call it
+    a.footing = Script([dict(footing="พี่สาวที่ไว้ใจ คุยกันเองไม่เป็นทางการ เรียกตัวเองว่าหนู เรียกเขาว่าพี่")] * 5)
     return a
 
 
@@ -295,7 +297,8 @@ def test_receiver_gets_structured_persona(tmp_path):
     store = Store(tmp_path / "calls.db")
     run_call("phishing_otp", 1, store, agents, CONFIG)
     for kw in agents.receiver.calls:
-        assert set(kw) == {"persona", "voice", "stage", "red_flags", "conversation"}
+        assert set(kw) == {"persona", "voice", "stage", "footing", "red_flags", "conversation"}
+        assert kw["footing"] == ""  # a stranger call sets no prior relationship, so no footing
         assert "key" not in kw["persona"]  # the profile key is not for the model
         assert isinstance(kw["persona"]["occupation"], str) and kw["persona"]["occupation"]
         assert isinstance(kw["persona"]["region"], str) and kw["persona"]["region"]
@@ -303,6 +306,53 @@ def test_receiver_gets_structured_persona(tmp_path):
         assert isinstance(kw["voice"], str) and kw["voice"]
         # the same general scam warning signs reach every receiver, whatever the call is about
         assert kw["red_flags"] == CONFIG.red_flags and kw["red_flags"]
+
+
+def test_a_romance_call_gives_the_receiver_and_footing_the_scenario_backstory(tmp_path):
+    # the footing step and the receiver both get the scenario's prior relationship, so the ground
+    # truth ("met on a dating app", a family role) reaches them, not just the footing model's guess
+    call = sample_config("romance", 2, CONFIG)
+    context = call.scenario.receiver_context
+    assert context  # romance scenarios set a prior relationship the receiver believes in
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    run_call("romance", 2, Store(tmp_path / "calls.db"), agents, CONFIG)
+    assert agents.footing.calls and agents.footing.calls[0]["context"] == context
+    assert agents.receiver.calls and all(context in c["stage"] for c in agents.receiver.calls)
+
+
+def test_the_footing_is_stored_and_a_resume_reuses_it(tmp_path, monkeypatch):
+    # The footing is saved with the call, so a dataset reviewer can see what the receiver was told
+    # and a resume reuses it instead of asking the footing model again.
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    store = Store(tmp_path / "calls.db")
+    real_speak = graph_module.write_turn
+    calls = {"n": 0}
+
+    def crash_on_third(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise KeyboardInterrupt
+        return real_speak(*a, **kw)
+
+    monkeypatch.setattr(graph_module, "write_turn", crash_on_third)
+    with pytest.raises(KeyboardInterrupt):
+        run_call("romance", 2, store, agents, CONFIG)
+    footing = store.load(record_id("romance", 2))["generation"]["footing"]
+    assert footing and len(agents.footing.calls) == 1
+
+    monkeypatch.setattr(graph_module, "write_turn", real_speak)
+    rec = run_call("romance", 2, store, agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "accepted"
+    assert rec["generation"]["footing"] == footing
+    assert len(agents.footing.calls) == 1  # not asked again on resume
+    assert all(c["footing"] == footing for c in agents.receiver.calls)
+
+
+def test_a_stranger_call_stores_an_empty_footing(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["footing"] == ""  # read, and there is no prior relationship
+    assert not agents.footing.calls
 
 
 def test_planner_reads_pattern_notes(tmp_path):
@@ -622,18 +672,26 @@ def test_receiver_prompt_stays_small():
     scam wiki (red_flags.py: one general warning sign per scam type, same for every call so the
     receiver stays blind to the label) was added to every receiver prompt for ~1420, and then a
     register-matching line (mirror the caller's level: formal, affectionate pet names and เค้า, or
-    casual) for ~1540. Content comes partly from the wiki, so expect some wording variance; this
-    guard only catches runaway growth. Still tiny against the 100k window."""
+    casual) for ~1540, and then that enumerated register prose was replaced by a `footing` field (a
+    one-time read decides the relationship and register, so the receiver no longer re-derives it per
+    turn) for ~1610, and then that footing clause was tightened to bind the receiver to footing's
+    exact self-word and way of addressing the caller every turn (a later turn had drifted to a
+    different kin term) for ~1665, and then a line that the home region is a background, not an
+    accent to perform (answer in standard central Thai unless the caller uses dialect first) for
+    ~1725. Content comes partly from the wiki, so expect some wording variance; this guard only
+    catches runaway growth. Still tiny against the 100k window. A stranger call sets footing to "",
+    measured here."""
     from data_pipeline.budget import prompt_tokens
 
     inputs = dict(
         persona="{}",
         voice="v",
         stage="s",
+        footing="",
         red_flags=CONFIG.red_flags,
         conversation="[0] ผู้โทร: สวัสดีครับ",
     )
-    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1600
+    assert prompt_tokens(Agents(CONFIG, lms={}).signatures["receiver"], inputs) <= 1750
 
 
 def test_receiver_leaks_are_recorded_by_code(tmp_path):
@@ -803,3 +861,32 @@ def test_a_command_line_resume_keeps_the_studio_scenario_and_name(tmp_path):
     assert all(kw["goal"] == chosen.goal for kw in resumed.scam_caller.calls)
     assert "คุณสมหญิงครับ" in rec["generation"]["turns"][2]["text"]
     assert rec["generation"]["call"]["scenario"]["key"] == chosen.key
+
+
+def test_a_command_line_resume_keeps_the_studio_forced_outcome(tmp_path):
+    import threading
+
+    from data_pipeline import live
+
+    # The studio can force the scam outcome; forcing skips the profile draw, so it changes the whole
+    # sampling path. A command line resume passes no outcome, so it must read the forced one back
+    # from the stored call and rebuild the same receiver, not a fresh one.
+    store = Store(tmp_path / "calls.db")
+    agents = live.fake_agents(CONFIG, "romance")
+    capture, cancel = live.Capture(agents), threading.Event()
+    spec = live.CallSpec("romance", 3, outcome="scammed")
+    for event in live.stream_call(spec, store, agents, CONFIG, None, capture, cancel):
+        if event.kind == "turn" and event.index == 1:
+            cancel.set()  # stopped in the studio after two turns
+    started = store.load("romance_00003")["generation"]["call"]["receiver"]
+    assert started["scam_outcome"] == "scammed"
+    assert simulate.sample_config("romance", 3, CONFIG).receiver.scam_outcome != "scammed"
+
+    caller = [
+        dict(line="ขอรหัส {OTP} ด้วยครับ", asks_now=True, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    resumed = make_agents(caller, [dict(line="ค่ะ", end_call=False)], judge(start=2))
+    rec = run_call("romance", 3, store, resumed, CONFIG).to_dict()  # --resume, no outcome
+    assert rec["generation"]["call"]["receiver"] == started  # the same person, not a fresh draw
+    assert rec["generation"]["status"] == "accepted"

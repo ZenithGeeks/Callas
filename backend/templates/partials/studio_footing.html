@@ -1,0 +1,9 @@
+{# The receiver's footing: who the caller is to them and how to talk, worked out once from the
+   caller's opening (relationship calls only), shown before the receiver's first line. #}
+{% import "partials/_studio.html" as st %}
+<li id="msg-footing" class="studio-card footing-card" data-side="right">
+  <h3 class="sec-h">Receiver's footing</h3>
+  <p class="mt-3" lang="th">{{ footing }}</p>
+  {{ st.tag(tag) }}
+  {{ st.trace(tag) }}
+</li>

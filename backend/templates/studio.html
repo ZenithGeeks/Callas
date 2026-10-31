@@ -67,6 +67,16 @@
     </fieldset>
 
     <div class="studio-row">
+      <label for="outcome">Scam outcome <span class="opt">scam calls</span></label>
+      <select id="outcome" name="outcome" class="select">
+        <option value="random">🎲 Random (50/50)</option>
+        <option value="scammed">Receiver gets scammed</option>
+        <option value="safe">Receiver stays safe</option>
+      </select>
+      <p class="studio-help">Forces whether the receiver falls for the scam (a matching persona is chosen). Random balances the dataset 50/50 by seed. Applies to a random person only &mdash; a saved or described person keeps its own nature.</p>
+    </div>
+
+    <div class="studio-row">
       <label for="seed">Seed <span class="opt">optional</span></label>
       <input id="seed" name="seed" type="text" class="studio-input" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="Next free seed" autocomplete="off" aria-describedby="seed-help">
       <p id="seed-help" class="studio-help">The same seed, scenario and person give the same setup. Empty takes the next free seed.</p>

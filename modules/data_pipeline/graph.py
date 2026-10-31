@@ -32,7 +32,7 @@ from .records import Briefing, CallRecord, GenerationStatus, Turn
 from .scenarios import CallConfig
 from .store import Store
 from .tts import Voices
-from .turns import CALLER, RECEIVER, is_model_error, write_plan, write_turn
+from .turns import CALLER, RECEIVER, is_model_error, read_footing, write_plan, write_turn
 
 log = logging.getLogger("data_pipeline")
 
@@ -41,6 +41,7 @@ class CallState(TypedDict):
     """What changes while a call runs. Each node returns only the fields it changed."""
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
+    footing: str | None  # the receiver's footing; None until read on its first turn
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
     status: GenerationStatus
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
@@ -64,6 +65,7 @@ def initial_state(record: CallRecord) -> CallState:
     generation = record.generation
     return {
         "briefing": generation.briefing,
+        "footing": generation.footing,
         "turns": generation.turns,
         "status": generation.status,
         "ending": None,
@@ -75,6 +77,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
     generation = replace(
         record.generation,
         briefing=state["briefing"],
+        footing=state["footing"],
         turns=state["turns"],
         status=state["status"],
     )
@@ -152,19 +155,27 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     """
     turns = state["turns"]
     plan_steps = state["briefing"].plan if state["briefing"] else []  # a normal call has none
+    update = {}
+    if speaker == RECEIVER and state["footing"] is None:
+        # Read once, on the receiver's first turn, and saved with the call, so the register never
+        # drifts and a resume reuses it instead of asking again. "" (a stranger) counts as read.
+        update["footing"] = read_footing(ctx.agents, ctx.call, ctx.config, turns, ctx.filler)
+    footing = update.get("footing", state["footing"]) or ""
     try:
-        turn = write_turn(ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker)
+        turn = write_turn(
+            ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker, footing
+        )
     except ContextTooLong as exc:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
         log.warning("%s: %s", ctx.record.id, exc)
-        update = {"status": "rejected", "ending": ended_early(turns)}
+        update |= {"status": "rejected", "ending": ended_early(turns)}
         ctx.store.save_call(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
         turn = speak_turn(ctx.voices, turn, len(turns), ctx.record, ctx.store.folder)
-    ctx.store.save_call(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
-    return {"turns": [turn]}
+    ctx.store.save_call(to_record(ctx.record, {**state, **update, "turns": [*turns, turn]}))
+    return {**update, "turns": [turn]}
 
 
 def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
