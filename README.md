@@ -116,6 +116,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `PYTHAIASR_DATA_DIR` | `~/pythaiasr-data` | Where pythaiasr keeps downloaded models. Not in `.env` by default |
 | `DIARIZER` | `nemotron` | Speaker split: `nemotron` or `pyannote_segmentation` |
 | `AUTOCORRECT` | `off` | Fix misspelled Thai words in each turn: `off` or `pythainlp`. Keep `off`; see [`docs/eval/autocorrect.md`](docs/eval/autocorrect.md) |
+| `SPELL_REPAIR` | `off` | Last autocorrect step: fix the vowel and tone marks of words still unknown, scored in their sentence by WangchanBERTa: `on` or `off`. See [`docs/sentence-level-benchmark.md`](docs/sentence-level-benchmark.md) |
 | `TTS_PRETRAINED` | `fastthaig2p` | Voice engine (PyThaiTTS) |
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |

@@ -14,6 +14,7 @@ _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 _REPLY_ENGINES = ("prompt", "dspy")
 _LEAK_JUDGES = ("off", "on")
 _AUTOCORRECTS = ("off", "pythainlp")
+_SPELL_REPAIRS = ("off", "on")
 _TRACINGS = ("off", "phoenix")
 DIARIZERS = ("nemotron", "pyannote_segmentation")
 
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
 
     # Fix misspelled Thai words in each transcript turn: "off" or "pythainlp" (see nlp_core.text).
     autocorrect: str = "off"
+    # Last autocorrect step: fix the marks of words still unknown, scored in the sentence by
+    # WangchanBERTa: "on" or "off" (see docs/sentence-level-benchmark.md). Off: about 1 change in
+    # 5 to 12 was wrong on new calls, so it is kept only as an option.
+    spell_repair: str = "off"
 
     # Speaker-split model: "nemotron" (Nemotron-3 diarization) or "pyannote_segmentation".
     diarizer: str = "nemotron"
@@ -61,7 +66,13 @@ class Settings(BaseSettings):
     tts_speaker: str = "thai_som"
 
     @field_validator(
-        "reply_engine", "leak_judge", "diarizer", "autocorrect", "tracing", mode="before"
+        "reply_engine",
+        "leak_judge",
+        "diarizer",
+        "autocorrect",
+        "spell_repair",
+        "tracing",
+        mode="before",
     )
     @classmethod
     def _lower(cls, v):
@@ -86,6 +97,13 @@ class Settings(BaseSettings):
     def _check_autocorrect(cls, v: str) -> str:
         if v not in _AUTOCORRECTS:
             raise ValueError(f"AUTOCORRECT must be one of {_AUTOCORRECTS}, got {v!r}")
+        return v
+
+    @field_validator("spell_repair")
+    @classmethod
+    def _check_spell_repair(cls, v: str) -> str:
+        if v not in _SPELL_REPAIRS:
+            raise ValueError(f"SPELL_REPAIR must be one of {_SPELL_REPAIRS}, got {v!r}")
         return v
 
     @field_validator("tracing")

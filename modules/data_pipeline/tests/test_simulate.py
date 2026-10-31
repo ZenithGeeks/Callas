@@ -99,7 +99,10 @@ def test_scam_call_record(tmp_path):
     assert store.load(record_id("phishing_otp", 1)) == rec
 
 
-def test_turn_text_is_cleaned_and_raw_keeps_the_model_line(tmp_path):
+def test_turn_text_is_cleaned_and_raw_keeps_the_model_line(tmp_path, monkeypatch):
+    from nlp_core import text as nlp_text
+
+    monkeypatch.setattr(nlp_text, "_mlm", lambda: None)  # no sentence repair: it would fix เกิด่
     messy = "เกิด่่ขึ้น   กับ  {ORG} ครับ"  # doubled tone mark and extra spaces
     caller = [dict(SCAM[0], line=messy), *SCAM[1:]]
     agents = make_agents(caller, REPLIES, judge(start=2))
