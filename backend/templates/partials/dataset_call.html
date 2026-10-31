@@ -121,6 +121,7 @@
                 {% for f in t.flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
               </ul>
               {% endif %}
+              {{ ui.fixes(t.fixes) }}
               {% if t.spoken or t.prompt_tokens or t.usage %}
               <p class="mt-1 text-[14px] tabular-nums text-muted" lang="th">
                 {% if t.spoken %}Spoken: {{ t.spoken }}{% endif %}{% if t.spoken and (t.prompt_tokens or t.usage) %} · {% endif %}{% if t.usage %}{{ ui.step_tokens(t.usage) }}{% elif t.prompt_tokens %}<span lang="en">Prompt about {{ t.prompt_tokens }} tokens</span>{% endif %}

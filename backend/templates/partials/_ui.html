@@ -80,6 +80,17 @@
 </section>
 {%- endmacro %}
 
+{# What the spelling cleanup changed in a turn: "Fixed: <del>before</del> → <ins>after</ins>".
+   <del>/<ins> so the strike-through needs no CSS class. #}
+{% macro fixes(items) %}
+{% if items %}
+<p class="mt-1 text-[14px] text-muted" lang="th" data-fixes>
+  <span lang="en">Fixed:</span>
+  {% for f in items %}<del>{{ f.before }}</del> → <ins class="font-medium text-ink">{{ f.after }}</ins>{% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
+{%- endmacro %}
+
 {# Empty state: a quiet ruled block, never a fake verdict. #}
 {% macro placeholder(title, text) %}
 <section class="flex min-h-[200px] flex-col justify-center rounded-[20px] bg-paper px-8 py-8 lg:min-h-[273px] lg:px-10" data-placeholder>

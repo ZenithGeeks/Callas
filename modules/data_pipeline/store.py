@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS turns (
     problems   TEXT NOT NULL DEFAULT '[]',
     leaked     TEXT NOT NULL DEFAULT '[]',   -- JSON labels this receiver turn gave away
     spelling   TEXT NOT NULL DEFAULT '[]',
+    fixes      TEXT NOT NULL DEFAULT '[]',   -- JSON {"before", "after"}: what cleanup changed
     latency_s  REAL,
     prompt_tokens INTEGER,                   -- estimated size of the prompt sent for this turn
     usage      TEXT NOT NULL DEFAULT '{}',   -- JSON real tokens from the server (usage.py)
@@ -143,13 +144,14 @@ _TURN_COLUMNS = (
     "problems",
     "leaked",
     "spelling",
+    "fixes",
     "latency_s",
     "prompt_tokens",
     "usage",
     "audio",
     "audio_s",
 )
-_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling", "usage")
+_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling", "fixes", "usage")
 # Columns added after the first release: (table, column, definition). An existing
 # database gets them with ALTER TABLE when it is opened.
 _ADDED_COLUMNS = (
@@ -160,6 +162,7 @@ _ADDED_COLUMNS = (
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
+    ("turns", "fixes", "TEXT NOT NULL DEFAULT '[]'"),
     ("turns", "usage", "TEXT NOT NULL DEFAULT '{}'"),
 )
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")
@@ -430,6 +433,36 @@ class Store:
             }
             for r in rows
         ]
+
+    def notes_named(self, scam_type: str, summaries: list[str]) -> list[dict]:
+        """The stored notes of one scam type with these summaries, in the order given, active or
+        not. A summary no note has any more (a wiki edit since) is left out."""
+        if not summaries:
+            return []
+        marks = ", ".join("?" * len(summaries))
+        rows = (
+            self._conn()
+            .execute(
+                f"""SELECT * FROM pattern_notes WHERE scam_type = ? AND summary IN ({marks})
+               ORDER BY id""",
+                (scam_type, *summaries),
+            )
+            .fetchall()
+        )
+        by_summary = {}
+        for r in rows:  # two notes with one summary: the first one, as the wiki lists them
+            by_summary.setdefault(
+                r["summary"],
+                {
+                    "id": r["id"],
+                    "source": r["source"],
+                    "published": r["published"],
+                    "summary": r["summary"],
+                    "tactics": json.loads(r["tactics"]),
+                    "phrases": json.loads(r["phrases"]),
+                },
+            )
+        return [by_summary[s] for s in dict.fromkeys(summaries) if s in by_summary]
 
     def replace_notes(self, scam_type: str, notes: list[dict]) -> None:
         """Make the stored notes of one scam type exactly `notes`, in order, in one transaction.

@@ -12,7 +12,7 @@ slot_rule: &slot_rule >-
   Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
   directions, no speaker name. Never write a real number, account, code, link or name: write
   the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
-  {MONEY}). These are the only slots: for any other detail (another person's name, an
+  {MONEY} {LINE_ID}). These are the only slots: for any other detail (another person's name, an
   address, the receiver's own phone, account or ID) stay vague instead of inventing a slot or
   claiming to know it. Do not repeat a line already said.
 
@@ -24,6 +24,13 @@ speakers:
     male: "male: say ผม and ครับ"
     female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ"
   # The romance scam caller gets docs/scam-wiki/romance_voice.md instead of `voice`.
+  # Added to the speaker's pacing (callers) or stage (receiver) on the last two turns, so a call
+  # that reaches max_turns ends with a closing line instead of stopping mid-scene (#150).
+  ending:
+    soon: "The call ends after one more reply: start wrapping up, in character."
+    last: "This is the call's last line: answer briefly and say goodbye, in character."
+    # added for the receiver of a scam call meant to end with it scammed (scam_outcome)
+    scammed: "You go along: say clearly that you will now do exactly what the caller asked (name it)."
 
 scam_caller:
   # Shared by every scam type. Each type's own rules follow in `by_type`.
@@ -62,9 +69,9 @@ scam_caller:
         a worry with "เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ".
       - &line_id >-
         Only if your goal or tactics name LINE, give your own LINE ID aloud in the same line and tell
-        the receiver to add you: "แอดไลน์ไอดี <your ID> ไว้นะครับ", where the ID is 5 to 8 lowercase
-        English letters you make up for this call (no link, no digits). Never send the ID by SMS and
-        never ask for the receiver's LINE ID.
+        the receiver to add you, writing the ID as {LINE_ID}: "แอดไลน์ไอดี {LINE_ID} ไว้นะครับ".
+        Never make up an ID or write one in English letters. Never send the ID by SMS and never
+        ask for the receiver's LINE ID.
       - &transfer_slip >-
         A transfer slip (สลิป) is a picture: never ask for it to a phone number, by call
         or by SMS reply; ask for it on LINE if your goal or tactics name LINE, otherwise through the
@@ -118,6 +125,7 @@ legit_caller:
     goal: why you are calling
     manner: how you handle the call
     receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
+    pacing: where you are in the call; empty means carry on as normal
     conversation: the call so far, in Thai
     line: *slot_rule
     end_call: true if you hang up after this line
@@ -148,7 +156,7 @@ receiver:
     Write any detail only as its slot, never as digits or an invented value, and never any other
     number. {RECEIVER_NAME} is your own name: if the caller greets you by it, greet them back, do
     not greet yourself by it. The caller's numbers and links reach you as slots too ({MONEY},
-    {PHONE}, {BANK_ACCOUNT}, {URL}): a slot is a detail already given, so do not ask for it again;
+    {PHONE}, {BANK_ACCOUNT}, {URL}, {LINE_ID}): a slot is a detail already given, so do not ask for it again;
     to repeat one, write its slot.
     Plan before you speak: in your reasoning first say what is going on and what the caller wants,
     then what you will do this turn and why; then write your line to match.
@@ -261,6 +269,13 @@ judge:
     already checked basic spelling, so assess language realism against the supplied criteria
     rather than inventing spelling claims. Also check the call against the scenario and receiver
     persona selected before it started. Give a short, concrete reason for every scored check.
+    The pattern notes are the scam wiki's reports of how this scam type works right now, the
+    ones the caller's plan was built from. Use them as reference examples for the intended-call
+    and language-realism checks: a call that follows a current pattern shows the intended kind
+    even if it differs from a textbook version, and the notes show credible pretexts, step order
+    and Thai phrasing. They are examples, not a checklist: never fail a call for leaving out a
+    note's tactics or phrases, and never let them replace the selected scenario in the
+    persona-and-scenario check.
   fields:
     intended: what this call is meant to be
     transcript: "numbered speaker turns, [n] speaker: text"
@@ -270,15 +285,23 @@ judge:
       organisation ("*" a made-up company), its goal, its tactics or manner, and any prior
       relationship the receiver believes in. {SLOTS} stand for values filled into the transcript
     persona: the receiver persona selected before the call started
+    pattern_notes: >-
+      the scam wiki's notes on how real scams of this type work now (summary, tactics, typical
+      phrases with {SLOTS}); reference examples only, not a checklist
     scam_clear: >-
       true only if the transcript clearly establishes whether it is a scam (for a normal call,
       clearly establishes that it is not); false if that conclusion is ambiguous
     scam_clarity_reason: short English reason for the scam-clarity decision, citing the transcript
-    label_holds: true only if the transcript on its own clearly shows the intended kind of call
-    label_reason: short English reason for the intended-call decision, citing the transcript
+    label_holds: >-
+      true only if the transcript on its own clearly shows the intended kind of call; a call
+      that follows one of the pattern notes shows it
+    label_reason: >-
+      short English reason for the intended-call decision, citing the transcript and, when one
+      fits, the pattern note it follows
     language_realistic: >-
       true only if the language and turn-taking satisfy the supplied realism criteria overall;
-      false when a material criterion is violated
+      false when a material criterion is violated. The pattern notes show what real callers of
+      this type claim, ask for and say, as a guide to credible pretexts and plausible tactics
     language_realism_reason: short English reason for the language-realism decision, citing examples
     setup_holds: >-
       true only if the call reflects the selected scenario and persona: the caller plays the

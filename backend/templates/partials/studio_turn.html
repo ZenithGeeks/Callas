@@ -19,6 +19,7 @@
       {% for f in flags %}<li class="trow-tag !mt-0" data-tone="unsure" lang="th">{{ f }}</li>{% endfor %}
     </ul>
     {% endif %}
+    {{ ui.fixes(turn.fixes) }}
     {{ st.tag(tag) }}
     {% if turn.usage %}<p class="mt-1 text-[14px] tabular-nums text-muted">{{ ui.step_tokens(turn.usage) }}</p>{% endif %}
     {% if turn.reasoning %}

@@ -41,6 +41,7 @@ def record(rid="phishing_otp_00001", status="accepted", scam=True):
             "problems": ["number_without_slot"],
             "leaked": ["OTP", "ID_CARD"],
             "spelling": [],
+            "fixes": [{"before": "ให่้", "after": "ให้"}],
             "audio": f"audio/{rid}/01_B.wav",
         },
     ]
@@ -457,6 +458,12 @@ def test_a_leaking_receiver_turn_is_tagged(client, db_path):
     assert html.count("Leaked: OTP, ID CARD") == 1
     assert 'data-tone="alarm" data-leak lang="en">Leaked: OTP, ID CARD<' in html
     assert dataset.leaked_text({"leaked": []}) == "" and dataset.leaked_text({}) == ""
+
+
+def test_the_detail_shows_what_the_cleanup_fixed(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert html.count("data-fixes") == 1  # the other turn had nothing fixed
+    assert "<del>ให่้</del> → <ins" in html and ">ให้</ins>" in html
 
 
 def test_the_detail_shows_spoken_text_prompt_size_and_speech_style(client, db_path):

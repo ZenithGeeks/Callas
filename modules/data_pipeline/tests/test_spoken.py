@@ -123,3 +123,8 @@ def test_house_and_soi_numbers_are_read_by_place_value():
 
 def test_a_postcode_stays_digit_by_digit():
     assert say("ADDRESS", "จังหวัดขอนแก่น 40000", DASH) == "จังหวัดขอนแก่น สี่ศูนย์ศูนย์ศูนย์ศูนย์"
+
+
+def test_a_line_id_is_spelled_letter_by_letter_in_thai():
+    assert say("LINE_ID", "viphost", DASH) == "วี ไอ พี เอช โอ เอส ที"
+    assert say("LINE_ID", "luxwin", PAUSE) == "แอล ยู เอ็กซ์ ดับเบิลยู ไอ เอ็น"

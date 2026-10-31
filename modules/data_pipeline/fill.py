@@ -24,6 +24,7 @@ SLOT_LABEL = {
     "OTP": "OTP",
     "URL": "URL",
     "MONEY": "MONEY",
+    "LINE_ID": "LINE_ID",
     "RECEIVER_PHONE": "PHONE",
     "RECEIVER_ACCOUNT": "BANK_ACCOUNT",
     "ID_CARD": "ID_CARD",
@@ -54,7 +55,7 @@ RECEIVER_OWN_SLOTS = (
 # The caller's numbers and links. The receiver hears them as slots too, so a receiver that
 # repeats one writes the slot, not digits that get the call rejected as number_without_slot
 # (#99). Repeating one of these is not a leak: only RECEIVER_LEAK_SLOTS are.
-CALLER_NUMBER_SLOTS = ("PHONE", "BANK_ACCOUNT", "OTP", "URL", "MONEY")
+CALLER_NUMBER_SLOTS = ("PHONE", "BANK_ACCOUNT", "OTP", "URL", "MONEY", "LINE_ID")
 # Slots a caller cannot know: the person who answered owns these. A caller turn that uses one
 # is flagged (turns.write_turn). {RECEIVER_NAME} is not here: a caller may know the name.
 RECEIVER_ONLY_SLOTS = ("RECEIVER_PHONE", "RECEIVER_ACCOUNT", "ID_CARD", "BIRTH_DATE", "ADDRESS")
@@ -82,6 +83,15 @@ SLOT_RE = re.compile(r"\{([A-Z_]+)\}")
 # 2 digits) are fine. A year such as 2568 counts as a bare number too.
 _LOOSE_DIGITS = re.compile(r"\d{4}|\d+(?:[,. -]\d{3,4})+")
 _LINE_START = re.compile(r"[AB]\s*:")  # a speaker tag the model copied into its line
+# A LINE ID the model made up instead of writing {LINE_ID} (#143): in a line that names LINE, a
+# Latin word of 5 or more characters that is all lowercase or has a digit or "_" (viphost01,
+# landdoc, HomeProRefund2025). A name such as "PEA Digital Meter Support" is not caught.
+_NAMES_LINE = re.compile(r"ไลน์|ไอดี|LINE", re.IGNORECASE)
+_MADE_UP_ID = re.compile(
+    r"(?<![A-Za-z0-9_.])(?=[A-Za-z0-9_.]{5})"
+    r"(?:[a-z][a-z.]*|[A-Za-z][A-Za-z0-9_.]*[0-9_][A-Za-z0-9_.]*)"
+    r"(?![A-Za-z0-9_.])"
+)
 _BAHT_AFTER = re.compile(r"^\s*บาท")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
 PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
@@ -130,6 +140,8 @@ class SlotFiller:
             "ID_CARD": _id_card(rng),
             "BIRTH_DATE": _birth_date(rng, call.receiver.age),
             "ADDRESS": _address(rng, details.addresses),
+            # added after the receiver's details (#143) so every value above stays what it was
+            "LINE_ID": _line_id(rng, details.line_ids),
         }
 
     def fill(self, raw: str) -> tuple[str, list[dict], list[str]]:
@@ -179,6 +191,8 @@ def _line_problems(raw: str, text: str) -> list[str]:
         problems.append("stray_brace")
     if "\n" in raw or "\r" in raw or _LINE_START.match(raw.lstrip()):
         problems.append("line_break")  # a line is one turn: no second turn, no speaker tag
+    if _NAMES_LINE.search(raw) and _MADE_UP_ID.search(SLOT_RE.sub("|", raw)):
+        problems.append("line_id_without_slot")
     return problems
 
 
@@ -272,6 +286,12 @@ def _bank_account(rng: random.Random) -> str:
 def _url(rng: random.Random, words: list[str], tlds: list[str]) -> str:
     first, second = rng.choice(words), rng.choice(words)
     return f"https://{first}-{second}{rng.randint(10, 99)}.{rng.choice(tlds)}"
+
+
+def _line_id(rng: random.Random, parts: list[str]) -> str:
+    """Two different parts joined, e.g. "viphost": lowercase letters, no digits."""
+    first, second = rng.sample(parts, 2)
+    return first + second
 
 
 def _id_card(rng: random.Random) -> str:

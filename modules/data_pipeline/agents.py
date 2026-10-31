@@ -58,6 +58,7 @@ class LegitCallerTurn(dspy.Signature):
     goal: str = dspy.InputField()
     manner: str = dspy.InputField()
     receiver_name: str = dspy.InputField()
+    pacing: str = dspy.InputField()  # "" until the last two turns (turns.ending)
     conversation: str = dspy.InputField()
     line: str = dspy.OutputField()
     end_call: bool = dspy.OutputField()
@@ -126,6 +127,7 @@ class JudgeCall(dspy.Signature):
     realism_criteria: list[str] = dspy.InputField()
     scenario: dict = dspy.InputField()  # the selected scenario's role, org, goal, tactics, context
     persona: dict = dspy.InputField()  # the selected ReceiverProfile as a dict, without its key
+    pattern_notes: str = dspy.InputField()  # the wiki notes the planner read for this call
     scam_clear: bool = dspy.OutputField()
     scam_clarity_reason: str = dspy.OutputField()
     label_holds: bool = dspy.OutputField()

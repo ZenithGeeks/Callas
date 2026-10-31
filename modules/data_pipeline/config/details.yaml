@@ -11,6 +11,7 @@
 #   made_up_orgs  {ORG} when a scenario's org is "*"
 #   podcasts      {ORG} when a scenario's org is "พอดแคสต์" (made-up podcast names)
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
+#   line_ids      {LINE_ID} = <part><part>, two different parts, lowercase letters only
 #   money         {MONEY} in baht; big_types use the big amounts
 #   addresses     the receiver's {ADDRESS} = <house number> ซอย<soi> <district> <province>
 #
@@ -186,6 +187,25 @@ urls:
   - online
   - xyz
   - co
+line_ids:
+  # {LINE_ID} = two different parts joined, e.g. viphost. Keep each part 3 or 4 lowercase
+  # letters, so every ID is 6 to 8 letters with no digits.
+  - host
+  - vip
+  - land
+  - doc
+  - care
+  - help
+  - gold
+  - team
+  - desk
+  - mint
+  - nova
+  - sky
+  - lux
+  - win
+  - fin
+  - star
 money:
   big_types:
   - fake_authority
