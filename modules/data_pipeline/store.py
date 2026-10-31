@@ -428,6 +428,36 @@ class Store:
             for r in rows
         ]
 
+    def notes_named(self, scam_type: str, summaries: list[str]) -> list[dict]:
+        """The stored notes of one scam type with these summaries, in the order given, active or
+        not. A summary no note has any more (a wiki edit since) is left out."""
+        if not summaries:
+            return []
+        marks = ", ".join("?" * len(summaries))
+        rows = (
+            self._conn()
+            .execute(
+                f"""SELECT * FROM pattern_notes WHERE scam_type = ? AND summary IN ({marks})
+               ORDER BY id""",
+                (scam_type, *summaries),
+            )
+            .fetchall()
+        )
+        by_summary = {}
+        for r in rows:  # two notes with one summary: the first one, as the wiki lists them
+            by_summary.setdefault(
+                r["summary"],
+                {
+                    "id": r["id"],
+                    "source": r["source"],
+                    "published": r["published"],
+                    "summary": r["summary"],
+                    "tactics": json.loads(r["tactics"]),
+                    "phrases": json.loads(r["phrases"]),
+                },
+            )
+        return [by_summary[s] for s in dict.fromkeys(summaries) if s in by_summary]
+
     def replace_notes(self, scam_type: str, notes: list[dict]) -> None:
         """Make the stored notes of one scam type exactly `notes`, in order, in one transaction.
 
