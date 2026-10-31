@@ -14,8 +14,9 @@ from pathlib import Path
 
 from .agents import Agents
 from .audio import join_audio
-from .budget import prompt_budget, prompt_tokens
+from .budget import prompt_budget, prompt_tokens, trim_notes
 from .config import Config
+from .patterns import render_notes
 from .records import CallRecord, Judge, Turn
 from .tts import Voices
 from .turns import CALLER, RECEIVER, ask
@@ -32,6 +33,7 @@ PASS_MARK_POINTS = 50  # a judged call scoring this or less is rejected, more is
 JUDGE_LOW_CONFIDENCE = "judge_low_confidence"
 # What the judge is shown of the selected scenario; the rest only steers generation.
 _JUDGED_SCENARIO_FIELDS = ("role", "org", "goal", "tactics", "receiver_context")
+NO_NOTES_FOR_NORMAL_CALL = "(a normal call: there are no scam pattern notes)"
 
 # The judge reads clean typed text but still reports typos that are not there (#58).
 _SPELLING_TALK = re.compile(r"spell|typo|tone mark|สะกด", re.IGNORECASE)
@@ -58,11 +60,16 @@ class Ending:
 
 
 def finish_call(
-    record: CallRecord, agents: Agents, config: Config, voices: Voices | None, folder: Path
+    record: CallRecord,
+    agents: Agents,
+    config: Config,
+    voices: Voices | None,
+    folder: Path,
+    notes: list[dict] | None = None,
 ) -> Ending:
     """Build the text, join the audio, ask the judge, and list the reasons to reject the call.
 
-    `record` is the call as stored so far.
+    `record` is the call as stored so far. `notes` are the wiki notes the planner read.
     """
     turns = record.generation.turns
     text, speaker_turns, entities = call_text(turns)
@@ -75,7 +82,7 @@ def finish_call(
             {**speaker_turn, "start": start, "end": end}
             for speaker_turn, (start, end) in zip(speaker_turns, times, strict=True)
         ]
-    judge = ask_judge(agents, config, turns, record.label_type, record.generation.call)
+    judge = ask_judge(agents, config, turns, record.label_type, record.generation.call, notes)
     start, start_from = None, None
     if record.label_scam:
         reveal_turn = record.generation.call["reveal_turn"]
@@ -136,12 +143,19 @@ def leak_summary(turns: list[Turn]) -> tuple[list[str], int | None]:
 
 
 def ask_judge(
-    agents: Agents, config: Config, turns: list[Turn], label_type: str | None, call: dict
+    agents: Agents,
+    config: Config,
+    turns: list[Turn],
+    label_type: str | None,
+    call: dict,
+    notes: list[dict] | None = None,
 ) -> Judge:
     """The judge's answer: does the call show what its label says, does it reflect the persona
     and scenario selected before it started, and where does the scam start.
 
-    `call` is the sampled CallConfig as stored in generation.call.
+    `call` is the sampled CallConfig as stored in generation.call. `notes` are the wiki notes
+    the planner read; they help the intended-call and language-realism checks. When the prompt
+    is too long the oldest notes are dropped first, since the judge must read the whole call.
     """
     speakers = config.agents.speakers
     tag = {CALLER: speakers.caller_tag, RECEIVER: speakers.receiver_tag}
@@ -161,8 +175,18 @@ def ask_judge(
         # the profile key is for choosing a profile on the command line, not for the model
         persona={name: value for name, value in call["receiver"].items() if name != "key"},
     )
-    tokens = prompt_tokens(agents.signatures["judge"], judge_inputs)
-    if tokens > prompt_budget(config, "judge"):
+    signature, budget = agents.signatures["judge"], prompt_budget(config, "judge")
+
+    def notes_text(kept) -> str:
+        return render_notes(list(kept)) if label_type else NO_NOTES_FOR_NORMAL_CALL
+
+    def tokens_with(kept) -> int:
+        return prompt_tokens(signature, {**judge_inputs, "pattern_notes": notes_text(kept)})
+
+    notes = trim_notes(notes or [], lambda kept: tokens_with(kept) <= budget)
+    judge_inputs["pattern_notes"] = notes_text(notes)
+    tokens = prompt_tokens(signature, judge_inputs)
+    if tokens > budget:
         # The judge must read the whole call, so a call that does not fit is not judged at all.
         return Judge(
             label_holds=False,
@@ -196,6 +220,7 @@ def ask_judge(
         summary=(pred.summary or "").strip(),
         issues=drop_false_spelling((pred.issues or "").strip(), turns),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
+        notes_used=[note["summary"] for note in notes],
     )
 
 

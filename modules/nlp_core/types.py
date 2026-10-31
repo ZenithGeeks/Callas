@@ -25,6 +25,7 @@ ENTITY_LABELS: tuple[str, ...] = (
     "ID_CARD",
     "BIRTH_DATE",
     "ADDRESS",
+    "LINE_ID",  # since #143; LINE IDs in calls made before it are plain text, not labelled
 )
 
 

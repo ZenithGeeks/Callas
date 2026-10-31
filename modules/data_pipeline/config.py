@@ -189,6 +189,15 @@ class JudgeSettings(AgentSettings):
         return v
 
 
+class Ending(_Strict):
+    """The note a speaker gets near the call's turn limit (turns.ending)."""
+
+    soon: str  # on the second-to-last turn: the other person speaks once more
+    last: str  # on the last turn of the call
+    # added for the receiver when the call is meant to end with it scammed: it confirms the action
+    scammed: str
+
+
 class Speakers(_Strict):
     """How the two speakers are labelled and addressed in the conversation text."""
 
@@ -196,6 +205,7 @@ class Speakers(_Strict):
     receiver_tag: str
     empty_call: str  # the conversation text before anyone has spoken
     voice: dict[str, str]  # gender -> pronoun and particle hint
+    ending: Ending  # what the speaker is told on the last two turns of the call
 
 
 class TTS(_Strict):
@@ -507,6 +517,9 @@ class Urls(_Strict):
     tlds: list[str] = Field(min_length=1)
 
 
+DEFAULT_LINE_ID_PARTS = ["host", "vip", "land", "doc", "care", "help", "gold", "team"]
+
+
 class AddressParts(_Strict):
     """Pieces of the receiver's made-up {ADDRESS}: <house> ซอย<soi> <district> <province>."""
 
@@ -541,6 +554,8 @@ class DetailsFile(_Strict):
     podcasts: list[str] = []  # older config folders have none; made_up_orgs is used instead
     schools: list[str] = []  # older config folders have none; made_up_orgs is used instead
     urls: Urls
+    # parts of a made-up {LINE_ID}; older config folders have none
+    line_ids: list[str] = Field(default=DEFAULT_LINE_ID_PARTS, min_length=2)
     money: Money
     addresses: AddressParts = DEFAULT_ADDRESS_PARTS  # older config folders have none
 

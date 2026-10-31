@@ -99,6 +99,65 @@ def test_scam_call_record(tmp_path):
     assert store.load(record_id("phishing_otp", 1)) == rec
 
 
+def test_turn_text_is_cleaned_and_raw_keeps_the_model_line(tmp_path, monkeypatch):
+    from nlp_core import text as nlp_text
+
+    monkeypatch.setattr(nlp_text, "_mlm", lambda: None)  # no sentence repair: it would fix เกิด่
+    messy = "เกิด่่ขึ้น   กับ  {ORG} ครับ"  # doubled tone mark and extra spaces
+    caller = [dict(SCAM[0], line=messy), *SCAM[1:]]
+    agents = make_agents(caller, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    first = rec["generation"]["turns"][0]
+    assert first["raw"] == messy
+    assert first["text"].startswith("เกิด่ขึ้น กับ ")
+    assert "  " not in first["text"]
+    assert "[0]" in agents.judge.calls[0]["transcript"]
+    assert first["text"] in agents.judge.calls[0]["transcript"]
+    for e in rec["entities"]:  # spans index into the cleaned text
+        assert rec["text"][e["start"] : e["end"]] == e["text"]
+
+
+def test_a_misspelled_word_is_corrected_in_text_whatever_the_setting(tmp_path, monkeypatch):
+    from nlp_core import text as nlp_text
+
+    monkeypatch.setattr(nlp_text, "_fix_word", lambda w: "ขอบคุณ" if w == "ขอบคนุ" else w)
+    replies = [dict(REPLIES[0], line="ขอบคนุ ค่ะ มีอะไรคะ"), *REPLIES[1:]]
+    agents = make_agents(SCAM, replies, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    reply = rec["generation"]["turns"][1]
+    assert reply["raw"] == "ขอบคนุ ค่ะ มีอะไรคะ"
+    assert reply["text"] == "ขอบคุณ ค่ะ มีอะไรคะ"
+    assert "ขอบคุณ ค่ะ" in agents.judge.calls[0]["transcript"]
+
+
+def test_a_fixed_tone_mark_is_listed_in_fixes_not_flagged_or_rejected(tmp_path):
+    garbled = "ผมไม่สะดวกโอนเงินเข้าบัญชีอื่่นๆ แบบนั้้นนะ"  # doubled tone marks (studio, #romance)
+    replies = [dict(REPLIES[0], line=garbled), *REPLIES[1:]]
+    agents = make_agents(SCAM, replies, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    reply = rec["generation"]["turns"][1]
+    assert reply["raw"] == garbled
+    assert reply["text"] == "ผมไม่สะดวกโอนเงินเข้าบัญชีอื่นๆ แบบนั้นนะ"
+    assert "tone_mark_order" not in reply["spelling"]  # the spell check reads the cleaned line
+    assert reply["fixes"] == [
+        {"before": "อื่่นๆ", "after": "อื่นๆ"},
+        {"before": "นั้้น", "after": "นั้น"},
+    ]
+    assert "tone_mark_order" not in rec["generation"]["reasons"]
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "fixes"),
+    [
+        ("สวัสดี   ครับ", "สวัสดี ครับ", []),  # spacing alone is not listed
+        ("เยอะมากเลยท่ีรัก", "เยอะมากเลยที่รัก", [{"before": "ท่ีรัก", "after": "ที่รัก"}]),
+        ("ให้คณุนะคะ", "ให้คุณนะคะ", [{"before": "คณุ", "after": "คุณ"}]),
+    ],
+)
+def test_text_fixes_lists_each_changed_word(before, after, fixes):
+    assert turn_module.text_fixes(before, after) == fixes
+
+
 @pytest.mark.parametrize(
     ("scam_clear", "label_holds", "language_realistic", "setup_holds", "expected"),
     [
@@ -367,6 +426,57 @@ def test_planner_reads_pattern_notes(tmp_path):
     rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
     assert "Callers pose as bank security" in agents.planner.calls[0]["pattern_notes"]
     assert rec["generation"]["briefing"]["notes_used"] == ["Callers pose as bank security"]
+
+
+def test_the_judge_reads_the_notes_the_planner_read(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    store.add_note(
+        "phishing_otp",
+        "Callers pose as bank security",
+        ["say an account was hacked", "ask for the OTP"],
+        ["มีคนพยายามเข้าบัญชีของคุณ"],
+    )
+    store.add_note("romance", "A lover needs money for a ticket", ["build trust"], [])
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, store, agents, CONFIG).to_dict()
+    notes = agents.judge.calls[0]["pattern_notes"]
+    assert "Callers pose as bank security" in notes and "tactic: ask for the OTP" in notes
+    assert "A lover" not in notes  # another scam type's note
+    assert rec["generation"]["judge"]["notes_used"] == ["Callers pose as bank security"]
+
+
+def test_a_normal_call_gives_the_judge_no_notes(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    store.add_note("phishing_otp", "Callers pose as bank security", ["ask for the OTP"], [])
+    legit = [dict(line="สวัสดีครับ", end_call=False), dict(line="ขอบคุณครับ", end_call=True)]
+    agents = make_agents(legit, [dict(line="ค่ะ", end_call=False)], judge())
+    rec = run_call("benign", 1, store, agents, CONFIG).to_dict()
+    assert "no scam pattern notes" in agents.judge.calls[0]["pattern_notes"]
+    assert "notes_used" not in rec["generation"]["judge"]
+
+
+def test_the_judge_drops_oldest_notes_to_fit_but_still_judges(tmp_path):
+    from data_pipeline.finish import ask_judge
+
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    call = sample_config("phishing_otp", 1, CONFIG).to_dict()
+    turns = [Turn(speaker="A", text="สวัสดีครับ"), Turn(speaker="B", text="ค่ะ")]
+    notes = [
+        dict(summary=f"note {i}", tactics=["tactic " + "ก" * 3000], phrases=[]) for i in range(60)
+    ]
+    answer = ask_judge(agents, CONFIG, turns, "phishing_otp", call, notes)
+    assert not answer.skipped and len(agents.judge.calls) == 1
+    kept = answer.notes_used
+    assert 0 < len(kept) < 60 and kept == [f"note {i}" for i in range(len(kept))]
+
+
+def test_notes_named_keeps_the_order_and_skips_missing(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    for summary in ("first", "second", "third"):
+        store.add_note("lottery", summary, ["t"], [])
+    found = store.notes_named("lottery", ["third", "gone", "first"])
+    assert [n["summary"] for n in found] == ["third", "first"]
+    assert store.notes_named("lottery", []) == []
 
 
 def test_receiver_hears_its_own_name_as_the_slot(tmp_path):
@@ -650,11 +760,13 @@ def test_judge_prompt_stays_small():
             realism_criteria=CONFIG.agents.judge.realism_criteria,
             scenario=call["scenario"],
             persona=call["receiver"],
+            pattern_notes="(no recent notes for this scam type)",
         ),
     )
-    # Measured at 2,442 with dspy 3.4.1 (13 output fields, 9 criteria, a romance scenario and
-    # persona). The prompt budget is about 96K, so this only guards against large growth.
-    assert tokens <= 2_600
+    # Measured at 2,817 with dspy 3.4.1 (13 output fields, 9 criteria, a romance scenario and
+    # persona, the pattern-notes field without notes). The prompt budget is about 96K, so this
+    # only guards against large growth; the notes themselves are cut to fit (finish.ask_judge).
+    assert tokens <= 3_000
 
 
 # ---- the receiver gives away its own details ---------------------------------------------
@@ -901,3 +1013,24 @@ def test_a_command_line_resume_keeps_the_studio_forced_outcome(tmp_path):
     rec = run_call("romance", 3, store, resumed, CONFIG).to_dict()  # --resume, no outcome
     assert rec["generation"]["call"]["receiver"] == started  # the same person, not a fresh draw
     assert rec["generation"]["status"] == "accepted"
+
+
+def test_the_receiver_hears_the_callers_line_id_as_a_slot(tmp_path):
+    caller = [
+        dict(line="แอดไลน์ไอดี {LINE_ID} ไว้นะครับ", asks_now=True, end_call=False),
+        dict(line="แอดแล้วทักมานะครับ", asks_now=False, end_call=False),
+        dict(line="ขอบคุณครับ", asks_now=False, end_call=True),
+    ]
+    echo = [dict(line="ไอดี {LINE_ID} ใช่ไหมคะ", end_call=False)] * 2
+    agents = make_agents(caller, echo, judge(start=0))
+    rec = run_call("investment", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    call = simulate.sample_config("investment", 1, CONFIG)
+    line_id = simulate.SlotFiller(call, CONFIG.details).values["LINE_ID"]
+    last_view = agents.receiver.calls[-1]["conversation"]
+    assert "{LINE_ID}" in last_view and line_id not in last_view
+    turns = rec["generation"]["turns"]
+    # the same ID on every turn that says it, stored as a LINE_ID span
+    for turn in (turns[0], turns[1]):
+        assert line_id in turn["text"]
+        assert {"text": line_id, "label": "LINE_ID"}.items() <= turn["entities"][0].items()
+    assert all(t["problems"] == [] for t in turns)

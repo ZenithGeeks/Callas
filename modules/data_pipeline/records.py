@@ -38,7 +38,9 @@ class Turn:
     reasoning: str = ""
     problems: list[str] = field(default_factory=list)  # reasons to reject the call
     leaked: list[str] = field(default_factory=list)  # receiver only: own details given away
-    spelling: list[str] = field(default_factory=list)  # words that look misspelled
+    spelling: list[str] = field(default_factory=list)  # words still misspelled in the cleaned line
+    # {"before", "after"}: what the cleanup changed between raw and text (turns.text_fixes)
+    fixes: list[dict] = field(default_factory=list)
     latency_s: float | None = None
     prompt_tokens: int | None = None  # estimated size of the prompt that was sent
     audio: str | None = None  # the spoken line, relative to the store's folder
@@ -104,6 +106,8 @@ class Judge:
     natural_thai: int | None = None
     prompt_tokens: int | None = None  # None in answers stored before prompt sizes were kept
     skipped: str = ""  # finish.TOO_LONG_FOR_JUDGE when the call was not judged at all
+    # summaries of the wiki notes the judge read; empty for a normal call and in older answers
+    notes_used: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> Judge:
@@ -139,6 +143,7 @@ class Judge:
             "summary": self.summary,
             "issues": self.issues,
             "reasoning": self.reasoning,
+            **({} if not self.notes_used else {"notes_used": self.notes_used}),
         }
         if self.skipped:
             return {**answer, "skipped": self.skipped, "prompt_tokens": self.prompt_tokens}

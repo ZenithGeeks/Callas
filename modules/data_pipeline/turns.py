@@ -8,7 +8,9 @@ its context window, so the conversation is cut to fit first (budget.py).
 from __future__ import annotations
 
 import logging
+import re
 import time
+from difflib import SequenceMatcher
 
 import dspy
 import openai
@@ -16,6 +18,7 @@ from dspy.utils.exceptions import AdapterParseError
 
 from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
+from nlp_core.text import autocorrect_text, normalize_text
 
 from . import romance_voice
 from .agents import Agents
@@ -63,7 +66,12 @@ def write_turn(
     raw = (pred.line or "").strip()
     if speaker == RECEIVER:  # drop a canned opening exclamation the model keeps reaching for
         raw = strip_leading_interjection(raw)
-    text, entities, problems = filler.fill(raw)
+    # text (what the judge, the record and the voice get) is the cleaned line. Autocorrect is
+    # always on here: typed lines have real misspellings, unlike ASR text
+    # (docs/eval/autocorrect.md), so the AUTOCORRECT setting only covers live calls.
+    # Turn.spelling checks the cleaned line (what is still wrong); Turn.fixes lists what changed.
+    cleaned = autocorrect_text(normalize_text(raw), mode="pythainlp")
+    text, entities, problems = filler.fill(cleaned)
     if speaker == CALLER and any(name in RECEIVER_ONLY_SLOTS for name in SLOT_RE.findall(raw)):
         problems.append("caller_used_receiver_slot")  # a caller cannot know these details
     if speaker == RECEIVER:
@@ -84,7 +92,8 @@ def write_turn(
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
         problems=problems,
         leaked=receiver_leaks(raw) if speaker == RECEIVER else [],
-        spelling=spelling(raw),
+        spelling=spelling(cleaned),
+        fixes=text_fixes(raw, cleaned),
         latency_s=round(time.perf_counter() - started, 3),
         prompt_tokens=tokens,
     )
@@ -114,15 +123,15 @@ def caller_says(
         goal=scenario.goal,
         receiver_name="{RECEIVER_NAME}" if call.caller_knows_name else "unknown",
     )
+    closing = ending(call, config, len(turns))
     if call.label_scam:
         agent = "scam_caller"
         own_turn = len(turns) // 2
-        inputs |= dict(
-            tactics=scenario.tactics, pacing=pacing(call, config, own_turn), plan=plan_steps
-        )
+        steer = " ".join(filter(None, (pacing(call, config, own_turn), closing)))
+        inputs |= dict(tactics=scenario.tactics, pacing=steer, plan=plan_steps)
     else:
         agent = "legit_caller"
-        inputs["manner"] = scenario.tactics
+        inputs |= dict(manner=scenario.tactics, pacing=closing)
     # callers read their own slots ({PHONE}), not the values the receiver heard
     lines = conversation_lines(turns, config, raw=True)
     # the scam caller has one prompt per scam type (agents.ScamCaller)
@@ -141,7 +150,13 @@ def receiver_says(
     footing: str = "",
 ) -> tuple[dspy.Prediction, int]:
     """Ask the receiver for its next line. Returns (answer, prompt tokens)."""
-    stage_text = stage(config, len(turns) // 2)
+    closing = ending(call, config, len(turns))
+    if closing and call.label_scam and call.receiver.scam_outcome == "scammed":
+        # a call locked to end with the receiver scammed closes on it agreeing to the ask
+        closing = f"{closing} {config.agents.speakers.ending.scammed}"
+    stage_text = stage(config, len(turns) // 2, closing=bool(closing))
+    if closing:
+        stage_text = f"{stage_text} {closing}"
     # The receiver always hears the scenario's backstory (romance/family/friend): who the caller is
     # and the prior relationship. `footing` adds to this, setting the register from the opening; the
     # two agree because footing is worked out from this same context plus the caller's first line.
@@ -321,16 +336,55 @@ def pacing(call: CallConfig, config: Config, own_turn: int) -> str:
     return text.format(turn=own_turn + 1, turns=last + 1)
 
 
-def stage(config: Config, own_turn: int) -> str:
-    """Tell the receiver whether it must still stay on the line or may react as it likes."""
+def stage(config: Config, own_turn: int, closing: bool = False) -> str:
+    """Tell the receiver whether it must still stay on the line or may react as it likes.
+
+    `closing`: the call is at its end (see ending), so "do not hang up yet" no longer applies.
+    """
     receiver = config.agents.receiver
-    text = receiver.stage.stay if own_turn < receiver.stay_on_line else receiver.stage.free
+    stay = own_turn < receiver.stay_on_line and not closing
+    text = receiver.stage.stay if stay else receiver.stage.free
     return text.format(turn=own_turn + 1)
+
+
+def ending(call: CallConfig, config: Config, done: int) -> str:
+    """The note for the speaker of turn `done` (0-based) when the call is near max_turns:
+    `last` on the call's final turn, `soon` on the one before it, else "". The graph stops the
+    call at max_turns (graph.next_speaker), so without it the last line ends mid-scene (#150)."""
+    texts = config.agents.speakers.ending
+    left = call.max_turns - done  # turns left, this one included
+    return {1: texts.last, 2: texts.soon}.get(left, "")
 
 
 def speech_style(call: CallConfig, config: Config) -> str:
     """How this call's numbers are said, "dash" or "pause" (see spoken.py)."""
     return pick_speech_style(call.call_type, call.seed, config.agents.speech.say_dash_share)
+
+
+_THAI_CONSONANT = re.compile("[ก-ฮ]")
+
+
+def text_fixes(before: str, after: str) -> list[dict]:
+    """What the cleanup changed in a line, as {"before", "after"} pairs, for the review pages.
+
+    Changes in spacing alone are not listed.
+    """
+    if before == after:
+        return []
+    from pythainlp.tokenize import word_tokenize
+
+    old, new = (word_tokenize(s, engine="newmm", keep_whitespace=False) for s in (before, after))
+    fixes = []
+    for tag, i1, i2, j1, j2 in SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        was, now = "".join(old[i1:i2]), "".join(new[j1:j2])
+        # a lone tone mark or vowel ("่่") cannot be read alone: show the words around it too
+        if not (_THAI_CONSONANT.search(was) and _THAI_CONSONANT.search(now)):
+            was = "".join(old[max(i1 - 1, 0) : i2 + 1])
+            now = "".join(new[max(j1 - 1, 0) : j2 + 1])
+        fixes.append({"before": was, "after": now})
+    return fixes
 
 
 def spelling(raw: str) -> list[str]:

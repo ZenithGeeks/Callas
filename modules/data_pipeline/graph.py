@@ -185,7 +185,14 @@ def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:
     # Not in progress: a turn ended the call early and already put ended_early() in the state.
     if state["status"] == "in_progress":
         record = to_record(ctx.record, state)
-        ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder)
+        # the judge reads the wiki notes the planner read, so both check against the same patterns
+        briefing = record.generation.briefing
+        notes = (
+            ctx.store.notes_named(record.label_type, briefing.notes_used)
+            if record.label_scam and briefing
+            else []
+        )
+        ending = finish_call(record, ctx.agents, ctx.config, ctx.voices, ctx.store.folder, notes)
         update = {"ending": ending, "status": "rejected" if ending.reasons else "accepted"}
     finished = to_record(ctx.record, {**state, **update})
     ctx.store.save_call(finished)
