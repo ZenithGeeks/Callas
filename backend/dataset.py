@@ -242,6 +242,7 @@ class Turn:
     prompt_tokens: int | None  # estimated size of the prompt for this turn
     leaked: str  # "OTP, ID CARD" on a receiver turn that gave details away, else ""
     is_scam_start: bool
+    fixes: list[dict]  # {"before", "after"}: what the cleanup fixed; empty in older calls
 
 
 @dataclass
@@ -303,6 +304,7 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 spoken=_spoken_text(raw),
                 prompt_tokens=raw.get("prompt_tokens"),
                 is_scam_start=scam_start == i,
+                fixes=raw.get("fixes", []),
             )
         )
     return turns

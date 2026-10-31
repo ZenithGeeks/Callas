@@ -145,6 +145,10 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert "Leaked" not in render()
     assert "Leaked" not in render(leaked=[])
 
+    fixed = render(fixes=[{"before": "ท่ีรัก", "after": "ที่รัก"}])
+    assert "<del>ท่ีรัก</del> → <ins" in fixed and ">ที่รัก</ins>" in fixed
+    assert "data-fixes" not in render()  # an older turn without fixes
+
 
 def test_the_footing_step_renders_the_receivers_footing_line():
     html = studio.render(

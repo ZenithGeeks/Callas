@@ -1,0 +1,13 @@
+# Loanwords and slang the calls use that no PyThaiNLP word list has (thai_words, Volubilis, ICU).
+# autocorrect_text leaves these alone. One word per line; lines starting with # are comments.
+คริปโต
+คอนเนกชัน
+แอคเคาท์
+พอดแคสต์
+แอป
+เฮ้
+ฟิน
+เบบี๋
+โอทีพี
+วอลเล็ต
+พาร์เซล
