@@ -272,6 +272,7 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     db.execute("ALTER TABLE turns DROP COLUMN leaked")
     db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
     db.execute("ALTER TABLE calls DROP COLUMN speech_style")
+    db.execute("ALTER TABLE calls DROP COLUMN footing")
     db.commit()
     db.close()
 
@@ -280,6 +281,7 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     assert loaded["generation"]["receiver_leaked"] == []
     assert loaded["generation"]["first_leak_turn"] is None
     assert loaded["generation"]["turns"][0]["leaked"] == []
+    assert loaded["generation"]["footing"] is None  # not read yet, so a resume reads it
     Store(path)  # opening twice is fine
 
 

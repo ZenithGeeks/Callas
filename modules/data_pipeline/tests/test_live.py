@@ -127,6 +127,19 @@ def test_a_relationship_call_shows_the_receiver_footing_as_its_own_step(tmp_path
     assert all(m.agent != "footing" for m in events[replies[0]].modules)
 
 
+def test_a_resumed_call_shows_its_stored_footing_before_the_receivers_first_line(tmp_path):
+    cancel = threading.Event()
+    store, first = collect(live.CallSpec("romance", 2), tmp_path, cancel)
+    footing = store.load("romance_00002")["generation"]["footing"]
+    assert footing and any(e.kind == "footing" for e in first)
+
+    _, events = collect(live.CallSpec("romance", 2), tmp_path)
+    footings = [e for e in events if e.kind == "footing"]
+    assert len(footings) == 1 and footings[0].detail == footing
+    replies = [i for i, e in enumerate(events) if e.kind == "turn" and e.agent == "receiver"]
+    assert events.index(footings[0]) == replies[0] - 1
+
+
 def test_a_stranger_call_has_no_footing_step(tmp_path):
     _, events = collect(live.CallSpec("phishing_otp", 1), tmp_path)
     assert not any(e.kind == "footing" for e in events)
