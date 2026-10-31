@@ -85,6 +85,8 @@ def stream_call(
     if plan_shown:
         yield Event("plan", "planner", record.to_dict())
     for index, turn in enumerate(record.generation.turns):
+        if turn.agent == "receiver" and index == 1 and record.generation.footing:
+            yield Event("footing", "footing", record.to_dict(), detail=record.generation.footing)
         yield Event("turn", turn.agent, record.to_dict(), index)
     if record.label_scam and record.generation.briefing is None:
         pending = Event("thinking", "planner", record.to_dict())
@@ -119,10 +121,9 @@ def stream_call(
             # the receiver's footing is worked out on its first turn; show it as its own step,
             # before the turn it shaped, the way the caller's plan is shown before the first turn
             foot = [m for m in modules if m.agent == "footing"]
-            if foot and context.footing:
-                yield Event(
-                    "footing", "footing", record.to_dict(), detail=context.footing, modules=foot
-                )
+            footing = record.generation.footing
+            if foot and footing:
+                yield Event("footing", "footing", record.to_dict(), detail=footing, modules=foot)
             rest = [m for m in modules if m.agent != "footing"]
             yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, rest)
         if cancel is not None and cancel.is_set():

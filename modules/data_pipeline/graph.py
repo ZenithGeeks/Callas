@@ -41,6 +41,7 @@ class CallState(TypedDict):
     """What changes while a call runs. Each node returns only the fields it changed."""
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
+    footing: str | None  # the receiver's footing; None until read on its first turn
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
     status: GenerationStatus
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
@@ -57,8 +58,6 @@ class SimContext:
     voices: Voices | None  # None: text only
     filler: SlotFiller  # this call's values for the {SLOTS}
     record: CallRecord  # the call as loaded or created; to_record() lays the state over it
-    footing: str = ""  # relationship calls: decided once from the opening, then held
-    footing_read: bool = False  # whether read_footing has run, so an empty result is not retried
 
 
 def initial_state(record: CallRecord) -> CallState:
@@ -66,6 +65,7 @@ def initial_state(record: CallRecord) -> CallState:
     generation = record.generation
     return {
         "briefing": generation.briefing,
+        "footing": generation.footing,
         "turns": generation.turns,
         "status": generation.status,
         "ending": None,
@@ -77,6 +77,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
     generation = replace(
         record.generation,
         briefing=state["briefing"],
+        footing=state["footing"],
         turns=state["turns"],
         status=state["status"],
     )
@@ -154,16 +155,12 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     """
     turns = state["turns"]
     plan_steps = state["briefing"].plan if state["briefing"] else []  # a normal call has none
-    footing = ""
-    if speaker == RECEIVER:
-        # a call where the receiver already knows the caller: work out the footing once, from the
-        # backstory and the caller's opening, and keep it for the rest of the call so the register
-        # never drifts. The flag (not the string) guards the one run, so an empty result is not
-        # retried every turn.
-        if not ctx.footing_read and ctx.call.scenario.receiver_context:
-            ctx.footing = read_footing(ctx.agents, ctx.call, ctx.config, turns, ctx.filler)
-            ctx.footing_read = True
-        footing = ctx.footing
+    update = {}
+    if speaker == RECEIVER and state["footing"] is None:
+        # Read once, on the receiver's first turn, and saved with the call, so the register never
+        # drifts and a resume reuses it instead of asking again. "" (a stranger) counts as read.
+        update["footing"] = read_footing(ctx.agents, ctx.call, ctx.config, turns, ctx.filler)
+    footing = update.get("footing", state["footing"]) or ""
     try:
         turn = write_turn(
             ctx.agents, ctx.call, ctx.config, turns, ctx.filler, plan_steps, speaker, footing
@@ -172,13 +169,13 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
         # The prompt cannot be made to fit, so the model is not asked. The call ends here,
         # rejected, with the turns it has.
         log.warning("%s: %s", ctx.record.id, exc)
-        update = {"status": "rejected", "ending": ended_early(turns)}
+        update |= {"status": "rejected", "ending": ended_early(turns)}
         ctx.store.save_call(to_record(ctx.record, {**state, **update}))
         return update
     if ctx.voices is not None:
         turn = speak_turn(ctx.voices, turn, len(turns), ctx.record, ctx.store.folder)
-    ctx.store.save_call(to_record(ctx.record, {**state, "turns": [*turns, turn]}))
-    return {"turns": [turn]}
+    ctx.store.save_call(to_record(ctx.record, {**state, **update, "turns": [*turns, turn]}))
+    return {**update, "turns": [turn]}
 
 
 def finish(state: CallState, runtime: Runtime[SimContext]) -> dict:

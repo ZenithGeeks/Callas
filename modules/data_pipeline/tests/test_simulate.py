@@ -320,6 +320,41 @@ def test_a_romance_call_gives_the_receiver_and_footing_the_scenario_backstory(tm
     assert agents.receiver.calls and all(context in c["stage"] for c in agents.receiver.calls)
 
 
+def test_the_footing_is_stored_and_a_resume_reuses_it(tmp_path, monkeypatch):
+    # The footing is saved with the call, so a dataset reviewer can see what the receiver was told
+    # and a resume reuses it instead of asking the footing model again.
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    store = Store(tmp_path / "calls.db")
+    real_speak = graph_module.write_turn
+    calls = {"n": 0}
+
+    def crash_on_third(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise KeyboardInterrupt
+        return real_speak(*a, **kw)
+
+    monkeypatch.setattr(graph_module, "write_turn", crash_on_third)
+    with pytest.raises(KeyboardInterrupt):
+        run_call("romance", 2, store, agents, CONFIG)
+    footing = store.load(record_id("romance", 2))["generation"]["footing"]
+    assert footing and len(agents.footing.calls) == 1
+
+    monkeypatch.setattr(graph_module, "write_turn", real_speak)
+    rec = run_call("romance", 2, store, agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "accepted"
+    assert rec["generation"]["footing"] == footing
+    assert len(agents.footing.calls) == 1  # not asked again on resume
+    assert all(c["footing"] == footing for c in agents.receiver.calls)
+
+
+def test_a_stranger_call_stores_an_empty_footing(tmp_path):
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("phishing_otp", 1, Store(tmp_path / "calls.db"), agents, CONFIG).to_dict()
+    assert rec["generation"]["footing"] == ""  # read, and there is no prior relationship
+    assert not agents.footing.calls
+
+
 def test_planner_reads_pattern_notes(tmp_path):
     store = Store(tmp_path / "calls.db")
     store.add_note(
