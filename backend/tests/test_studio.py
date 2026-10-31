@@ -150,6 +150,38 @@ def test_a_leaked_turn_gets_a_red_tag_and_others_do_not(client):
     assert "data-fixes" not in render()  # an older turn without fixes
 
 
+def test_the_footing_step_renders_the_receivers_footing_line():
+    html = studio.render(
+        "partials/studio_footing.html",
+        footing="น้องสาวที่ไว้ใจ เรียกตัวเองว่าหนู เรียกเขาว่าพี่ คุยกันไม่เป็นทางการ",
+        tag=None,
+    )
+    assert "Receiver's footing" in html and "เรียกตัวเองว่าหนู" in html
+    assert 'data-side="right"' in html  # sits on the receiver's side of the chat
+
+
+def test_the_run_header_tags_the_scam_outcome():
+    def header(scam_outcome, label_scam=True):
+        return studio.render(
+            "partials/studio_run.html",
+            run={
+                "id": "0123456789ab",
+                "title": "t",
+                "record_id": "phishing_otp_00000",
+                "label_scam": label_scam,
+                "receiver": None,
+                "receiver_name": "",
+                "scam_outcome": scam_outcome,
+            },
+            demo=False,
+        )
+
+    assert "Gets scammed" in header("scammed")
+    assert "Stays safe" in header("safe")
+    assert "Outcome not locked" in header("")  # a scam call whose outcome is not locked
+    assert "Outcome not locked" not in header("", label_scam=False)  # benign: no outcome tag
+
+
 def test_a_verdict_without_confidence_does_not_make_up_a_percentage():
     html = studio.render(
         "partials/studio_verdict.html",
@@ -248,6 +280,7 @@ def test_unknown_runs_are_404(client):
         ({"seed": "123456"}, "whole number"),
         ({"receiver": "nobody"}, "does not exist"),
         ({"receiver": "__custom__", "r_gender": "robot"}, "Gender is one of"),
+        ({"outcome": "bogus"}, "random, scammed or safe"),
     ],
 )
 def test_bad_forms_are_refused_with_a_message(client, fields, message):

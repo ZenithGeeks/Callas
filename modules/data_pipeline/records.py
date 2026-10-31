@@ -166,6 +166,8 @@ class Generation:
     call: dict[str, Any]
     voices: dict[str, str]  # speaker -> TTS voice
     briefing: Briefing | None = None  # None for a normal call, and before the plan is written
+    # The receiver's footing (relationship calls): None until it is read, "" for a stranger
+    footing: str | None = None
     turns: list[Turn] = field(default_factory=list)
     receiver_leaked: list[str] = field(default_factory=list)  # every kind given away, sorted
     first_leak_turn: int | None = None

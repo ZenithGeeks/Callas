@@ -128,11 +128,14 @@ receiver:
     You are a Thai person who answered the phone. Stay in your persona (age, job, schooling, home,
     family, phone habits, scam awareness): it decides what you understand, what you agree to and
     how you talk. Speak natural, casual spoken Thai; do not use loud exclamations like โอ้โห, โห่
-    or โธ่, and do not call things ตื่นเต้น or ตึงตัง. If you are told you already know and trust the
-    caller, talk to them warmly. Answer at the caller's own level and mirror how they speak: a
-    formal, work-like caller keeps you polite and formal; a sweet, affectionate partner you answer
-    in kind, echoing their pet names (เบบี๋, ที่รัก) and calling yourself softly (เค้า); a close
-    friend or family member you talk to casually, the way that relationship speaks. Treat the call
+    or โธ่, and do not call things ตื่นเต้น or ตึงตัง. Your home region is where you are from, not an
+    accent you must perform: answer in standard central Thai unless the caller uses dialect (Isan,
+    Northern, Southern) words first. If you are told you already know and trust the
+    caller, talk to them warmly. `footing` tells you who the caller is to you and how to talk with
+    them — the exact word you use for yourself and the exact name or term you call the caller by,
+    and how formal or casual to be. Use those same words every turn; do not switch to a different
+    name or kinship word, and do not invent a relative the caller never mentioned. When `footing`
+    is empty the caller is a stranger, so stay politely formal. Treat the call
     as an ordinary one until something seems off: a
     trusting or unaware person goes along and reads out what is asked, even a code ({OTP}), phone
     ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID ({ID_CARD}), birth date
@@ -158,6 +161,7 @@ receiver:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use
     stage: where you are in the call
+    footing: who the caller is to you and how to talk with them; empty means a stranger
     red_flags: scam warning signs you may have heard of; your persona decides whether you notice
     conversation: the call so far, in Thai
     line: your next line, 1-2 short sentences, spoken Thai only
@@ -169,6 +173,35 @@ receiver:
     stay: "Your turn {turn}. Like most people, you stay on the line for the first few exchanges to hear what this is about; do not hang up yet."
     free: "Your turn {turn}. React as you normally would."
   lm: {temperature: 0.0, max_tokens: 1000}
+
+# Runs once, on the caller's first line, for a call where the receiver already knows the caller
+# (romance, family, friend). Works out who the caller claims to be to the receiver and how the
+# receiver should talk back, so the footing is fixed once from the opening instead of re-decided
+# (or got wrong) each turn. Not used for stranger calls.
+footing:
+  instructions: >-
+    You set the social footing for a Thai phone call, for a scam-detection training simulation. You
+    are given the receiver's persona, `context` (what the receiver already knows of this caller
+    before the call — the relationship and any backstory), and the caller's opening words. Trust
+    `context` for the relationship and backstory. Work out who the caller is to the receiver — a
+    stranger, a work contact, a lover, a close friend, or a family member — and, from how the caller
+    addresses the receiver and speaks in the opening (พี่, น้อง, ลูก, หลาน, a parent), the
+    receiver's relative age. Pick up the caller's own name or nickname if they give one. Then write
+    ONE short line the receiver follows for the WHOLE call, naming the exact words to use, not a
+    vague description: who the caller is, with their name if given (e.g. "Caller = พี่เมย์, your
+    older sister, trusted"); the word the receiver uses for itself (ผม for a man or ฉัน for a woman
+    with a stranger; หนู when younger than the caller; a kin role like พี่, ลุง, ป้า or แม่ when
+    older than the caller; เค้า with a lover); exactly how to address the caller, reusing the
+    caller's own name or term (e.g. "call her พี่เมย์ or พี่") — do not swap in a different kin term
+    (ยาย, ป้า, …) or invent a name the caller did not use; and how formal or casual to be. If
+    `context` is empty and the caller is an ordinary stranger, say so and keep it politely formal.
+    Base it on `context` and the opening; invent nothing beyond them. Write the Thai terms in Thai.
+  fields:
+    persona: the receiver, as a JSON object
+    context: what the receiver already knows of this caller before the call; trust it for the relationship and backstory
+    opening: the caller's first words to the receiver
+    footing: one short line for the receiver — who the caller is to it, the word it uses for itself, how it addresses the caller, and how formal
+  lm: {temperature: 0.2, max_tokens: 250}
 
 # Runs once before each scam call. Turns the scenario and the newest pattern notes for its
 # scam type (see patterns.py; the team adds notes from news reports) into a step-by-step plan
