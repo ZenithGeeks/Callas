@@ -48,6 +48,7 @@ class CallSpec:
     scenario: Scenario | None = None  # None: the one the seed picks
     receiver: ReceiverProfile | None = None  # None: the one the seed picks
     receiver_name: str = ""  # the name the caller hears; "" keeps the one the seed picks
+    outcome: str = ""  # force the scam outcome: "scammed" / "safe"; "" = 50/50 by seed
 
     @property
     def record_id(self) -> str:
@@ -58,11 +59,12 @@ class CallSpec:
 class Event:
     """One step for the studio page to show."""
 
-    kind: str  # thinking | plan | turn | ended | verdict
-    agent: str  # who is working or worked: planner, scam_caller, legit_caller, receiver, judge
+    kind: str  # thinking | footing | plan | turn | ended | verdict
+    agent: str  # planner, scam_caller, legit_caller, receiver, judge, footing
     record: dict  # the call as the store keeps it (CallRecord.to_dict)
     index: int | None = None  # turn: 0-based position
     modules: list[ModuleRun] = field(default_factory=list)
+    detail: str = ""  # footing: the worked-out footing line the receiver follows
 
 
 def stream_call(
@@ -114,18 +116,46 @@ def stream_call(
             continue  # the finish step follows at once
         else:
             written = len(turns)
-            yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, modules)
+            # the receiver's footing is worked out on its first turn; show it as its own step,
+            # before the turn it shaped, the way the caller's plan is shown before the first turn
+            foot = [m for m in modules if m.agent == "footing"]
+            if foot and context.footing:
+                yield Event(
+                    "footing", "footing", record.to_dict(), detail=context.footing, modules=foot
+                )
+            rest = [m for m in modules if m.agent != "footing"]
+            yield Event("turn", turns[-1].agent, record.to_dict(), written - 1, rest)
         if cancel is not None and cancel.is_set():
             return
         pending = _thinking(record, context)
         yield pending
 
 
+def started_outcome(spec: CallSpec, store: Store) -> str | None:
+    """The forced scam outcome a resumable call was started with (so a resume rebuilds the same
+    receiver), or None when this spec would start a fresh call. A call with no turns and no plan
+    yet has committed to nothing, so it takes the form's choice like a new one."""
+    record = store.load_call(spec.record_id)
+    if record is None or record.generation.status != "in_progress":
+        return None
+    generation = record.generation
+    if not generation.turns and generation.briefing is None:
+        return None
+    return generation.call.get("forced_outcome", "")
+
+
 def _open_context(
     spec: CallSpec, store: Store, agents: Agents, config: Config, voices: Any
 ) -> SimContext:
     """The context the graph runs with: the stored call, or a new one with the form's choices."""
-    call = sample_config(spec.call_type, spec.seed, config, spec.receiver)
+    started = started_outcome(spec, store)
+    if started is not None and spec.outcome and spec.outcome != started:
+        raise CallConflict(
+            f"{spec.record_id} was started with outcome {started or 'random'}. Resume it with "
+            "that outcome or Random, or pick another seed."
+        )
+    outcome = started if started is not None else spec.outcome
+    call = sample_config(spec.call_type, spec.seed, config, spec.receiver, outcome)
     if spec.scenario is not None:
         call = replace(call, scenario=spec.scenario)
     record = _open_record(store, call, config, agents, spec.receiver)

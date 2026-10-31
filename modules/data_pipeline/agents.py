@@ -71,10 +71,22 @@ class ReceiverTurn(dspy.Signature):
     persona: dict = dspy.InputField()  # a ReceiverProfile as a dict, without its key
     voice: str = dspy.InputField()
     stage: str = dspy.InputField()
+    footing: str = dspy.InputField()  # who the caller is to the receiver; "" = stranger
     red_flags: str = dspy.InputField()  # general scam warning signs, same for every call
     conversation: str = dspy.InputField()
     line: str = dspy.OutputField()
     end_call: bool = dspy.OutputField()
+
+
+class ReadFooting(dspy.Signature):
+    """Work out who the caller is to the receiver and how the receiver should speak back."""
+
+    # Full instructions: agents.yaml, footing.instructions
+
+    persona: dict = dspy.InputField()  # the receiver, as a dict, without its key
+    context: str = dspy.InputField()  # the backstory the receiver already knows of this caller
+    opening: str = dspy.InputField()  # the caller's first words
+    footing: str = dspy.OutputField()  # one short line the receiver follows for the whole call
 
 
 class PlanScamCall(dspy.Signature):
@@ -132,6 +144,7 @@ SIGNATURES: dict[str, type[dspy.Signature]] = {
     "scam_caller": ScamCallerTurn,
     "legit_caller": LegitCallerTurn,
     "receiver": ReceiverTurn,
+    "footing": ReadFooting,
     "planner": PlanScamCall,
     "pattern_extractor": ExtractScamPattern,
     "judge": JudgeCall,
@@ -181,6 +194,7 @@ class Agents:
     scam_caller: dspy.Module
     legit_caller: dspy.Module
     receiver: dspy.Module
+    footing: dspy.Module
     planner: dspy.Module
     pattern_extractor: dspy.Module
     judge: dspy.Module
@@ -190,6 +204,7 @@ class Agents:
         self.scam_caller = ScamCaller(settings.scam_caller)
         self.legit_caller = _program("legit_caller", settings.legit_caller)
         self.receiver = _program("receiver", settings.receiver)
+        self.footing = _program("footing", settings.footing)
         self.planner = _program("planner", settings.planner)
         self.pattern_extractor = _program("pattern_extractor", settings.pattern_extractor)
         self.judge = _program("judge", settings.judge)

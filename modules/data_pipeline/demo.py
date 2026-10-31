@@ -96,10 +96,15 @@ def _scripted_answers(scam: bool) -> dict[str, list[dict]]:
     )
     plan = dict(reasoning="a short plan that builds up to the ask", plan=_PLAN)
     extractor = dict(reasoning="-", relevant=False, summary="", tactics=[], phrases=[])
+    footing = dict(
+        reasoning="work out from the opening who the caller is to the receiver",
+        footing="คนที่คุณรู้จักและไว้ใจ คุยกันแบบไม่เป็นทางการ เรียกตัวเองว่าเค้า เรียกเขาด้วยชื่อหรือคำที่คุ้นเคย",
+    )
     return {
         "scam_caller": caller_answers,
         "legit_caller": caller_answers,
         "receiver": receiver_answers,
+        "footing": [footing],
         "planner": [plan],
         "judge": [judge],
         "pattern_extractor": [extractor],

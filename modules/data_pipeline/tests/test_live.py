@@ -115,6 +115,23 @@ def test_a_normal_call_has_no_plan_step(tmp_path):
     assert events[0].kind == "thinking" and events[0].agent == "legit_caller"
 
 
+def test_a_relationship_call_shows_the_receiver_footing_as_its_own_step(tmp_path):
+    _, events = collect(live.CallSpec("romance", 2), tmp_path)
+    footings = [e for e in events if e.kind == "footing"]
+    assert len(footings) == 1  # worked out once, shown as its own step like the caller's plan
+    assert footings[0].agent == "footing" and footings[0].detail  # carries the footing line
+    assert footings[0].modules and footings[0].modules[0].agent == "footing"
+    # it is shown before the receiver's first line, and that line no longer carries the footing run
+    replies = [i for i, e in enumerate(events) if e.kind == "turn" and e.agent == "receiver"]
+    assert events.index(footings[0]) < replies[0]
+    assert all(m.agent != "footing" for m in events[replies[0]].modules)
+
+
+def test_a_stranger_call_has_no_footing_step(tmp_path):
+    _, events = collect(live.CallSpec("phishing_otp", 1), tmp_path)
+    assert not any(e.kind == "footing" for e in events)
+
+
 def test_cancel_stops_after_the_step_and_leaves_the_call_unfinished(tmp_path):
     cancel = threading.Event()
     store, events = collect(live.CallSpec("romance", 0), tmp_path, cancel)
@@ -223,6 +240,25 @@ def test_a_resumed_call_keeps_its_scenario_and_name_and_refuses_others(tmp_path)
     assert record["generation"]["status"] == "accepted"
     assert record["generation"]["call"]["scenario"]["key"] == first.key
     assert "สมหญิง" in record["text"]
+
+
+def test_a_resumed_call_keeps_its_forced_outcome_and_refuses_a_different_one(tmp_path):
+    # Forcing the scam outcome skips the profile draw, so it changes the whole sampling path. A
+    # resume must keep the outcome, or the caller would end up talking to a different person over
+    # the turns already written.
+    cancel = threading.Event()
+    store, _ = collect(live.CallSpec("romance", 3, outcome="scammed"), tmp_path, cancel)
+    started = store.load("romance_00003")["generation"]["call"]["receiver"]
+    assert started["scam_outcome"] == "scammed"
+    assert sample_config("romance", 3, CONFIG).receiver.scam_outcome != "scammed"  # parity differs
+    # resuming with the opposite outcome is refused, like a different scenario or name
+    with pytest.raises(live.CallConflict, match="outcome"):
+        collect(live.CallSpec("romance", 3, outcome="safe"), tmp_path)
+    # resuming on Random keeps the very person the call was started with
+    collect(live.CallSpec("romance", 3), tmp_path)
+    record = store.load("romance_00003")
+    assert record["generation"]["call"]["receiver"] == started
+    assert record["generation"]["status"] == "accepted"
 
 
 def test_a_call_that_ends_early_yields_an_ended_step_then_a_verdict(tmp_path, monkeypatch):
