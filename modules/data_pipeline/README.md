@@ -177,6 +177,7 @@ Before you edit:
 - Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY} {LINE_ID}` and the receiver's own `{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values. This gives exact entity spans and keeps real numbers out of the data.
 - Seeds pick scenarios by list position. Adding a scenario in the middle of a list changes which call a seed makes. The config hash keeps old and new records apart.
 - All agents run at temperature 0.0, because a model garbled Thai spelling at 0.3. Variety comes from the sampled scenario, receiver, plan and pacing.
+- A call stops at its `max_turns`. So it does not stop mid-scene, the speaker of the second-to-last turn gets `speakers.ending.soon` and the speaker of the last turn gets `speakers.ending.last` (#150). Callers get it after their pacing (the legit caller's `pacing` is empty until then). The receiver gets it after its stage, and on those turns it is never told to stay on the line. In a scam call whose receiver has `scam_outcome: scammed`, the receiver's ending also gets `speakers.ending.scammed`: it says clearly that it will do what the caller asked. A hand-written profile has no outcome, so it does not get it.
 
 ## Receiver leaks
 

@@ -58,6 +58,7 @@ class LegitCallerTurn(dspy.Signature):
     goal: str = dspy.InputField()
     manner: str = dspy.InputField()
     receiver_name: str = dspy.InputField()
+    pacing: str = dspy.InputField()  # "" until the last two turns (turns.ending)
     conversation: str = dspy.InputField()
     line: str = dspy.OutputField()
     end_call: bool = dspy.OutputField()
