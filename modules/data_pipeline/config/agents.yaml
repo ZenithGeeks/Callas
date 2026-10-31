@@ -24,6 +24,13 @@ speakers:
     male: "male: say ผม and ครับ"
     female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ"
   # The romance scam caller gets docs/scam-wiki/romance_voice.md instead of `voice`.
+  # Added to the speaker's pacing (callers) or stage (receiver) on the last two turns, so a call
+  # that reaches max_turns ends with a closing line instead of stopping mid-scene (#150).
+  ending:
+    soon: "The call ends after one more reply: start wrapping up, in character."
+    last: "This is the call's last line: answer briefly and say goodbye, in character."
+    # added for the receiver of a scam call meant to end with it scammed (scam_outcome)
+    scammed: "You go along: say clearly that you will now do exactly what the caller asked (name it)."
 
 scam_caller:
   # Shared by every scam type. Each type's own rules follow in `by_type`.
@@ -118,6 +125,7 @@ legit_caller:
     goal: why you are calling
     manner: how you handle the call
     receiver_name: "'{RECEIVER_NAME}' if you know it, else 'unknown'"
+    pacing: where you are in the call; empty means carry on as normal
     conversation: the call so far, in Thai
     line: *slot_rule
     end_call: true if you hang up after this line

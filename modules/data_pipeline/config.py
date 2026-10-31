@@ -189,6 +189,15 @@ class JudgeSettings(AgentSettings):
         return v
 
 
+class Ending(_Strict):
+    """The note a speaker gets near the call's turn limit (turns.ending)."""
+
+    soon: str  # on the second-to-last turn: the other person speaks once more
+    last: str  # on the last turn of the call
+    # added for the receiver when the call is meant to end with it scammed: it confirms the action
+    scammed: str
+
+
 class Speakers(_Strict):
     """How the two speakers are labelled and addressed in the conversation text."""
 
@@ -196,6 +205,7 @@ class Speakers(_Strict):
     receiver_tag: str
     empty_call: str  # the conversation text before anyone has spoken
     voice: dict[str, str]  # gender -> pronoun and particle hint
+    ending: Ending  # what the speaker is told on the last two turns of the call
 
 
 class TTS(_Strict):
