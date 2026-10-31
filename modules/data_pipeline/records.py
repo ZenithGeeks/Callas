@@ -41,6 +41,7 @@ class Turn:
     spelling: list[str] = field(default_factory=list)  # words that look misspelled
     latency_s: float | None = None
     prompt_tokens: int | None = None  # estimated size of the prompt that was sent
+    usage: dict = field(default_factory=dict)  # real tokens from the server (usage.py); {} before
     audio: str | None = None  # the spoken line, relative to the store's folder
     audio_s: float | None = None
 
@@ -60,6 +61,7 @@ class Briefing:
     notes_used: list[str] = field(default_factory=list)  # summaries of the notes it read
     prompt_tokens: int | None = None  # None in briefings stored before prompt sizes were kept
     reasoning: str = ""
+    usage: dict = field(default_factory=dict)  # real tokens from the server (usage.py)
     # Briefings from an early planner kept note ids instead of notes_used. They are only read
     # back from old stores; nothing writes them now.
     note_ids: list[int] | None = None
@@ -77,6 +79,8 @@ class Briefing:
         if self.prompt_tokens is not None:
             briefing["prompt_tokens"] = self.prompt_tokens
         briefing["reasoning"] = self.reasoning
+        if self.usage:
+            briefing["usage"] = self.usage
         return briefing
 
 
@@ -103,6 +107,7 @@ class Judge:
     # calls down for spelling mistakes that were not there, so it is no longer asked.
     natural_thai: int | None = None
     prompt_tokens: int | None = None  # None in answers stored before prompt sizes were kept
+    usage: dict = field(default_factory=dict)  # real tokens from the server (usage.py)
     skipped: str = ""  # finish.TOO_LONG_FOR_JUDGE when the call was not judged at all
 
     @classmethod
@@ -139,6 +144,7 @@ class Judge:
             "summary": self.summary,
             "issues": self.issues,
             "reasoning": self.reasoning,
+            **({"usage": self.usage} if self.usage else {}),
         }
         if self.skipped:
             return {**answer, "skipped": self.skipped, "prompt_tokens": self.prompt_tokens}

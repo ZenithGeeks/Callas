@@ -158,3 +158,8 @@
   {% if text %}<p class="mt-4 text-[19px] leading-[30px]" lang="th">{{ text }}</p>{% else %}<p class="mt-3 text-[15px] text-muted">{{ empty }}</p>{% endif %}
 </div>
 {%- endmacro %}
+
+{# Real tokens of one step (data_pipeline.usage): "in 2,846 · out 512 · 2 requests". #}
+{% macro step_tokens(u) -%}
+{% if u %}<span lang="en">In {{ "{:,}".format(u.input) }} · out {{ "{:,}".format(u.output) }} tokens{% if u.requests > 1 %} · {{ u.requests }} requests{% endif %}{% if u.failed %} ({{ u.failed }} failed){% endif %}</span>{% endif %}
+{%- endmacro %}

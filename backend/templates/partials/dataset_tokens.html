@@ -1,0 +1,73 @@
+{# Token usage over the stored calls (data_pipeline.usage.summary), loaded into the dataset page.
+   Expects `s` (the summary), `call_type` ("" = all) and `type_names`.
+   Its table styles are in dataset_call.html, around the block. #}
+{% set n = "{:,}".format %}
+{% if s.calls %}
+{% set all_tokens = s.total.input + s.total.output %}
+<dl class="facts" lang="en">
+  <div>
+    <dt>Calls recorded</dt>
+    <dd>{{ s.calls }}{% if call_type %} · {{ type_names[call_type] }}{% endif %}</dd>
+    {% if s.not_recorded %}<dd class="facts-note">{{ s.not_recorded }} older not recorded</dd>{% endif %}
+  </div>
+  <div>
+    <dt>Tokens per call</dt>
+    <dd>{{ n(s.per_call.mean) }}</dd>
+    <dd class="facts-note">most {{ n(s.per_call.max) }}</dd>
+  </div>
+  <div>
+    <dt>All calls</dt>
+    <dd>{{ n(s.per_call.total) }}</dd>
+    <dd class="facts-note">in {{ n(s.total.input) }} · out {{ n(s.total.output) }}</dd>
+  </div>
+</dl>
+
+<h4 class="tok-sub">Per agent · average per call</h4>
+<table class="tok-table mt-2" lang="en">
+  <thead>
+    <tr><th>Agent</th><th class="num">In / call</th><th class="num">Out / call</th><th>Share of tokens</th></tr>
+  </thead>
+  <tbody>
+    {% for a in s.agents %}
+    {% set share = ((a.input + a.output) * 100 / all_tokens)|round|int if all_tokens else 0 %}
+    <tr>
+      <td>
+        {{ a.agent|replace('_', ' ')|capitalize }}
+        <span class="sub">{{ a.steps }} step{{ 's' if a.steps != 1 }} · {{ a.requests }} request{{ 's' if a.requests != 1 }} · ~{{ n(a.reasoning) }} of its output was reasoning{% if a.failed %} · <span class="bad">{{ a.failed }} failed</span>{% endif %}</span>
+      </td>
+      <td class="num" title="most {{ n(a.input_max) }}">{{ n(a.input_mean) }}</td>
+      <td class="num" title="most {{ n(a.output_max) }}">{{ n(a.output_mean) }}</td>
+      <td><span class="tok-bar" aria-hidden="true"><span style="width: {{ share }}%"></span></span>{{ share }}%</td>
+    </tr>
+    {% endfor %}
+    <tr class="total">
+      <td>Total per call</td>
+      <td class="num">{{ n(s.total.input_mean) }}</td>
+      <td class="num">{{ n(s.total.output_mean) }}</td>
+      <td>100%</td>
+    </tr>
+  </tbody>
+</table>
+
+{% if not call_type %}
+<h4 class="tok-sub">Per call type</h4>
+<table class="tok-table mt-2" lang="en">
+  <thead>
+    <tr><th>Call type</th><th class="num">Calls</th><th class="num">Tokens / call</th><th class="num">Most</th></tr>
+  </thead>
+  <tbody>
+    {% for t in s.by_type %}
+    <tr>
+      <td>{{ type_names.get(t.call_type, t.call_type) }}</td>
+      <td class="num">{{ t.calls }}</td>
+      <td class="num">{{ n(t.mean) }}</td>
+      <td class="num">{{ n(t.max) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<p class="mt-4 text-[14px] text-muted">In and Out are the model server's real counts, retries included. Every token is in them. Reasoning is a rough share of Out, not extra. "Per call" is the average over the calls an agent took part in; hover a number for the most in one call.</p>
+{% else %}
+<p class="text-[15px] text-muted">No call{% if call_type %} of {{ type_names[call_type] }}{% endif %} has token usage yet. Calls made from now on record it{% if s.not_recorded %} ({{ s.not_recorded }} older call{{ 's' if s.not_recorded != 1 }} not recorded){% endif %}.</p>
+{% endif %}

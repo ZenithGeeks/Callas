@@ -110,6 +110,66 @@ def test_call_detail_partial(client, db_path):
     assert "ask for the OTP now" in html
 
 
+def test_call_detail_shows_real_tokens_per_turn(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Prompt about 1234 tokens" in html  # a call made before usage was kept
+    rec = Store(db_path).load("phishing_otp_00001")
+    rec["generation"]["turns"][0]["usage"] = {
+        "input": 2846,
+        "output": 512,
+        "requests": 2,
+        "failed": 1,
+        "reasoning_share": 0.5,
+    }
+    Store(db_path).save(rec)
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "In 2,846 · out 512 tokens · 2 requests (1 failed)" in html
+    assert "Prompt about 1234 tokens" not in html  # the real count replaces the estimate
+
+
+def test_token_usage_block_shows_this_call_apart_from_all_calls(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    assert "Not recorded: this call was made before token usage was kept." in html
+    rec = Store(db_path).load("phishing_otp_00001")
+    first = rec["generation"]["turns"][0]
+    first["agent"] = "scam_caller"
+    first["usage"] = {"input": 2000, "output": 500, "requests": 2, "failed": 1}
+    rec["generation"]["judge"]["usage"] = {"input": 3000, "output": 900, "requests": 1, "failed": 0}
+    Store(db_path).save(rec)
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    this_call = html[html.index(">This call<") : html.index(">All recorded calls<")]
+    assert "Only the conversation on this page." in this_call
+    assert "<dd>6,400</dd>" in this_call and "in 5,000 + out 1,400" in this_call
+    assert "<dt>Out</dt><dd>1,400</dd>" in this_call and "already in Out" in this_call
+    assert "1 failed and retried" in this_call
+    assert 'style="width: 39%"' in this_call and 'style="width: 61%"' in this_call
+    assert "not only this one" in html  # the all-calls part says what it covers
+
+
+def test_token_usage_block_reports_per_agent_and_per_call_type(client, db_path):
+    html = client.get("/dataset/call/phishing_otp_00001", headers=HX).text
+    # the block sits below the conversation and is filled when opened
+    assert html.index('id="dtranscript"') < html.index('hx-get="/dataset/tokens"')
+    html = client.get("/dataset/tokens", headers=HX).text
+    assert "No call has token usage yet" in html and "2 older calls not recorded" in html
+    rec = Store(db_path).load("phishing_otp_00001")
+    rec["generation"]["turns"][0]["agent"] = "scam_caller"
+    turn = rec["generation"]["turns"][0]
+    turn["usage"] = {"input": 2000, "output": 500, "requests": 2, "failed": 1}
+    rec["generation"]["judge"]["usage"] = {"input": 3000, "output": 900, "requests": 1, "failed": 0}
+    Store(db_path).save(rec)
+    html = client.get("/dataset/tokens", headers=HX).text
+    assert "<dt>Tokens per call</dt>\n    <dd>6,400</dd>" in html
+    assert "1 older not recorded" in html
+    assert "Scam caller" in html and "Judge" in html and "Total per call" in html
+    assert ">5,000<" in html and ">1,400<" in html  # in and out over the whole call
+    assert "1 failed" in html  # the caller's retried attempt
+    assert 'style="width: 39%"' in html and 'style="width: 61%"' in html  # 2,500 and 3,900 of 6,400
+    assert "Per call type" in html and ">6,400<" in html
+    benign_only = client.get("/dataset/tokens?type=benign", headers=HX).text
+    assert "No call of" in benign_only and "Per call type" not in benign_only
+
+
 def test_call_detail_shows_the_four_scored_judge_checks(client, db_path):
     rec = Store(db_path).load("phishing_otp_00001")
     rec["generation"]["judge"].update(

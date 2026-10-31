@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS turns (
     spelling   TEXT NOT NULL DEFAULT '[]',
     latency_s  REAL,
     prompt_tokens INTEGER,                   -- estimated size of the prompt sent for this turn
+    usage      TEXT NOT NULL DEFAULT '{}',   -- JSON real tokens from the server (usage.py)
     audio      TEXT,                         -- path relative to the store's folder
     audio_s    REAL,
     start_s    REAL,                         -- position in the joined call audio
@@ -143,10 +144,11 @@ _TURN_COLUMNS = (
     "spelling",
     "latency_s",
     "prompt_tokens",
+    "usage",
     "audio",
     "audio_s",
 )
-_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling")
+_JSON_TURN_FIELDS = ("entities", "problems", "leaked", "spelling", "usage")
 # Columns added after the first release: (table, column, definition). An existing
 # database gets them with ALTER TABLE when it is opened.
 _ADDED_COLUMNS = (
@@ -156,6 +158,7 @@ _ADDED_COLUMNS = (
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
+    ("turns", "usage", "TEXT NOT NULL DEFAULT '{}'"),
 )
 _BOOL_TURN_FIELDS = ("asks_now", "end_call")
 
@@ -515,7 +518,8 @@ def _turn_value(turn: dict, column: str) -> Any:
     """The turn's value for one turns column, in the form the column stores."""
     value = turn.get(column)
     if column in _JSON_TURN_FIELDS:
-        return json.dumps(value or [], ensure_ascii=False)
+        empty: Any = {} if column == "usage" else []
+        return json.dumps(value or empty, ensure_ascii=False)
     if column in _BOOL_TURN_FIELDS:
         return int(bool(value))
     if column in ("agent", "raw", "text", "spoken_text", "reasoning"):
