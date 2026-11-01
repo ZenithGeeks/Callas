@@ -243,6 +243,7 @@ A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 - a line has a line break or starts with `A:` or `B:` (`line_break`)
 - a line names LINE (ไลน์, ไอดี or LINE) and has a Latin word of 5 or more characters that is all lowercase or has a digit or `_`: a LINE ID the agent made up instead of `{LINE_ID}` (`line_id_without_slot`)
 - a tone mark comes before a vowel
+- a caller or receiver line has a Thai word that is not in the PyThaiNLP dictionary, even one name or loanword (`garbled_spelling`)
 - the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points each for a clear scam or not-scam, showing the intended call, realistic language, and reflecting the persona and scenario selected before the call started (`setup_holds`). Calls judged before the fourth check scored realistic language at 50. It is the judge's only say: above 50% the judge passes the call, whatever its other answers (`giveaway`, `scam_start_turn`) are
 
 Calls stored before this rule may still carry the old judge reasons `judge_label_does_not_hold`, `judge_giveaway`, `no_scam_move` and `judge_saw_scam_in_normal_call`.

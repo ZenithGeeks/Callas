@@ -731,26 +731,39 @@ def test_a_line_with_several_misspellings_is_rejected_as_garbled():
     assert "garbled_spelling" in reasons_to_reject(turns, verdict, CONFIG)
 
 
-def test_one_odd_word_is_not_garbled():
+def test_one_odd_word_is_garbled():
     from data_pipeline.finish import reasons_to_reject
 
     turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
-    turns[1] = Turn(speaker="B", spelling=["ลิ้งก์"])  # one loanword the dictionary lacks: tolerated
+    turns[1] = Turn(speaker="B", spelling=["ลิ้งก์"])  # one loanword the dictionary lacks: enough
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, CONFIG)
 
 
-def test_a_garbled_caller_line_is_not_counted():
+def test_a_garbled_caller_line_is_counted():
     from data_pipeline.finish import reasons_to_reject
 
     turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
-    turns[0] = Turn(speaker="A", spelling=["จาย", "เทาไร"])  # caller line: this is a receiver check
+    turns[0] = Turn(speaker="A", spelling=["จาย"])  # caller line: checked like a receiver line
     verdict = Judge(
         label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
     )
-    assert "garbled_spelling" not in reasons_to_reject(turns, verdict, CONFIG)
+    assert "garbled_spelling" in reasons_to_reject(turns, verdict, CONFIG)
+
+
+def test_a_tone_mark_order_flag_alone_is_not_garbled():
+    from data_pipeline.finish import reasons_to_reject
+
+    turns = [Turn(speaker="AB"[i % 2]) for i in range(6)]
+    turns[1] = Turn(speaker="B", spelling=["tone_mark_order"])  # its own reason, not a misspelling
+    verdict = Judge(
+        label_holds=True, scam_start_turn=2, giveaway=False, summary="", issues="", reasoning=""
+    )
+    reasons = reasons_to_reject(turns, verdict, CONFIG)
+    assert "tone_mark_order" in reasons
+    assert "garbled_spelling" not in reasons
 
 
 def test_the_judge_gives_no_natural_thai_score(tmp_path):
