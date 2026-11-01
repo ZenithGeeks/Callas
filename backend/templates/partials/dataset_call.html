@@ -122,9 +122,9 @@
               </ul>
               {% endif %}
               {{ ui.fixes(t.fixes) }}
-              {% if t.spoken or t.prompt_tokens %}
+              {% if t.spoken or t.prompt_tokens or t.usage %}
               <p class="mt-1 text-[14px] tabular-nums text-muted" lang="th">
-                {% if t.spoken %}Spoken: {{ t.spoken }}{% endif %}{% if t.spoken and t.prompt_tokens %} · {% endif %}{% if t.prompt_tokens %}<span lang="en">Prompt about {{ t.prompt_tokens }} tokens</span>{% endif %}
+                {% if t.spoken %}Spoken: {{ t.spoken }}{% endif %}{% if t.spoken and (t.prompt_tokens or t.usage) %} · {% endif %}{% if t.usage %}{{ ui.step_tokens(t.usage) }}{% elif t.prompt_tokens %}<span lang="en">Prompt about {{ t.prompt_tokens }} tokens</span>{% endif %}
               </p>
               {% endif %}
               {% if t.reasoning %}
@@ -138,6 +138,57 @@
           {% endfor %}
         </ol>
       </div>
+      {# Token usage: this call (from its record), then all recorded calls (read only when the
+         block is opened, since that reads every call). #}
+      <details class="slip mt-10 p-5" id="tokens-block">
+        <summary class="sec-h cursor-pointer">Token usage</summary>
+        {% include "partials/_tokens_style.html" %}
+        {% set n = "{:,}".format %}
+        {% set t = d.tokens %}
+        <h3 class="tok-h" style="margin-top: 16px">This call</h3>
+        <p class="mt-1 text-[14px] text-muted">Only the conversation on this page.</p>
+        {% if t %}
+        {% set all_tokens = t.total.input + t.total.output %}
+        <dl class="facts mt-3" lang="en">
+          <div><dt>Tokens</dt><dd>{{ n(all_tokens) }}</dd><dd class="facts-note">in {{ n(t.total.input) }} + out {{ n(t.total.output) }}</dd></div>
+          <div><dt>Out</dt><dd>{{ n(t.total.output) }}</dd><dd class="facts-note">of which reasoning ~{{ n(t.total.reasoning) }} (estimate, already in Out)</dd></div>
+          <div><dt>Model requests</dt><dd>{{ t.total.requests }}</dd><dd class="facts-note">{% if t.total.failed %}{{ t.total.failed }} failed and retried{% else %}none failed{% endif %}</dd></div>
+        </dl>
+        <table class="tok-table mt-4" lang="en">
+          <thead>
+            <tr><th>Agent</th><th class="num">Runs</th><th class="num">In</th><th class="num">Out</th><th>Share of this call</th></tr>
+          </thead>
+          <tbody>
+            {% for r in t.rows %}
+            {% set share = ((r.input + r.output) * 100 / all_tokens)|round|int if all_tokens else 0 %}
+            <tr>
+              <td>{{ r.agent|replace('_', ' ')|capitalize }}{% if r.failed %}<span class="sub"><span class="bad">{{ r.failed }} failed</span></span>{% endif %}</td>
+              <td class="num">{{ r.steps }}</td>
+              <td class="num">{{ n(r.input) }}</td>
+              <td class="num">{{ n(r.output) }}</td>
+              <td><span class="tok-bar" aria-hidden="true"><span style="width: {{ share }}%"></span></span>{{ share }}%</td>
+            </tr>
+            {% endfor %}
+            <tr class="total">
+              <td>Total</td>
+              <td class="num">{{ t.total.steps }}</td>
+              <td class="num">{{ n(t.total.input) }}</td>
+              <td class="num">{{ n(t.total.output) }}</td>
+              <td>100%</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="mt-2 text-[14px] text-muted">Runs: how many times the agent was asked, one per turn for the caller and receiver, once for the planner and the judge. In and Out are the model server's real counts, retries included. Every token is in them. Reasoning is a rough share of Out, not extra.</p>
+        {% else %}
+        <p class="mt-3 text-[15px] text-muted">Not recorded: this call was made before token usage was kept.</p>
+        {% endif %}
+
+        <h3 class="tok-h">All recorded calls</h3>
+        <p class="mt-1 text-[14px] text-muted">Every conversation in the dataset that has token usage, not only this one.</p>
+        <div class="mt-3" hx-get="/dataset/tokens" hx-trigger="toggle once from:#tokens-block" hx-swap="innerHTML">
+          <p class="text-[15px] text-muted">Loading…</p>
+        </div>
+      </details>
     </section>
 
     {# ---- side panels: entities, summary, judge's note, setup ---- #}

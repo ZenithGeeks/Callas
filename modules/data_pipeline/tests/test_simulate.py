@@ -379,6 +379,18 @@ def test_a_romance_call_gives_the_receiver_and_footing_the_scenario_backstory(tm
     assert agents.receiver.calls and all(context in c["stage"] for c in agents.receiver.calls)
 
 
+def test_a_call_with_a_backstory_runs_and_keeps_the_footing_tokens(tmp_path):
+    # read_footing once called ask() without the call key, so every romance, family and friend
+    # call failed with a TypeError on the receiver's first turn (PR #147 review)
+    store = Store(tmp_path / "calls.db")
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("romance", 2, store, agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "accepted"
+    footing_usage = store.load(record_id("romance", 2))["generation"]["footing_usage"]
+    assert footing_usage["requests"] == 0  # the scripted footing makes no LM request
+    assert set(footing_usage) >= {"input", "output", "requests", "failed"}
+
+
 def test_the_footing_is_stored_and_a_resume_reuses_it(tmp_path, monkeypatch):
     # The footing is saved with the call, so a dataset reviewer can see what the receiver was told
     # and a resume reuses it instead of asking the footing model again.
