@@ -1046,3 +1046,23 @@ def test_the_receiver_hears_the_callers_line_id_as_a_slot(tmp_path):
         assert line_id in turn["text"]
         assert {"text": line_id, "label": "LINE_ID"}.items() <= turn["entities"][0].items()
     assert all(t["problems"] == [] for t in turns)
+
+
+def test_office_callers_use_the_words_their_tactics_name():
+    rules = CONFIG.agents.scam_caller
+    for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
+        assert "If your tactics give optional words" in rules.instructions_for(scam_type)
+
+
+def test_only_investment_callers_get_the_paid_task_tips():
+    rules = CONFIG.agents.scam_caller
+    tip = "grow only as the receiver shows interest"
+    assert tip in rules.instructions_for("investment")
+    others = ("fake_authority", "lottery", "phishing_otp", "romance")
+    assert not any(tip in rules.instructions_for(t) for t in others)
+
+
+def test_the_planner_plans_lover_and_friend_or_family_calls_differently():
+    rules = " ".join(CONFIG.agents.planner.instructions.split())
+    assert "A lover starts with casual couple small talk" in rules
+    assert "friend or family member gets straight to it" in rules and "new number" in rules

@@ -345,7 +345,7 @@ scams:
     org: '*'
     money_max: 40000
     goal: get the receiver to pay {MONEY} to 'unlock' higher paying tasks
-    tactics: pays a small first reward, then asks for top-ups before withdrawal
+    tactics: pays a small first reward, then asks for top-ups before withdrawal; calls the receiver คุณพี่ and themselves น้อง (optional)
   - key: free_cctv_task
     role: staff of a free CCTV camera project
     org: '*'
@@ -354,7 +354,7 @@ scams:
       as an unlock fee
     tactics: Offers a free CCTV camera plus a daily cash return for liking products; says the
       deposit is refunded within 24 hours; after the first task says it was not completed and the
-      account is frozen; more money must be transferred to unlock it before the window closes
+      account is frozen; more money must be transferred to unlock it before the window closes; calls the receiver คุณพี่ and themselves น้อง (optional)
   - key: online_job_onboarding
     role: recruiter for an online job
     org: '*'
@@ -362,7 +362,7 @@ scams:
     goal: get the receiver to pay a {MONEY} sign-up fee to {BANK_ACCOUNT}, then a larger unlock fee
     tactics: Offers easy, well-paid work with no experience needed; the sign-up fee 'opens the
       system' and is paid back with the first salary; if the receiver hesitates, says the policy is to
-      cancel the place today; then says the daily target is incomplete and an unlock fee is needed
+      cancel the place today; then says the daily target is incomplete and an unlock fee is needed; calls the receiver คุณพี่ and themselves น้อง (optional)
   - key: podcast_vip_investor
     role: host of a well-known business podcast
     org: พอดแคสต์
@@ -395,6 +395,16 @@ scams:
       the SEC; gold will rise 10-15% within a month, so buy now before the price goes up; promises
       gold at a branch or by EMS; asks for
       the slip on LINE
+  - key: paid_like_line_admin
+    role: PR staff of a well-known video app's partner company
+    org: '*'
+    goal: get the receiver to add the admin's LINE ID and send the admin a first message
+      asking for details of the paid-like work
+    tactics: Asks for one minute first; offers paid work watching clips and pressing like, about
+      30-50 baht a clip, with no sign-up fee; the amount grows when the receiver sounds interested;
+      says pay and details are the admin's job; guides the LINE add step by step and confirms what the
+      receiver sees; tells them the exact first message to send; answers doubt with a short, sure
+      reply; calls the receiver คุณพี่ and themselves น้อง (optional)
   phishing_otp:
   - key: bank_security
     role: bank security staff
