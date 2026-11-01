@@ -42,6 +42,7 @@ class CallState(TypedDict):
 
     briefing: Briefing | None  # the scam caller's plan; None for a normal call
     footing: str | None  # the receiver's footing; None until read on its first turn
+    footing_usage: dict  # the tokens reading the footing used (usage.py); {} for a stranger
     turns: Annotated[list[Turn], operator.add]  # a node returns the one turn it adds
     status: GenerationStatus
     ending: Ending | None  # the text, audio, judge, leaks and reasons, once the call is over
@@ -66,6 +67,7 @@ def initial_state(record: CallRecord) -> CallState:
     return {
         "briefing": generation.briefing,
         "footing": generation.footing,
+        "footing_usage": generation.footing_usage,
         "turns": generation.turns,
         "status": generation.status,
         "ending": None,
@@ -78,6 +80,7 @@ def to_record(record: CallRecord, state: CallState) -> CallRecord:
         record.generation,
         briefing=state["briefing"],
         footing=state["footing"],
+        footing_usage=state["footing_usage"],
         turns=state["turns"],
         status=state["status"],
     )
@@ -159,7 +162,9 @@ def _add_turn(speaker: str, state: CallState, ctx: SimContext) -> dict:
     if speaker == RECEIVER and state["footing"] is None:
         # Read once, on the receiver's first turn, and saved with the call, so the register never
         # drifts and a resume reuses it instead of asking again. "" (a stranger) counts as read.
-        update["footing"] = read_footing(ctx.agents, ctx.call, ctx.config, turns, ctx.filler)
+        update["footing"], update["footing_usage"] = read_footing(
+            ctx.agents, ctx.call, ctx.config, turns, ctx.filler
+        )
     footing = update.get("footing", state["footing"]) or ""
     try:
         turn = write_turn(

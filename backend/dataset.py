@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from data_pipeline.store import Store
+from data_pipeline.usage import call_usage
 
 from . import views
 
@@ -240,6 +241,7 @@ class Turn:
     flags: list[str]
     spoken: str  # what the voice was given, only when it differs from the text
     prompt_tokens: int | None  # estimated size of the prompt for this turn
+    usage: dict  # real tokens from the server (data_pipeline.usage); {} before it was kept
     leaked: str  # "OTP, ID CARD" on a receiver turn that gave details away, else ""
     is_scam_start: bool
     fixes: list[dict]  # {"before", "after"}: what the cleanup fixed; empty in older calls
@@ -258,6 +260,7 @@ class Detail:
     setup: dict[str, Any]
     receiver: dict[str, Any]  # the receiver's profile, shown at the top of the chat
     plan: list[str]  # the scam caller's plan, if it had one
+    tokens: dict | None = None  # this call's real tokens per agent (usage.call_usage); None before
 
 
 def turn_flags(raw_turn: dict) -> list[str]:
@@ -303,6 +306,7 @@ def _build_turns(db: Store, record: dict) -> list[Turn]:
                 leaked=leaked_text(raw),
                 spoken=_spoken_text(raw),
                 prompt_tokens=raw.get("prompt_tokens"),
+                usage=raw.get("usage") or {},
                 is_scam_start=scam_start == i,
                 fixes=raw.get("fixes", []),
             )
@@ -361,6 +365,7 @@ def detail(db: Store, record: dict) -> Detail:
         setup=_setup_table(generation),
         receiver=_receiver_profile(generation),
         plan=(generation.get("briefing") or {}).get("plan", []),
+        tokens=call_usage(record),
     )
 
 

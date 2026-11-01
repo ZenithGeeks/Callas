@@ -11,6 +11,8 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
+from data_pipeline.usage import summary
+
 from . import dataset
 from .web import page, render
 
@@ -60,6 +62,22 @@ def dataset_page(
     ctx["selected"] = record["id"] if record else ""
     ctx["d"] = dataset.detail(db, record) if record else None
     return page(request, "dataset.html", "dataset", **ctx)
+
+
+@router.get("/dataset/tokens", response_class=HTMLResponse)
+def dataset_tokens(type: str = "") -> HTMLResponse:
+    """The token-usage block: per agent and per call type, over the stored calls (htmx)."""
+    db = dataset.store()
+    call_type = _known_type(type)
+    records = list(db.call_dicts(call_type)) if db else []
+    return HTMLResponse(
+        render(
+            "partials/dataset_tokens.html",
+            s=summary(records),
+            call_type=call_type,
+            type_names=dataset.CALL_TYPE_NAMES,
+        )
+    )
 
 
 @router.get("/dataset/call/{record_id}", response_class=HTMLResponse)

@@ -20,6 +20,7 @@ from .patterns import render_notes
 from .records import CallRecord, Judge, Turn
 from .tts import Voices
 from .turns import CALLER, RECEIVER, ask
+from .usage import usage_key
 
 log = logging.getLogger("data_pipeline")
 
@@ -199,13 +200,15 @@ def ask_judge(
             skipped=TOO_LONG_FOR_JUDGE,
             prompt_tokens=tokens,
         )
-    pred = ask(agents, "judge", **judge_inputs)
+    key = usage_key(call["call_type"], call["seed"], call["receiver"].get("key", ""))
+    pred = ask(agents, "judge", key, **judge_inputs)
     scam_clear = bool(pred.scam_clear)
     label_holds = bool(pred.label_holds)
     language_realistic = bool(pred.language_realistic)
     setup_holds = bool(pred.setup_holds)
     return Judge(
         prompt_tokens=tokens,
+        usage=pred.get_lm_usage() or {},
         label_holds=label_holds,
         scam_clear=scam_clear,
         scam_clarity_reason=(pred.scam_clarity_reason or "").strip(),

@@ -1,0 +1,19 @@
+{# Styles of the Token usage block (dataset_call.html, dataset_tokens.html). Plain CSS with the
+   page's colour tokens, not Tailwind utilities, so they work without rebuilding app.css. #}
+<style>
+  .tok-table { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tok-table th { font-weight: 500; font-size: 14px; color: var(--muted); text-align: left;
+                  padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .tok-table td { padding: 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .tok-table th:first-child, .tok-table td:first-child { padding-left: 0; }
+  .tok-table th:last-child, .tok-table td:last-child { padding-right: 0; }
+  .tok-table .num { text-align: right; white-space: nowrap; }
+  .tok-table .sub { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+  .tok-table .sub .bad { color: var(--alarm); }
+  .tok-table tr.total td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--rule-strong); }
+  .tok-bar { display: inline-block; width: 64px; height: 6px; margin-right: 8px; vertical-align: middle;
+             border-radius: 3px; background: var(--rule); overflow: hidden; }
+  .tok-bar > span { display: block; height: 100%; background: var(--ink); }
+  .tok-h { margin-top: 32px; font-size: 17px; font-weight: 600; }
+  .tok-sub { margin-top: 20px; font-size: 15px; font-weight: 600; }
+</style>

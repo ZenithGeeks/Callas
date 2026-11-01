@@ -379,6 +379,18 @@ def test_a_romance_call_gives_the_receiver_and_footing_the_scenario_backstory(tm
     assert agents.receiver.calls and all(context in c["stage"] for c in agents.receiver.calls)
 
 
+def test_a_call_with_a_backstory_runs_and_keeps_the_footing_tokens(tmp_path):
+    # read_footing once called ask() without the call key, so every romance, family and friend
+    # call failed with a TypeError on the receiver's first turn (PR #147 review)
+    store = Store(tmp_path / "calls.db")
+    agents = make_agents(SCAM, REPLIES, judge(start=2))
+    rec = run_call("romance", 2, store, agents, CONFIG).to_dict()
+    assert rec["generation"]["status"] == "accepted"
+    footing_usage = store.load(record_id("romance", 2))["generation"]["footing_usage"]
+    assert footing_usage["requests"] == 0  # the scripted footing makes no LM request
+    assert set(footing_usage) >= {"input", "output", "requests", "failed"}
+
+
 def test_the_footing_is_stored_and_a_resume_reuses_it(tmp_path, monkeypatch):
     # The footing is saved with the call, so a dataset reviewer can see what the receiver was told
     # and a resume reuses it instead of asking the footing model again.
@@ -921,7 +933,7 @@ def test_each_scam_type_gets_the_shared_rules_and_only_its_own():
     shared = CONFIG.agents.scam_caller.instructions.strip()
     text = {scam_type: s.instructions for scam_type, s in signatures.items()}
     assert all(t.startswith(shared) for t in text.values())
-    office = ("เรียนสายคุณ {RECEIVER_NAME}", "never ฉัน", "ทางเราส่งลิงก์", "{ORG}")
+    office = ("เรียนสายคุณ {RECEIVER_NAME}", "never ฉัน", "comes by SMS", "{ORG}")
     for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
         assert all(rule in text[scam_type] for rule in office)
     # romance talks like someone the receiver knows: no office words, org or slip form
@@ -929,6 +941,17 @@ def test_each_scam_type_gets_the_shared_rules_and_only_its_own():
     assert not any(word in text["romance"] for word in banned)
     assert "แอดไลน์ไอดี" in text["fake_authority"] and "แอดไลน์ไอดี" in text["investment"]
     assert "แอดไลน์ไอดี" not in text["phishing_otp"] and "สลิป" not in text["phishing_otp"]
+
+
+def test_links_go_by_sms_for_strangers_and_in_the_shared_chat_for_romance():
+    signatures = Agents(CONFIG, lms={}).scam_caller_signatures
+    text = {scam_type: s.instructions for scam_type, s in signatures.items()}
+    # the shared rules name no channel, so no type is told the opposite of its own rule (#155)
+    assert "SMS" not in CONFIG.agents.scam_caller.instructions
+    for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
+        assert "a link only ever comes by SMS" in text[scam_type]
+    assert "SMS" not in text["romance"].replace("never by SMS", "")
+    assert "already chat on LINE" in text["romance"]
 
 
 @pytest.mark.parametrize("call_type", ["phishing_otp", "romance"])

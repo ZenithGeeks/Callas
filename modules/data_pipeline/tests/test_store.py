@@ -33,6 +33,7 @@ def make_record(call_id="phishing_otp_00001", call_type="phishing_otp", seed=1, 
                 "fixes": [],
                 "latency_s": 1.0,
                 "prompt_tokens": 321,
+                "usage": {"input": 300, "output": 80, "requests": 1, "failed": 0},
                 "audio": None,
                 "audio_s": None,
             }
@@ -274,6 +275,7 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     db.execute("ALTER TABLE turns DROP COLUMN spoken_text")
     db.execute("ALTER TABLE calls DROP COLUMN speech_style")
     db.execute("ALTER TABLE calls DROP COLUMN footing")
+    db.execute("ALTER TABLE calls DROP COLUMN footing_usage")
     db.commit()
     db.close()
 
@@ -283,6 +285,7 @@ def test_an_old_database_gets_the_new_columns(tmp_path):
     assert loaded["generation"]["first_leak_turn"] is None
     assert loaded["generation"]["turns"][0]["leaked"] == []
     assert loaded["generation"]["footing"] is None  # not read yet, so a resume reads it
+    assert loaded["generation"]["footing_usage"] == {}
     Store(path)  # opening twice is fine
 
 

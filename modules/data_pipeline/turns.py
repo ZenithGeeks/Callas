@@ -20,7 +20,7 @@ from llm_serving.client import LLMUnavailable
 from llm_serving.dspy_programs import _UNAVAILABLE as UNAVAILABLE
 from nlp_core.text import autocorrect_text, normalize_text
 
-from . import romance_voice
+from . import romance_voice, usage
 from .agents import Agents
 from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, trim_turns
 from .config import Config
@@ -97,6 +97,7 @@ def write_turn(
         fixes=text_fixes(raw, cleaned),
         latency_s=round(time.perf_counter() - started, 3),
         prompt_tokens=tokens,
+        usage=pred.get_lm_usage() or {},
     )
 
 
@@ -139,7 +140,8 @@ def caller_says(
     scam_type = call.call_type if call.label_scam else None
     text, tokens = _fit_conversation(agents, config, agent, inputs, lines, scam_type)
     extra = {"scam_type": scam_type} if scam_type else {}
-    return agent, ask(agents, agent, **inputs, **extra, conversation=text), tokens
+    pred = ask(agents, agent, call_key(call), **inputs, **extra, conversation=text)
+    return agent, pred, tokens
 
 
 def receiver_says(
@@ -174,29 +176,31 @@ def receiver_says(
     )
     lines = receiver_lines(turns, filler, config)
     text, tokens = _fit_conversation(agents, config, "receiver", inputs, lines)
-    return ask(agents, "receiver", **inputs, conversation=text), tokens
+    return ask(agents, "receiver", call_key(call), **inputs, conversation=text), tokens
 
 
 def read_footing(
     agents: Agents, call: CallConfig, config: Config, turns: list[Turn], filler: SlotFiller
-) -> str:
+) -> tuple[str, dict]:
     """Work out once, from the scenario's backstory and the caller's opening, who the caller is to
-    the receiver and how it should talk back. Empty for a stranger call: the scenario sets no prior
-    relationship, so the receiver stays politely formal and no extra model call is made.
+    the receiver and how it should talk back. Returns the footing and the tokens it used (see
+    usage.py). Empty for a stranger call: the scenario sets no prior relationship, so the
+    receiver stays politely formal and no extra model call is made.
 
     Only the caller's first line is given as the opening, never the whole call, so a resume (which
     runs this again) gets the same footing it did the first time."""
     if not call.scenario.receiver_context:
-        return ""
+        return "", {}
     opening = receiver_view(turns[:1], filler, config)  # the caller's first line, as heard
     pred = ask(
         agents,
         "footing",
+        call_key(call),
         persona=call.receiver.model_dump(exclude={"key", "scam_outcome"}),
         context=call.scenario.receiver_context,
         opening=opening,
     )
-    return (getattr(pred, "footing", "") or "").strip()
+    return (getattr(pred, "footing", "") or "").strip(), pred.get_lm_usage() or {}
 
 
 def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -> Briefing:
@@ -222,27 +226,40 @@ def write_plan(agents: Agents, call: CallConfig, config: Config, store: Store) -
 
     # the notes are newest first: when the prompt is too long the oldest are dropped
     notes = trim_notes(notes, lambda kept: tokens_with(kept) <= budget)
-    pred = ask(agents, "planner", **inputs, pattern_notes=render_notes(notes))
+    pred = ask(agents, "planner", call_key(call), **inputs, pattern_notes=render_notes(notes))
     return Briefing(
         plan=[step.strip() for step in pred.plan if step.strip()],
         # summaries, not ids: a wiki sync re-creates the notes and gives them new ids
         notes_used=[note["summary"] for note in notes],
         prompt_tokens=tokens_with(notes),
         reasoning=(getattr(pred, "reasoning", "") or "").strip(),
+        usage=pred.get_lm_usage() or {},
     )
 
 
-def ask(agents: Agents, agent: str, **inputs) -> dspy.Prediction:
-    """Run one agent on its own LM.
+def ask(agents: Agents, agent: str, call_key: str, **inputs) -> dspy.Prediction:
+    """Run one agent on its own LM. The answer carries the step's real token usage
+    (`pred.get_lm_usage()`, see usage.py); `call_key` (usage.usage_key) ties a failed attempt
+    to the retry that follows it.
 
     A server that cannot be reached raises LLMUnavailable, which stops the run instead of
     being retried (graph.retry_policy retries only is_model_error).
     """
-    with dspy.context(lm=agents.lms[agent]):
+    with dspy.context(lm=agents.lms[agent]), dspy.track_usage() as tracker:
         try:
-            return getattr(agents, agent)(**inputs)
+            pred = getattr(agents, agent)(**inputs)
         except UNAVAILABLE as exc:
+            usage.keep_failed(call_key, agent, tracker)
             raise LLMUnavailable(f"cannot reach LLM server: {type(exc).__name__}") from exc
+        except Exception:
+            usage.keep_failed(call_key, agent, tracker)
+            raise
+    pred.set_lm_usage(usage.step_usage(call_key, agent, tracker, pred))
+    return pred
+
+
+def call_key(call: CallConfig) -> str:
+    return usage.usage_key(call.call_type, call.seed, call.receiver.key)
 
 
 def is_model_error(exc: BaseException) -> bool:

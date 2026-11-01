@@ -21,6 +21,7 @@
     {% endif %}
     {{ ui.fixes(turn.fixes) }}
     {{ st.tag(tag) }}
+    {% if turn.usage %}<p class="mt-1 text-[14px] tabular-nums text-muted">{{ ui.step_tokens(turn.usage) }}</p>{% endif %}
     {% if turn.reasoning %}
     <details class="why msg-why"><summary>Agent reasoning</summary><p>{{ turn.reasoning }}</p></details>
     {% endif %}
