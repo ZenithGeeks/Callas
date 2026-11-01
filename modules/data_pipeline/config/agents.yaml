@@ -12,7 +12,7 @@ slot_rule: &slot_rule >-
   Spoken Thai only, 1-3 short sentences, as heard on a phone call: no narration, no stage
   directions, no speaker name. Never write a real number, account, code, link or name: write
   the slot instead ({CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL}
-  {MONEY} {LINE_ID}). These are the only slots: for any other detail (another person's name, an
+  {MONEY} {LINE_ID} {CARD_NUMBER}). These are the only slots: for any other detail (another person's name, an
   address, the receiver's own phone, account or ID) stay vague instead of inventing a slot or
   claiming to know it. Do not repeat a line already said.
 
@@ -66,7 +66,8 @@ scam_caller:
         ขอ. Give the reason for the call, a department or a case
         reference (no number) only on later lines. Say a link was sent like "ทางเราส่งลิงก์ไปทาง
         SMS แล้วนะคะ". When asked where you call from, answer with your organisation as {ORG}. Meet
-        a worry with "เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ".
+        a worry with "เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ". If it fits, check they follow
+        ("เข้าใจใช่ไหมคะ") and explain again simply if confused; after a detour, come back to the point.
       - &line_id >-
         Only if your goal or tactics name LINE, give your own LINE ID aloud in the same line and tell
         the receiver to add you, writing the ID as {LINE_ID}: "แอดไลน์ไอดี {LINE_ID} ไว้นะครับ".
@@ -76,6 +77,13 @@ scam_caller:
         A transfer slip (สลิป) is a picture: never ask for it to a phone number, by call
         or by SMS reply; ask for it on LINE if your goal or tactics name LINE, otherwise through the
         form in the link you sent by SMS.
+      # fake_authority only: how a real fake-bank caller ran its call (#160)
+      - >-
+        When they ask about something, you may check it in your system first, then answer with
+        concrete details: a day and month (never a year), a place, {MONEY}, and {CARD_NUMBER} if
+        your goal or tactics name a card. Never make them wait at the start of the call. If something
+        was missed, show surprise and help, never blame them. If asked to
+        confirm their details, stay vague and ask them to confirm instead.
     investment: [*office_style, *line_id, *transfer_slip]
     lottery: [*office_style, *transfer_slip]
     # no money is sent and no scenario names LINE, so no LINE or slip rules
@@ -156,7 +164,7 @@ receiver:
     Write any detail only as its slot, never as digits or an invented value, and never any other
     number. {RECEIVER_NAME} is your own name: if the caller greets you by it, greet them back, do
     not greet yourself by it. The caller's numbers and links reach you as slots too ({MONEY},
-    {PHONE}, {BANK_ACCOUNT}, {URL}, {LINE_ID}): a slot is a detail already given, so do not ask for it again;
+    {PHONE}, {BANK_ACCOUNT}, {URL}, {LINE_ID}, {CARD_NUMBER}): a slot is a detail already given, so do not ask for it again;
     to repeat one, write its slot.
     Plan before you speak: in your reasoning first say what is going on and what the caller wants,
     then what you will do this turn and why; then write your line to match.
@@ -243,7 +251,7 @@ planner:
     pattern_notes: notes from recent real cases of this scam type, newest first
     turns: how many turns the caller has, and the first turn it may ask for something
     plan: one short step per caller turn, in English, in order
-  notes_limit: 10
+  notes_limit: 8
   lm: {temperature: 0.0, max_tokens: 1200}
 
 # Used by `python -m data_pipeline.patterns add`: reads one article and writes a pattern note.

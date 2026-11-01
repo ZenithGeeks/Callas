@@ -128,3 +128,10 @@ def test_a_postcode_stays_digit_by_digit():
 def test_a_line_id_is_spelled_letter_by_letter_in_thai():
     assert say("LINE_ID", "viphost", DASH) == "วี ไอ พี เอช โอ เอส ที"
     assert say("LINE_ID", "luxwin", PAUSE) == "แอล ยู เอ็กซ์ ดับเบิลยู ไอ เอ็น"
+
+
+def test_a_card_number_is_said_digit_by_digit():
+    assert say("CARD_NUMBER", "1234-5678-9012-3456", DASH) == say(
+        "ID_CARD", "1234-5678-9012-3456", DASH
+    )
+    assert "ขีด" in say("CARD_NUMBER", "1234-5678-9012-3456", DASH)

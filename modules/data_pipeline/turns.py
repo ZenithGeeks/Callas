@@ -26,6 +26,7 @@ from .budget import ContextTooLong, prompt_budget, prompt_tokens, trim_notes, tr
 from .config import Config
 from .fill import (
     CALLER_NUMBER_SLOTS,
+    ENDS_WITH,
     RECEIVER_ONLY_SLOTS,
     RECEIVER_OWN_SLOTS,
     SLOT_RE,
@@ -311,6 +312,8 @@ def receiver_lines(turns: list[Turn], filler: SlotFiller, config: Config) -> lis
     for line in conversation_lines(turns, config, raw=False):
         for slot in slots:
             line = line.replace(values[slot], "{" + slot + "}")
+        # a card said by its last 4 digits only (fill.ENDS_WITH) is the slot too
+        line = re.sub(f"({ENDS_WITH}){values['CARD_NUMBER'][-4:]}", r"\g<1>{CARD_NUMBER}", line)
         lines.append(line)
     return lines
 

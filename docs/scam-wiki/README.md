@@ -33,7 +33,8 @@ Rules:
 - Keys are not case sensitive. Bullets can start with `-` or `*`.
 - One line per bullet. Do not wrap a bullet onto a second line.
 - Write tactics only. No real names, phone numbers, account numbers or links. Use the slots
-  `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY}` in phrases.
+  `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY} {LINE_ID}
+  {CARD_NUMBER}` in phrases.
 - If a page cannot be read, `sync` stops and names the file and line. Nothing is changed in the
   store when any page fails.
 - Save pages as UTF-8. A byte order mark at the start of a file is accepted.

@@ -166,6 +166,16 @@ scams:
     tactics: Calls about the investment the receiver showed interest in; says a certificate with the
       SEC seal was sent on LINE and can be checked at {URL}; the certificate must be registered for a
       fee; walks the receiver through the transfer on the call
+  - key: credit_card_unpaid_statement
+    role: credit card and loan staff of a bank
+    org: ธนาคาร
+    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to clear unpaid card use before the
+      card is closed
+    tactics: Confirms the receiver's full name; when the receiver asks about the debt, checks the
+      system, then reads out the card {CARD_NUMBER}, its approved limit and ATM withdrawals as {MONEY}, with a day, a month
+      and a branch; asks, surprised, why the bill was not paid, says the bills were sent but may not
+      have arrived, then helps at once; offers to close the card first; never confirms the receiver's
+      address or details, and asks them to confirm instead
   romance:
   - key: engineer_abroad
     relation: lover
