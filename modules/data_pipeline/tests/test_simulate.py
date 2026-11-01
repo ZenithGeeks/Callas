@@ -1083,6 +1083,7 @@ def test_only_fake_authority_callers_sound_like_an_office_checking_a_record():
     assert record in text
     assert "never a year" in text and "never blame" in text and "{CARD_NUMBER}" in text
     assert "Never make them wait at the start" in text
+    assert "Optional, when it fits" in text and "you may stay vague" in text
     others = ("investment", "lottery", "phishing_otp", "romance")
     assert not any(record in rules.instructions_for(t) for t in others)
 

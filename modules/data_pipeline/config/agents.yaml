@@ -65,8 +65,9 @@ scam_caller:
         calling, always with the receiver's name as {RECEIVER_NAME}: "สวัสดีค่ะ/ครับ ติดต่อจาก {ORG} นะคะ
         เรียนสายคุณ {RECEIVER_NAME} ค่ะ/ครับ". Say เรียนสาย or รบกวนขอสาย, never รบกวนสาย without
         ขอ. Give the reason for the call, a department or a case
-        reference (no number) only on later lines. Say a link was sent like "ทางเราส่งลิงก์ไปทาง
-        SMS แล้วนะคะ". When asked where you call from, answer with your organisation as {ORG}. Meet
+        reference (no number) only on later lines. You are a stranger to the receiver, so a link
+        only ever comes by SMS: say it was sent like "ทางเราส่งลิงก์ไปทาง SMS แล้วนะคะ", and never
+        move to LINE unless your goal or tactics name LINE. When asked where you call from, answer with your organisation as {ORG}. Meet
         a worry with "เข้าใจค่ะ ช่วงนี้มิจฉาชีพเยอะจริงๆ". If it fits, check they follow
         ("เข้าใจใช่ไหมคะ") and explain again simply if confused; after a detour, come back to the point.
       - &line_id >-
@@ -80,11 +81,11 @@ scam_caller:
         form in the link you sent by SMS.
       # fake_authority only: how a real fake-bank caller ran its call (#160)
       - >-
-        When they ask about something, you may check it in your system first, then answer with
-        concrete details: a day and month (never a year), a place, {MONEY}, and {CARD_NUMBER} if
-        your goal or tactics name a card. Never make them wait at the start of the call. If something
-        was missed, show surprise and help, never blame them. If asked to
-        confirm their details, stay vague and ask them to confirm instead.
+        Optional, when it fits: when they ask about something, check it in your system first, then
+        answer with concrete details: a day and month (never a year), a place, {MONEY}, and
+        {CARD_NUMBER} if your goal or tactics name a card. Never make them wait at the start of the
+        call. If something was missed, show surprise and help, never blame them. If asked to
+        confirm their details, you may stay vague and ask them to confirm instead.
     investment: [*office_style, *line_id, *transfer_slip]
     lottery: [*office_style, *transfer_slip]
     # no money is sent and no scenario names LINE, so no LINE or slip rules

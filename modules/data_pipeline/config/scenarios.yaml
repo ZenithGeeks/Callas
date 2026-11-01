@@ -174,8 +174,7 @@ scams:
     tactics: Confirms the receiver's full name; when the receiver asks about the debt, checks the
       system, then reads out the card {CARD_NUMBER}, its approved limit and ATM withdrawals as {MONEY}, with a day, a month
       and a branch; asks, surprised, why the bill was not paid, says the bills were sent but may not
-      have arrived, then helps at once; offers to close the card first; never confirms the receiver's
-      address or details, and asks them to confirm instead
+      have arrived, then helps at once; offers to close the card first
   romance:
   - key: engineer_abroad
     relation: lover
