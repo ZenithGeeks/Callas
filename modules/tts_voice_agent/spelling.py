@@ -13,6 +13,26 @@ _THAI = re.compile(r"[฀-๿]")
 _BAD_MARKS = re.compile(r"[่-๋][ัิ-ื]|[่-๋]{2,}|[ัิ-ื]{2,}")
 # Spoken exclamations Thai people say that the PyThaiNLP dictionary lacks (โถ่ in romance_00015).
 _SPOKEN = frozenset({"โถ่", "เฮ้", "เฮ่", "เห้ย", "โห้", "เอ้า", "เอิ่ม", "หืม", "ห๊ะ", "ห้ะ", "งื้อ", "อุ๊ต๊ะ"})
+# Isan words the dictionary lacks, for receivers whose persona speaks Isan (จังได๋ in
+# phishing_otp_00015). ได๋ and ใด๋ alone also cover compounds such as ปานใด๋ and ผู้ได๋.
+_ISAN = frozenset(
+    {
+        "ได๋",
+        "ใด๋",
+        "จังได๋",
+        "จั่งได๋",
+        "จังซั่น",
+        "จั่งซั่น",
+        "จั่งซี่",
+        "อิหยัง",
+        "เฮา",
+        "เพิ่น",
+        "จั๊กแม่น",
+        "แหน่",
+        "เบิ๊ด",
+        "น้อ",
+    }
+)
 # Loanwords the dictionary lacks, so newmm split them into non-words (แอ+ป, ค+ริ+ป+โต, คอ+ล).
 _LOANWORDS = frozenset({"แอป", "คริปโต", "คอล"})
 # ๆ (mai yamok) repeats the word before it (สู้ๆ, เยอะๆ) and ฯ (paiyannoi) shortens it (แอปฯ,
@@ -25,7 +45,7 @@ _MARKS_AFTER_WORD = "ๆฯ"
 def _words() -> frozenset[str]:
     from pythainlp.corpus import thai_words
 
-    return frozenset(thai_words()) | _SPOKEN | _LOANWORDS
+    return frozenset(thai_words()) | _SPOKEN | _ISAN | _LOANWORDS
 
 
 @cache

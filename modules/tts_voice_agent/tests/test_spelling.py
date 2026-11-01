@@ -77,6 +77,26 @@ def test_loanwords_and_paiyannoi_are_not_misspellings(text):
     assert spelling_problems(text) == []
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "จะลองถามลูกหลานดูก่อนว่ามันเป็นจังได๋กันแน่",  # phishing_otp_00015
+        "จั่งได๋ล่ะ เว้าให้ฟังแหน่",
+        "จังซั่นบ่แม่นเด้อ",
+        "จั่งซี่กะได้",
+        "อิหยังน้อ",
+        "เฮาบ่ฮู้จักเด้อ",
+        "เพิ่นบอกว่าบ่ต้องโอน",
+        "จั๊กแม่นคือผู้ได๋",
+        "ต้องจ่ายปานใด๋",
+        "อยู่หม่องได๋",
+        "เงินเบิ๊ดแล้ว",
+    ],
+)
+def test_isan_words_are_not_misspellings(text):
+    assert spelling_problems(text) == []
+
+
 def test_safe_reply_uses_template_for_garbled_thai():
     from nlp_core.types import NLPResult
     from tts_voice_agent.memory import CallState
