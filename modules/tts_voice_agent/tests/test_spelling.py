@@ -33,6 +33,14 @@ def test_doubled_tone_or_vowel_marks_are_caught():
     assert spelling_problems("ตอนนี้สบายดี") == []
 
 
+def test_mai_yamok_is_not_a_misspelling():
+    # ๆ repeats the word before it; spaced or not, it must not be flagged (romance_00015)
+    assert spelling_problems("ตัวเองสู้ๆ นะครับ พักผ่อนเยอะๆ นะ") == []
+    assert spelling_problems("ขอบคุณมาก ๆ เลยนะ") == []
+    # a misspelled word in front of ๆ is still caught
+    assert looks_misspelled("ไม่สะดวกในการรบัสายๆ")
+
+
 def test_safe_reply_uses_template_for_garbled_thai():
     from nlp_core.types import NLPResult
     from tts_voice_agent.memory import CallState

@@ -27,8 +27,12 @@ def spelling_problems(text: str) -> list[str]:
     from pythainlp.tokenize import word_tokenize
 
     words = _words()
+    # ๆ (mai yamok) repeats the word before it (สู้ๆ, เยอะๆ); it is not a word, so it is
+    # dropped before the dictionary lookup, whether newmm splits it off or keeps it attached.
     return [
-        t for t in word_tokenize(text, engine="newmm") if _THAI.search(t) and t.strip() not in words
+        t
+        for t in word_tokenize(text, engine="newmm")
+        if _THAI.search(w := t.strip().rstrip("ๆ").strip()) and w not in words
     ]
 
 
