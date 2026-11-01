@@ -289,9 +289,8 @@ def test_line_slots_and_names_are_not_flagged(line):
     assert "line_id_without_slot" not in filler().fill(line)[2]
 
 
-@pytest.mark.parametrize("call_type", ["benign", "fake_authority"])
-def test_police_org_comes_from_the_police_station_list(call_type):
-    calls = [sample_config(call_type, s, CONFIG) for s in range(400)]
+def test_police_org_comes_from_the_police_station_list():
+    calls = [sample_config("benign", s, CONFIG) for s in range(400)]
     police = [c for c in calls if c.scenario.org == "สถานีตำรวจ"]
     assert police
     for c in police:
@@ -319,8 +318,3 @@ def test_a_police_station_does_not_change_the_calls_other_values():
     assert {k: v for k, v in with_station.items() if k != "ORG"} == {
         k: v for k, v in without.items() if k != "ORG"
     }
-
-
-def test_the_police_station_scenario_is_the_last_fake_authority_one():
-    scenario = CONFIG.scenarios.scams["fake_authority"][-1]
-    assert scenario.key == "police_station_case" and scenario.org == "สถานีตำรวจ"

@@ -167,14 +167,6 @@ scams:
     tactics: Calls about the investment the receiver showed interest in; says a certificate with the
       SEC seal was sent on LINE and can be checked at {URL}; the certificate must be registered for a
       fee; walks the receiver through the transfer on the call
-  - key: police_station_case
-    role: police officer at a local police station
-    org: สถานีตำรวจ
-    goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} 'for checking' so their name is cleared
-      from a case
-    tactics: Says which station they call from; says the receiver's bank account turned up in a fraud
-      case at the station; offers to settle it on the phone instead of coming in; asks to keep it quiet
-      until the check is done
   romance:
   - key: engineer_abroad
     relation: lover
