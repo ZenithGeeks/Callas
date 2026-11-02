@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS calls (
     review_status    TEXT NOT NULL DEFAULT 'pending',      -- pending | approved | rejected
     review_note      TEXT NOT NULL DEFAULT '',
     reviewed_at      TEXT,
+    dataset          TEXT NOT NULL DEFAULT '',             -- real_approved | real_rejected | ''
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
 );
@@ -162,6 +163,7 @@ _ADDED_COLUMNS = (
     ("calls", "speech_style", "TEXT NOT NULL DEFAULT ''"),
     ("calls", "footing", "TEXT"),
     ("calls", "footing_usage", "TEXT NOT NULL DEFAULT '{}'"),
+    ("calls", "dataset", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "spoken_text", "TEXT NOT NULL DEFAULT ''"),
     ("turns", "prompt_tokens", "INTEGER"),
     ("turns", "leaked", "TEXT NOT NULL DEFAULT '[]'"),
@@ -342,12 +344,13 @@ class Store:
 
     def summaries(self) -> list[sqlite3.Row]:
         """One light row per call for list pages: no turns, no reasoning."""
+        dataset = "c.dataset" if self.has_column("calls", "dataset") else "'' AS dataset"
         return (
             self._conn()
             .execute(
-                """
+                f"""
             SELECT c.id, c.call_type, c.seed, c.label_scam, c.status, c.review_status,
-                   c.reference_summary, COUNT(t.idx) AS turns, MAX(t.end_s) AS seconds
+                   c.reference_summary, {dataset}, COUNT(t.idx) AS turns, MAX(t.end_s) AS seconds
             FROM calls c LEFT JOIN turns t ON t.call_id = c.id
             GROUP BY c.id ORDER BY c.id
             """
@@ -363,6 +366,15 @@ class Store:
                 """UPDATE calls SET review_status = ?, review_note = ?, reviewed_at = ?,
                    updated_at = ? WHERE id = ?""",
                 (status, note, reviewed_at, now(), call_id),
+            )
+        return cur.rowcount == 1
+
+    def set_dataset(self, call_id: str, name: str) -> bool:
+        """Put the call in a named dataset ("" for none). save() never changes it, so a rerun
+        keeps the tag. False if there is no such call."""
+        with self._tx() as db:
+            cur = db.execute(
+                "UPDATE calls SET dataset = ?, updated_at = ? WHERE id = ?", (name, now(), call_id)
             )
         return cur.rowcount == 1
 

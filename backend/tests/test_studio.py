@@ -74,7 +74,55 @@ def test_page_has_the_form_and_a_nav_link(client):
     assert "teacher_cm" in html  # a saved profile
     assert '<select id="r_occupation"' in html  # a dropdown for a described person
     assert "No call yet" in html
-    assert 'data-start-all' in html and "Generate all six kinds" in html
+    assert "data-start-all" in html and "Generate all six kinds" in html
+    assert "data-start-real" in html and "Generate a real dataset" in html
+    assert '<input type="hidden" id="batch" name="batch" value="">' in html
+
+
+def dataset_tag(tmp_path, record_id):
+    return next(
+        r["dataset"] for r in Store(tmp_path / "calls.db").summaries() if r["id"] == record_id
+    )
+
+
+def test_a_real_dataset_call_is_tagged_by_its_verdict_and_says_so(client, tmp_path):
+    run_id = run_id_of(start(client, batch="real", speak=""))
+    done = read_events(client, run_id)[-1][1]
+    assert 'data-real-result="real_approved"' in done
+    assert "in the real dataset" in done
+    assert dataset_tag(tmp_path, "phishing_otp_00000") == "real_approved"
+    # the real dataset view on /dataset lists it
+    assert "phishing_otp_00000" in client.get("/dataset?view=real").text
+
+
+def test_an_ordinary_call_is_not_put_in_the_real_dataset(client, tmp_path):
+    done = read_events(client, run_id_of(start(client)))[-1][1]
+    assert "data-real-result" not in done
+    assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
+
+
+def test_a_stopped_real_dataset_call_is_not_counted(client, tmp_path):
+    client.app.state.pace = 0.1
+    try:
+        run_id = run_id_of(start(client, batch="real"))
+        time.sleep(0.5)
+        client.post(f"/studio/{run_id}/stop")
+        wait_idle(studio.BOARD)
+    finally:
+        client.app.state.pace = 0
+    assert 'data-real-result=""' in read_events(client, run_id)[-1][1]
+    assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
+
+
+def test_a_rejected_real_dataset_call_is_kept_apart(tmp_path):
+    from backend.tests.test_dataset import record
+
+    store = Store(tmp_path / "calls.db")
+    store.save(record("phishing_otp_00001", status="rejected"))
+    spec = live.CallSpec("phishing_otp", 1, None, None, "", "")
+    run = studio.StudioRun("0" * 12, spec, "t", real=True)
+    assert studio._put_in_real_dataset(run, tmp_path / "calls.db") == dataset.REAL_REJECTED
+    assert dataset_tag(tmp_path, "phishing_otp_00001") == "real_rejected"
 
 
 def test_start_shows_the_run_and_the_call_is_saved(client, tmp_path):
