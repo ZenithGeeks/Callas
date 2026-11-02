@@ -172,3 +172,23 @@ Phrases:
 - สวัสดีครับ ผม {CALLER_NAME} เจ้าหน้าที่สำนักงาน ก.ล.ต. เบอร์ {PHONE} ตามที่ท่านสนใจลงทุน
 - นี่คือเอกสารรับรองโดย ก.ล.ต. ส่งให้ทางไลน์แล้ว ตรวจสอบได้ที่ {URL}
 - ท่านต้องโอนเงินค่าธรรมเนียม {MONEY} บาท เป็นค่าจดทะเบียนผ่านบัญชี {BANK_ACCOUNT} จึงจะสามารถเริ่มลงทุนได้
+
+## Fake bank credit staff read out unpaid card use, ask why it was not paid, and offer to close the card
+- source: real call recording: งานนี้หลอกยาก! แก๊งคอลฯ โทรเจอสาวอดีตพนง.แบงค์ โดนสวนเป็นชุด
+- published: 
+- active: yes
+
+Tactics:
+- Confirm the victim's full name; when the victim asks about something, 'check the bank system' before answering
+- Read out one long, detailed record: the card number, the approved limit, the ATM branch, the day and the time of each withdrawal
+- Check the victim is following before coming back to what they 'missed'
+- Ask, surprised, why the card bill was not paid, and say the bills were sent but must not have arrived
+- Break the amount down into several withdrawals when asked, so it sounds real
+- Offer to close the card first, as if protecting the victim, then ask for the payment
+- Never confirm the victim's address or details when asked; turn it around and ask the victim to confirm instead
+
+Phrases:
+- ขอตรวจสอบในระบบสักครู่นะคะ คุณ {RECEIVER_NAME}
+- ในระบบแจ้งว่าบัตรเครดิตหมายเลข {CARD_NUMBER} ได้รับอนุมัติวงเงิน {MONEY} และมีการกดเงินสดที่ตู้ ATM แล้วค่ะ
+- ได้ยินชัดไหมคะ ยอดนี้ยังไม่ได้ชำระเลยนะคะ ไม่เป็นไรค่ะ ทางเราช่วยดูให้
+- เดี๋ยวทางเราขอระงับบัตรไว้ก่อนนะคะ แล้วชำระยอด {MONEY} เข้าบัญชี {BANK_ACCOUNT} ได้เลยค่ะ
