@@ -1149,4 +1149,5 @@ def test_only_investment_callers_get_the_paid_task_tips():
 def test_the_planner_plans_lover_and_friend_or_family_calls_differently():
     rules = " ".join(CONFIG.agents.planner.instructions.split())
     assert "A lover starts with casual couple small talk" in rules
-    assert "friend or family member gets straight to it" in rules and "new number" in rules
+    assert "friend or family member is never a couple (no flirting)" in rules
+    assert "gets straight to it" in rules and "new number" in rules
