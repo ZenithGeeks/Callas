@@ -14,6 +14,9 @@
 #   police_stations {ORG} when a scenario's org is "สถานีตำรวจ" (made-up station names)
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
 #   line_ids      {LINE_ID} = <part><part>, two different parts, lowercase letters only
+#
+# The caller's {CARD_NUMBER} (a card it says the receiver has) is 16 random digits as
+# 1234-5678-9012-3456 that never pass the Luhn check (see fill.py), so it needs no list here.
 #   money         {MONEY} in baht; big_types use the big amounts
 #   addresses     the receiver's {ADDRESS} = <house number> ซอย<soi> <district> <province>
 #

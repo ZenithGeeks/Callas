@@ -289,6 +289,52 @@ def test_line_slots_and_names_are_not_flagged(line):
     assert "line_id_without_slot" not in filler().fill(line)[2]
 
 
+def _passes_luhn(number: str) -> bool:
+    digits = [int(d) for d in number if d.isdigit()][::-1]
+    return sum(d if i % 2 == 0 else sum(divmod(d * 2, 10)) for i, d in enumerate(digits)) % 10 == 0
+
+
+def test_a_card_number_is_16_digits_that_are_never_a_valid_card():
+    for seed in range(300):
+        value = filler("fake_authority", seed).values["CARD_NUMBER"]
+        assert re.fullmatch(r"\d{4}-\d{4}-\d{4}-\d{4}", value)
+        assert not _passes_luhn(value)
+
+
+def test_a_card_number_is_labelled_and_drawn_last():
+    f = filler("fake_authority", 5)
+    text, spans, problems = f.fill("บัตรหมายเลข {CARD_NUMBER} ค่ะ")
+    value = f.values["CARD_NUMBER"]
+    assert problems == []
+    assert spans == [{"text": value, "label": "CARD_NUMBER", "start": 12, "end": 12 + len(value)}]
+    assert "CARD_NUMBER" in ENTITY_LABELS
+    # drawn after every other value, so the values a seed gave before #160 stay the same
+    assert list(f.values)[-1] == "CARD_NUMBER"
+
+
+def test_a_card_number_written_as_digits_is_flagged():
+    assert "number_without_slot" in filler().fill("บัตรหมายเลข 4111 1111 1111 1111 ค่ะ")[2]
+
+
+def test_the_credit_card_scenario_is_the_last_fake_authority_one():
+    scenario = CONFIG.scenarios.scams["fake_authority"][-1]
+    assert scenario.key == "credit_card_unpaid_statement"
+    assert "{CARD_NUMBER}" in scenario.tactics and "{BANK_ACCOUNT}" in scenario.goal
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["บัตรที่ลงท้ายด้วย {CARD_NUMBER} ค่ะ", "บัตรลงท้าย {CARD_NUMBER} ค่ะ", "ลงท้ายด้วยเลข {CARD_NUMBER}"],
+)
+def test_a_card_said_by_its_ending_is_only_the_last_4_digits(line):
+    f = filler("fake_authority", 5)
+    text, spans, problems = f.fill(line)
+    last4 = f.values["CARD_NUMBER"][-4:]
+    assert problems == []
+    assert [s["text"] for s in spans] == [last4] and spans[0]["label"] == "CARD_NUMBER"
+    assert f.values["CARD_NUMBER"] not in text
+
+
 def test_police_org_comes_from_the_police_station_list():
     calls = [sample_config("benign", s, CONFIG) for s in range(400)]
     police = [c for c in calls if c.scenario.org == "สถานีตำรวจ"]

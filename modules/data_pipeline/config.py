@@ -48,6 +48,7 @@ SLOT_NAMES = (
     "OTP",
     "URL",
     "MONEY",
+    "CARD_NUMBER",
     "RECEIVER_PHONE",
     "RECEIVER_ACCOUNT",
     "ID_CARD",

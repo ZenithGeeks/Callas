@@ -174,7 +174,7 @@ The loader refuses a config that would break the run:
 Before you edit:
 
 - Field names under `fields:` are fixed, because the code reads them. Change the text, not the keys.
-- Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY} {LINE_ID}` and the receiver's own `{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values. This gives exact entity spans and keeps real numbers out of the data.
+- Agents must write details as slots: `{CALLER_NAME} {RECEIVER_NAME} {ORG} {PHONE} {BANK_ACCOUNT} {OTP} {URL} {MONEY} {LINE_ID} {CARD_NUMBER}` and the receiver's own `{RECEIVER_PHONE} {RECEIVER_ACCOUNT} {ID_CARD} {BIRTH_DATE} {ADDRESS}`. Code fills them with made-up values. This gives exact entity spans and keeps real numbers out of the data.
 - Seeds pick scenarios by list position. Adding a scenario in the middle of a list changes which call a seed makes. The config hash keeps old and new records apart.
 - All agents run at temperature 0.0, because a model garbled Thai spelling at 0.3. Variety comes from the sampled scenario, receiver, plan and pacing.
 - A call stops at its `max_turns`. So it does not stop mid-scene, the speaker of the second-to-last turn gets `speakers.ending.soon` and the speaker of the last turn gets `speakers.ending.last` (#150). Callers get it after their pacing (the legit caller's `pacing` is empty until then). The receiver gets it after its stage, and on those turns it is never told to stay on the line. In a scam call whose receiver has `scam_outcome: scammed`, the receiver's ending also gets `speakers.ending.scammed`: it says clearly that it will do what the caller asked. A hand-written profile has no outcome, so it does not get it.
@@ -192,11 +192,13 @@ A real victim sometimes gives personal details away. Those are the calls a scam 
 | `{BIRTH_DATE}` | day, month and Buddhist-era year, for example `12 มีนาคม 2511`, matching the receiver's age on 1 July 2025 | `BIRTH_DATE` |
 | `{ADDRESS}` | built from the made-up parts under `addresses` in `details.yaml` | `ADDRESS` |
 
-The receiver also hears the caller's numbers and links as slots (`{MONEY}`, `{PHONE}`, `{BANK_ACCOUNT}`, `{URL}`, `{LINE_ID}`, and `{OTP}` if the caller says one), so a receiver that repeats one writes the slot instead of digits that would get the call rejected as `number_without_slot`. Repeating the caller's slots is not a leak: only the slots in the table above are.
+The receiver also hears the caller's numbers and links as slots (`{MONEY}`, `{PHONE}`, `{BANK_ACCOUNT}`, `{URL}`, `{LINE_ID}`, `{CARD_NUMBER}`, and `{OTP}` if the caller says one), so a receiver that repeats one writes the slot instead of digits that would get the call rejected as `number_without_slot`. Repeating the caller's slots is not a leak: only the slots in the table above are.
 
 `ID_CARD`, `BIRTH_DATE` and `ADDRESS` are in `nlp_core.types.ENTITY_LABELS`.
 
 When a scam caller's goal or tactics name LINE, it gives its LINE ID as `{LINE_ID}`: two different parts from `line_ids` in `details.yaml` joined, for example `viphost`, lowercase letters only. The label is `LINE_ID` (#143). Calls made before this change have the ID as plain text with no label, so leave them out when you train an NER on `LINE_ID`. A line that names LINE and still has a made-up ID (`viphost01`, `landdoc`) gets the problem `line_id_without_slot`, and the call is rejected.
+
+When a scam caller reads out a card it says the receiver has, it writes `{CARD_NUMBER}`: 16 random digits as `1234-5678-9012-3456`, whose last digit is never the Luhn check digit, so it is never a valid card. The label is `CARD_NUMBER` (#160). Calls made before this change have no card numbers. A card written as digits instead gets `number_without_slot`, as any other bare number does.
 
 Code finds leaks from the slots a receiver line uses. The model never reports them. `{RECEIVER_NAME}` does not count, because saying your name when you answer is not a leak. A caller cannot know the receiver's details. A caller turn that uses one of those slots gets the problem `caller_used_receiver_slot`, and the call is rejected.
 
@@ -208,7 +210,7 @@ VachanaTTS reads `158-5-96045-2` as one number with minus signs. So the voice is
 
 | Label | Said as |
 |---|---|
-| `PHONE`, `BANK_ACCOUNT`, `ID_CARD` | digit by digit per group: `158-5-96045-2` is "หนึ่งห้าแปด ขีด ห้า ขีด เก้าหกศูนย์สี่ห้า ขีด สอง" |
+| `PHONE`, `BANK_ACCOUNT`, `ID_CARD`, `CARD_NUMBER` | digit by digit per group: `158-5-96045-2` is "หนึ่งห้าแปด ขีด ห้า ขีด เก้าหกศูนย์สี่ห้า ขีด สอง" |
 | `OTP` | digit by digit, no dashes |
 | `MONEY` | place value: `49,500 บาท` is "สี่หมื่นเก้าพันห้าร้อยบาท" |
 | `BIRTH_DATE` | day and year as numbers, month as written |
@@ -243,6 +245,7 @@ A call is marked `rejected` (it stays on disk and shows on `/dataset`) when:
 - a line has a line break or starts with `A:` or `B:` (`line_break`)
 - a line names LINE (ไลน์, ไอดี or LINE) and has a Latin word of 5 or more characters that is all lowercase or has a digit or `_`: a LINE ID the agent made up instead of `{LINE_ID}` (`line_id_without_slot`)
 - a tone mark comes before a vowel
+- a caller or receiver line has a Thai word that is not in the PyThaiNLP dictionary, even one name or loanword (`garbled_spelling`)
 - the judge's confidence score is 50% or less (`judge_low_confidence`). The score is 25 points each for a clear scam or not-scam, showing the intended call, realistic language, and reflecting the persona and scenario selected before the call started (`setup_holds`). Calls judged before the fourth check scored realistic language at 50. It is the judge's only say: above 50% the judge passes the call, whatever its other answers (`giveaway`, `scam_start_turn`) are
 
 Calls stored before this rule may still carry the old judge reasons `judge_label_does_not_hold`, `judge_giveaway`, `no_scam_move` and `judge_saw_scam_in_normal_call`.

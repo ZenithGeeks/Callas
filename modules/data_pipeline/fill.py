@@ -25,6 +25,7 @@ SLOT_LABEL = {
     "URL": "URL",
     "MONEY": "MONEY",
     "LINE_ID": "LINE_ID",
+    "CARD_NUMBER": "CARD_NUMBER",
     "RECEIVER_PHONE": "PHONE",
     "RECEIVER_ACCOUNT": "BANK_ACCOUNT",
     "ID_CARD": "ID_CARD",
@@ -55,7 +56,7 @@ RECEIVER_OWN_SLOTS = (
 # The caller's numbers and links. The receiver hears them as slots too, so a receiver that
 # repeats one writes the slot, not digits that get the call rejected as number_without_slot
 # (#99). Repeating one of these is not a leak: only RECEIVER_LEAK_SLOTS are.
-CALLER_NUMBER_SLOTS = ("PHONE", "BANK_ACCOUNT", "OTP", "URL", "MONEY", "LINE_ID")
+CALLER_NUMBER_SLOTS = ("PHONE", "BANK_ACCOUNT", "OTP", "URL", "MONEY", "LINE_ID", "CARD_NUMBER")
 # Slots a caller cannot know: the person who answered owns these. A caller turn that uses one
 # is flagged (turns.write_turn). {RECEIVER_NAME} is not here: a caller may know the name.
 RECEIVER_ONLY_SLOTS = ("RECEIVER_PHONE", "RECEIVER_ACCOUNT", "ID_CARD", "BIRTH_DATE", "ADDRESS")
@@ -93,6 +94,9 @@ _MADE_UP_ID = re.compile(
     r"(?![A-Za-z0-9_.])"
 )
 _BAHT_AFTER = re.compile(r"^\s*บาท")
+# "บัตรที่ลงท้ายด้วย {CARD_NUMBER}": only the last 4 digits are said after ลงท้าย (#160)
+ENDS_WITH = r"ลงท้าย(?:ด้วย)?\s*(?:เลข(?:ที่)?)?\s*"
+_ENDS_WITH_BEFORE = re.compile(ENDS_WITH + "$")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
 PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
 SCHOOL_SCENARIO_ORG = "โรงเรียน"  # scenarios.yaml org value: "pick a school from details"
@@ -147,6 +151,8 @@ class SlotFiller:
             "ADDRESS": _address(rng, details.addresses),
             # added after the receiver's details (#143) so every value above stays what it was
             "LINE_ID": _line_id(rng, details.line_ids),
+            # the card a caller says the receiver has (#160), last for the same reason
+            "CARD_NUMBER": _card_number(rng),
         }
 
     def fill(self, raw: str) -> tuple[str, list[dict], list[str]]:
@@ -172,6 +178,8 @@ class SlotFiller:
                 baht = _BAHT_AFTER.match(raw[raw_pos:])
                 if baht:
                     raw_pos += baht.end()
+            if name == "CARD_NUMBER" and _ENDS_WITH_BEFORE.search(raw[: match.start()]):
+                value = value[-4:]
             pieces.append(value)
             spans.append(
                 {
@@ -311,6 +319,20 @@ def _id_card(rng: random.Random) -> str:
     if last == check:  # an extra draw only in this case, so other seeds keep their values
         last = (check + 1 + rng.randrange(9)) % 10
     return f"{first}-{middle[:4]}-{middle[4:9]}-{middle[9:]}-{last}"
+
+
+def _card_number(rng: random.Random) -> str:
+    """A 16-digit card number in the usual 1234-5678-9012-3456 layout. The digits are random and
+    the last digit is never the Luhn check digit, so this is not a valid card number. About one
+    draw in ten would pass the check by chance; those get a different last digit."""
+    body = f"{rng.randint(0, 10**15 - 1):015d}"
+    last = rng.randint(0, 9)
+    total = sum(sum(divmod(int(d) * 2, 10)) if i % 2 == 0 else int(d) for i, d in enumerate(body))
+    check = (10 - total % 10) % 10
+    if last == check:  # an extra draw only in this case, so other seeds keep their values
+        last = (check + 1 + rng.randrange(9)) % 10
+    digits = f"{body}{last}"
+    return "-".join(digits[i : i + 4] for i in range(0, 16, 4))
 
 
 def _birth_date(rng: random.Random, age: int) -> str:
