@@ -23,6 +23,7 @@ SENSITIVE_LABELS = frozenset(
         "MONEY",
         "URL",
         "LINE_ID",
+        "CARD_NUMBER",
         "ID_CARD",
         "BIRTH_DATE",
         "ADDRESS",

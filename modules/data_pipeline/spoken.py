@@ -26,7 +26,7 @@ DASH_WORD = "ขีด"
 # were unreliable (the male voice took 5.4 s and 7.4 s).
 PAUSE_JOINER = ", "
 
-_DIGIT_GROUPS = ("PHONE", "BANK_ACCOUNT", "ID_CARD")
+_DIGIT_GROUPS = ("PHONE", "BANK_ACCOUNT", "ID_CARD", "CARD_NUMBER")
 # How a Thai speaker names each English letter. A LINE ID is spelled out letter by letter, as
 # people read one over the phone, and VachanaTTS reads Thai script only.
 _LETTER_NAMES = dict(
