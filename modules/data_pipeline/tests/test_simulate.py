@@ -1129,9 +1129,13 @@ def test_the_receiver_hears_a_card_ending_as_the_slot(tmp_path):
 
 
 def test_office_callers_use_the_words_their_tactics_name():
+    # the ban on พี่/น้อง names its one exception, so the two rules do not contradict (#162)
     rules = CONFIG.agents.scam_caller
     for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
-        assert "If your tactics give optional words" in rules.instructions_for(scam_type)
+        text = " ".join(rules.instructions_for(scam_type).split())
+        assert "never พี่, น้อง" in text
+        assert "Only if your tactics say คุณพี่ and น้อง" in text
+        assert "optional words" not in text
 
 
 def test_only_investment_callers_get_the_paid_task_tips():
