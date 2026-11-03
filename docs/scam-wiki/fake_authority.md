@@ -141,7 +141,7 @@ Phrases:
 - active: no
 
 Tactics:
-- Contact the victim via a fake LINE account named '{URL} เอกสาร'
+- Contact the victim via a fake LINE account named 'กรมที่ดิน เอกสาร'
 - Impersonate a Land Department official
 - Request personal data or documents
 

@@ -151,7 +151,7 @@ scams:
     role: fake Land Department official
     org: กรมที่ดิน
     goal: get the receiver to provide personal information via LINE chat
-    tactics: Contact the victim via a fake LINE account named '{URL} เอกสาร'; Impersonate a Land Department
+    tactics: Contact the victim via a fake LINE account named 'กรมที่ดิน เอกสาร'; Impersonate a Land Department
       official; Request personal data or documents
   - key: mof_stimulus_data_collection
     role: Ministry of Finance officer
