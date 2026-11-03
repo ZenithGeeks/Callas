@@ -21,8 +21,8 @@ speakers:
   receiver_tag: ผู้รับ
   empty_call: (สายเพิ่งต่อติด ยังไม่มีใครพูด)
   voice:
-    male: "male: say ผม and ครับ"
-    female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ"
+    male: "male: say ผม; the polite particle is ครับ with a stranger, but in a close, intimate relationship (a lover or a very close friend) usually drop the particle, or use the casual คับ or playful งับ — never the formal ครับ"
+    female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; the polite particle is ค่ะ / คะ with a stranger, but in a close, intimate relationship (a lover or a very close friend) usually drop the particle, or use a soft คะ — not จ๊ะ / จ้ะ, which is for speaking to someone younger, not an intimacy marker"
   # The romance scam caller gets docs/scam-wiki/romance_voice.md instead of `voice`.
   # Added to the speaker's pacing (callers) or stage (receiver) on the last two turns, so a call
   # that reaches max_turns ends with a closing line instead of stopping mid-scene (#150).
@@ -161,8 +161,11 @@ receiver:
     caller, talk to them warmly. `footing` tells you who the caller is to you and how to talk with
     them — the exact word you use for yourself and the exact name or term you call the caller by,
     and how formal or casual to be. Use those same words every turn; do not switch to a different
-    name or kinship word, and do not invent a relative the caller never mentioned. When `footing`
-    is empty the caller is a stranger, so stay politely formal. Treat the call
+    name or kinship word, and do not invent a relative the caller never mentioned. This includes the
+    sentence-final polite particle: when `footing` sets a casual, intimate register, match it —
+    often drop the particle, or use a casual one (a man says คับ or งับ, never the formal ครับ) —
+    and do not slip back to the formal particle. When `footing` is empty the caller is a stranger,
+    so stay politely formal (ครับ / ค่ะ). Treat the call
     as an ordinary one until something seems off: a
     trusting or unaware person goes along and reads out what is asked, even a code ({OTP}), phone
     ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID ({ID_CARD}), birth date
@@ -184,6 +187,8 @@ receiver:
     you (a problem gets concern, not excitement): จริงเหรอคะ เป็นอะไรไหมคะ ไม่ต้องห่วงนะ ต้องทำยังไงถึงจะช่วยได้บ้างคะ
     caller: ขอรหัส OTP ที่เพิ่งส่งไปหน่อยครับ
     you (skeptical): เอ๊ะ ธนาคารไม่น่าขอ OTP แบบนี้นะคะ ขอโทรเช็คเองก่อนนะ
+    caller (your lover): วันนี้ที่ไซต์งานเหนื่อยมากเลย คิดถึงที่รักจัง
+    you (a man to his lover — intimate, so drop the particle or use คับ / งับ, never the formal ครับ): โธ่ เหนื่อยแย่เลยคับ พักผ่อนบ้างนะ เดี๋ยวเค้าโทรไปเป็นเพื่อนงับ
   fields:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use
@@ -220,15 +225,20 @@ footing:
     with a stranger; หนู when younger than the caller; a kin role like พี่, ลุง, ป้า or แม่ when
     older than the caller; เค้า with a lover); exactly how to address the caller, reusing the
     caller's own name or term (e.g. "call her พี่เมย์ or พี่") — do not swap in a different kin term
-    (ยาย, ป้า, …) or invent a name the caller did not use; and how formal or casual to be. If
+    (ยาย, ป้า, …) or invent a name the caller did not use; and how formal or casual to be. Name the
+    sentence-final politeness particle the receiver uses, and have it match the closeness, not just
+    the gender: a lover or a very close friend is intimate, so the particle is dropped more often,
+    and when used it is a casual one (a man says คับ or the playful งับ, never the formal ครับ; a
+    woman a soft คะ) — not จ๊ะ / จ้ะ, which speaks down to someone younger; a work contact or a
+    stranger stays formal (ครับ / ค่ะ); an elder in the family is warm but still polite (ครับ / ค่ะ). If
     `context` is empty and the caller is an ordinary stranger, say so and keep it politely formal.
     Base it on `context` and the opening; invent nothing beyond them. Write the Thai terms in Thai.
   fields:
     persona: the receiver, as a JSON object
     context: what the receiver already knows of this caller before the call; trust it for the relationship and backstory
     opening: the caller's first words to the receiver
-    footing: one short line for the receiver — who the caller is to it, the word it uses for itself, how it addresses the caller, and how formal
-  lm: {temperature: 0.2, max_tokens: 250}
+    footing: one short line for the receiver — who the caller is to it, the word it uses for itself, how it addresses the caller, how formal, and which polite particle (e.g. formal ครับ vs intimate คับ / งับ or none)
+  lm: {temperature: 0.2, max_tokens: 400}
 
 # Runs once before each scam call. Turns the scenario and the newest pattern notes for its
 # scam type (see patterns.py; the team adds notes from news reports) into a step-by-step plan
