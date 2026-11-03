@@ -10,6 +10,8 @@
 #   banks         {ORG} when a scenario's org is "ธนาคาร"
 #   made_up_orgs  {ORG} when a scenario's org is "*"
 #   podcasts      {ORG} when a scenario's org is "พอดแคสต์" (made-up podcast names)
+#   schools       {ORG} when a scenario's org is "โรงเรียน" (made-up school names)
+#   police_stations {ORG} when a scenario's org is "สถานีตำรวจ" (made-up station names)
 #   urls          {URL} = https://<word>-<word><2 digits>.<tld>
 #   line_ids      {LINE_ID} = <part><part>, two different parts, lowercase letters only
 #
@@ -174,6 +176,16 @@ schools:
 - โรงเรียนสายรุ้งเจ็ดวังวิทยาคาร
 - โรงเรียนปัญญาแก้วกระพริบศึกษา
 - โรงเรียนชลธีมณีพลอยวิทยา
+police_stations:
+# invented places, never a real station: check a new name is not a real one before adding it
+- สถานีตำรวจภูธรดอนดาวเรือง
+- สถานีตำรวจภูธรวังปลาทองคำ
+- สถานีตำรวจภูธรเนินมะลิหอม
+- สถานีตำรวจภูธรห้วยเมฆขาว
+- สถานีตำรวจภูธรบึงบัวสวรรค์
+- สถานีตำรวจภูธรคลองหิ่งห้อยทอง
+- สถานีตำรวจนครบาลทุ่งพลอยฟ้า
+- สถานีตำรวจนครบาลสายลมเย็น
 urls:
   words:
   - secure

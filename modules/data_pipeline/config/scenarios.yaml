@@ -8,7 +8,8 @@
 #   key      short unique id, stored in each record
 #   role     who the caller says they are
 #   org      organisation named in the call: a name, "ธนาคาร" (a random real bank),
-#            "พอดแคสต์" (a made-up podcast), "*" (a made-up company), or leave it out for none
+#            "พอดแคสต์" (a made-up podcast), "โรงเรียน" (a made-up school), "สถานีตำรวจ" (a made-up
+#            police station), "*" (a made-up company), or leave it out for none
 #   goal     what the caller wants by the end of the call
 #   tactics  how the caller gets there (for legit calls: how they handle the call)
 #   money_max  optional: the highest {MONEY} in baht for this scenario

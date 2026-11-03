@@ -554,6 +554,7 @@ class DetailsFile(_Strict):
     made_up_orgs: list[str] = Field(min_length=1)
     podcasts: list[str] = []  # older config folders have none; made_up_orgs is used instead
     schools: list[str] = []  # older config folders have none; made_up_orgs is used instead
+    police_stations: list[str] = []  # older config folders have none; made_up_orgs is used
     urls: Urls
     # parts of a made-up {LINE_ID}; older config folders have none
     line_ids: list[str] = Field(default=DEFAULT_LINE_ID_PARTS, min_length=2)
