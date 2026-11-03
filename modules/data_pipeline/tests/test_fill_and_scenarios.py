@@ -378,3 +378,11 @@ def test_a_police_station_does_not_change_the_calls_other_values():
     assert {k: v for k, v in with_station.items() if k != "ORG"} == {
         k: v for k, v in without.items() if k != "ORG"
     }
+
+
+def test_a_url_is_the_site_only_without_https():
+    # on a call a person says the site, not "https://" (#157)
+    for seed in range(20):
+        url = filler("phishing_otp", seed).values["URL"]
+        assert not url.startswith(("http://", "https://", "www."))
+        assert re.fullmatch(r"[a-z]+-[a-z]+\d{2}\.[a-z]+", url)

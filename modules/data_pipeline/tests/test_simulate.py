@@ -1151,3 +1151,21 @@ def test_the_planner_plans_lover_and_friend_or_family_calls_differently():
     assert "A lover starts with casual couple small talk" in rules
     assert "friend or family member is never a couple (no flirting)" in rules
     assert "gets straight to it" in rules and "new number" in rules
+
+
+def test_a_romance_caller_only_says_it_sent_something_in_a_chat():
+    # someone the receiver knows sends things in a chat they share, and never reads a link out
+    romance = Agents(CONFIG, lms={}).scam_caller_signatures["romance"].instructions
+    romance_rule = " ".join(CONFIG.agents.scam_caller.by_type["romance"])
+    assert all(channel in romance_rule for channel in ("LINE", "Facebook", "IG"))
+    assert "never by SMS" in " ".join(romance_rule.split())
+    assert "ส่งลิงก์ไปทาง SMS" not in romance
+
+
+def test_office_callers_name_the_site_they_sent():
+    rules = CONFIG.agents.scam_caller
+    shared = " ".join(rules.instructions.split())
+    assert "name the website" not in shared and "Never spell a link out" in shared
+    for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
+        text = " ".join(rules.instructions_for(scam_type).split())
+        assert "name the site as {URL}" in text and "ทางเราส่งลิงก์ {URL} ไปทาง SMS" in text

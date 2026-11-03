@@ -127,6 +127,24 @@ def test_only_a_threatening_scenario_gets_the_threat_section():
         assert ("## threat" in voice) == s.threatens
 
 
+def test_only_an_impersonating_scenario_gets_the_impersonation_section():
+    # a taken-over account or a copied voice is not really them, so it cannot use the usual chat
+    c = load_config()
+    romance = c.scenarios.scams["romance"]
+    assert sorted(s.key for s in romance if s.impersonates) == [
+        "identity_hijack_family",
+        "identity_hijack_friend",
+        "voice_clone_close_friend",
+        "voice_clone_family_member",
+    ]
+    for s in romance:
+        voice = romance_voice.voice(c.romance_voice, "female", "male", s, "romance:1")
+        assert ("## impersonation" in voice) == s.impersonates
+    section = " ".join(c.romance_voice["impersonation"].split())
+    assert "send it from a new account (never give its name or ID)" in section
+    assert "never send anything and say everything on the call" in section
+
+
 def test_romance_scenario_without_a_known_relation_is_rejected(cfg_dir):
     edit(cfg_dir, "scenarios.yaml", lambda d: d["scams"]["romance"][0].update(relation="pen_pal"))
     with pytest.raises(ConfigError, match="needs `relation:`.*pen_pal"):
