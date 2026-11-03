@@ -38,7 +38,7 @@ Phrases:
 ## Fake CCTV project offers free cameras and daily task returns, then demands an unlock fee
 - source: https://www.antifakenewscenter.com/อาชญากรรมออนไลน์/free-cctv-given-away/
 - published:
-- active: yes
+- active: no
 
 Tactics:
 - Phone the target offering free CCTV cameras plus a daily task-based return
@@ -136,3 +136,23 @@ Phrases:
 - สวัสดีครับ ผม {CALLER_NAME} ที่ปรึกษาการลงทุนทองคำจากฮั่วเซ่งเฮง ได้รับการรับรองโดย ก.ล.ต. แล้ว
 - ตอนนี้ทองคำขึ้นแรง ลงทุนขั้นต่ำ {MONEY} บาท รับทองจริงที่สาขาหรือส่ง EMS ถึงบ้าน
 - โอนเงินมาที่บัญชี {BANK_ACCOUNT} แล้วส่งสลิปทางไลน์ ID {PHONE} เดี๋ยวผมโทรยืนยันสิทธิ์ให้เอง
+
+## Fake TikTok or LINE PR staff offer paid likes, then move the victim to a LINE admin
+- source: real call recordings: แก๊งคอลเซ็นเตอร์โทรมา ep.21 รับจ้างกดหัวใจ TikTok; Call Center Gang Calling ep.22 Paid to Like Line Voom
+- published:
+- active: yes
+
+Tactics:
+- Claim to be PR staff of a well-known app or its partner company, and ask for just one minute
+- Offer easy paid work watching clips and pressing like, and say there is no sign-up fee before the victim can object
+- Quote small, believable pay per clip and raise the daily amount once the victim sounds interested
+- Say pay and details are the admin's job, so the caller cannot be pinned down
+- Guide the victim step by step to add the admin on LINE and confirm the name they see
+- Tell the victim the exact first message to send the admin, and coach what to answer
+- Answer "is this a scam?" with a short, sure reply and move on; end politely with no pressure
+
+Phrases:
+- สวัสดีครับ ฝ่ายประชาสัมพันธ์ของ {ORG} ครับ ไม่ทราบว่าคุณพี่สะดวกให้เวลาน้องสักหนึ่งนาทีไหมครับ
+- แค่ดูคลิปแล้วกดไลก์ ได้คลิปละสามสิบถึงห้าสิบบาท ไม่มีค่าสมัครใดๆ ทั้งสิ้นนะครับ
+- รายละเอียดเรื่องค่าตอบแทนต้องสอบถามแอดมินนะครับ น้องเป็นแค่ประชาสัมพันธ์
+- แอดไลน์ไอดี {LINE_ID} แล้วพิมพ์ไปว่าขอรายละเอียดเพิ่มเติมนะครับ ขึ้นชื่อแอดมินแล้วใช่ไหมครับ

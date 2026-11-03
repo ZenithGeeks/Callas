@@ -1128,6 +1128,31 @@ def test_the_receiver_hears_a_card_ending_as_the_slot(tmp_path):
     assert all(t["problems"] == [] for t in turns)
 
 
+def test_office_callers_use_the_words_their_tactics_name():
+    # the ban on พี่/น้อง names its one exception, so the two rules do not contradict (#162)
+    rules = CONFIG.agents.scam_caller
+    for scam_type in ("fake_authority", "investment", "lottery", "phishing_otp"):
+        text = " ".join(rules.instructions_for(scam_type).split())
+        assert "never พี่, น้อง" in text
+        assert "Only if your tactics say คุณพี่ and น้อง" in text
+        assert "optional words" not in text
+
+
+def test_only_investment_callers_get_the_paid_task_tips():
+    rules = CONFIG.agents.scam_caller
+    tip = "grow only as the receiver shows interest"
+    assert tip in rules.instructions_for("investment")
+    others = ("fake_authority", "lottery", "phishing_otp", "romance")
+    assert not any(tip in rules.instructions_for(t) for t in others)
+
+
+def test_the_planner_plans_lover_and_friend_or_family_calls_differently():
+    rules = " ".join(CONFIG.agents.planner.instructions.split())
+    assert "A lover starts with casual couple small talk" in rules
+    assert "friend or family member is never a couple (no flirting)" in rules
+    assert "gets straight to it" in rules and "new number" in rules
+
+
 def test_a_romance_caller_only_says_it_sent_something_in_a_chat():
     # someone the receiver knows sends things in a chat they share, and never reads a link out
     romance = Agents(CONFIG, lms={}).scam_caller_signatures["romance"].instructions

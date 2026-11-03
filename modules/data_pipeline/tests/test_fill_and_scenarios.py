@@ -289,6 +289,20 @@ def test_line_slots_and_names_are_not_flagged(line):
     assert "line_id_without_slot" not in filler().fill(line)[2]
 
 
+def test_the_paid_like_scenario_is_the_last_investment_one():
+    scenario = CONFIG.scenarios.scams["investment"][-1]
+    assert scenario.key == "paid_like_line_admin"
+    assert "LINE" in scenario.goal and "{MONEY}" not in scenario.goal  # no money on the call
+
+
+def test_only_task_and_job_scenarios_call_the_receiver_khun_phi():
+    tasks = {"task_job", "free_cctv_task", "online_job_onboarding", "paid_like_line_admin"}
+    for call_type, scenarios in CONFIG.scenarios.scams.items():
+        for scenario in scenarios:
+            says_phi = "คุณพี่" in scenario.tactics
+            assert says_phi == (call_type == "investment" and scenario.key in tasks), scenario.key
+
+
 def _passes_luhn(number: str) -> bool:
     digits = [int(d) for d in number if d.isdigit()][::-1]
     return sum(d if i % 2 == 0 else sum(divmod(d * 2, 10)) for i, d in enumerate(digits)) % 10 == 0
@@ -333,6 +347,37 @@ def test_a_card_said_by_its_ending_is_only_the_last_4_digits(line):
     assert problems == []
     assert [s["text"] for s in spans] == [last4] and spans[0]["label"] == "CARD_NUMBER"
     assert f.values["CARD_NUMBER"] not in text
+
+
+def test_police_org_comes_from_the_police_station_list():
+    calls = [sample_config("benign", s, CONFIG) for s in range(400)]
+    police = [c for c in calls if c.scenario.org == "สถานีตำรวจ"]
+    assert police
+    for c in police:
+        org = SlotFiller(c, CONFIG.details).values["ORG"]
+        assert org in CONFIG.details.police_stations  # a station's name, not the word สถานีตำรวจ
+        assert SlotFiller(c, CONFIG.details).values["ORG"] == org  # same seed, same station
+    # an older config folder without stations still gets an organisation's name
+    old_details = CONFIG.details.model_copy(update={"police_stations": []})
+    assert SlotFiller(police[0], old_details).values["ORG"] in CONFIG.details.made_up_orgs
+
+
+def test_police_station_names_are_stations():
+    assert len(set(CONFIG.details.police_stations)) >= 2
+    assert all(name.startswith("สถานีตำรวจ") for name in CONFIG.details.police_stations)
+
+
+def test_a_police_station_does_not_change_the_calls_other_values():
+    c = next(
+        c
+        for s in range(400)
+        if (c := sample_config("benign", s, CONFIG)).scenario.org == "สถานีตำรวจ"
+    )
+    with_station = SlotFiller(c, CONFIG.details).values
+    without = SlotFiller(c, CONFIG.details.model_copy(update={"police_stations": []})).values
+    assert {k: v for k, v in with_station.items() if k != "ORG"} == {
+        k: v for k, v in without.items() if k != "ORG"
+    }
 
 
 def test_a_url_is_the_site_only_without_https():

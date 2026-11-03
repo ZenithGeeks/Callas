@@ -100,6 +100,7 @@ _ENDS_WITH_BEFORE = re.compile(ENDS_WITH + "$")
 BANK_SCENARIO_ORG = "ธนาคาร"  # scenarios.yaml org value that means "pick a bank from details"
 PODCAST_SCENARIO_ORG = "พอดแคสต์"  # scenarios.yaml org value: "pick a podcast from details"
 SCHOOL_SCENARIO_ORG = "โรงเรียน"  # scenarios.yaml org value: "pick a school from details"
+POLICE_SCENARIO_ORG = "สถานีตำรวจ"  # scenarios.yaml org value: "pick a police station" (#166)
 NICKNAME_RELATIONS = ("friend", "family")  # relations whose two names come from details.nicknames
 
 
@@ -120,6 +121,10 @@ class SlotFiller:
             org = rng.choice(details.podcasts or details.made_up_orgs)
         elif org == SCHOOL_SCENARIO_ORG:
             org = rng.choice(details.schools or details.made_up_orgs)
+        elif org == POLICE_SCENARIO_ORG:
+            # its own draw, so the call's other values stay what they were before #166
+            station_rng = random.Random(f"police:{call.call_type}:{call.seed}")
+            org = station_rng.choice(details.police_stations or details.made_up_orgs)
         elif org in ("*", ""):
             org = rng.choice(details.made_up_orgs)
         money = details.money
