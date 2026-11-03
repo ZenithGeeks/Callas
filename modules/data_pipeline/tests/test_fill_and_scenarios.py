@@ -333,3 +333,11 @@ def test_a_card_said_by_its_ending_is_only_the_last_4_digits(line):
     assert problems == []
     assert [s["text"] for s in spans] == [last4] and spans[0]["label"] == "CARD_NUMBER"
     assert f.values["CARD_NUMBER"] not in text
+
+
+def test_a_url_is_the_site_only_without_https():
+    # on a call a person says the site, not "https://" (#157)
+    for seed in range(20):
+        url = filler("phishing_otp", seed).values["URL"]
+        assert not url.startswith(("http://", "https://", "www."))
+        assert re.fullmatch(r"[a-z]+-[a-z]+\d{2}\.[a-z]+", url)

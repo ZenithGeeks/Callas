@@ -292,8 +292,10 @@ def _bank_account(rng: random.Random) -> str:
 
 
 def _url(rng: random.Random, words: list[str], tlds: list[str]) -> str:
+    """The site only, e.g. secure-refund45.xyz: on a call a person says the site, not https://
+    (#157)."""
     first, second = rng.choice(words), rng.choice(words)
-    return f"https://{first}-{second}{rng.randint(10, 99)}.{rng.choice(tlds)}"
+    return f"{first}-{second}{rng.randint(10, 99)}.{rng.choice(tlds)}"
 
 
 def _line_id(rng: random.Random, parts: list[str]) -> str:

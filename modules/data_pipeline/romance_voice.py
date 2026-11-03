@@ -2,7 +2,8 @@
 
 The page has `## name` sections. A romance caller gets four of them as its `voice` (instead of
 agents.yaml speakers.voice): `all`, the section named by its scenario's `relation` (lover,
-friend, family, ...), `threat` when the scenario has `threatens: true`, and `endings`. Text
+friend, family, ...), `threat` when the scenario has `threatens: true`, `impersonation` when it
+has `impersonates: true`, and `endings`. Text
 before the first section and <!-- comments --> are for people and never reach the model.
 
 A section may hold a table whose first two columns are `Caller | Receiver` (genders, or
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 PATH = Path(__file__).resolve().parents[2] / "docs" / "scam-wiki" / "romance_voice.md"
 ALWAYS = ("all", "endings")  # sections every romance caller gets, around its relation's
 THREAT = "threat"  # the section only a scenario with `threatens: true` gets
+IMPERSONATION = "impersonation"  # the section only a scenario with `impersonates: true` gets
 
 _HEADING = re.compile(r"^##\s+([a-z_]+)")
 _COMMENT = re.compile(r"<!--.*?-->\s*", re.DOTALL)
@@ -51,9 +53,10 @@ def check(sections: dict[str, str], scenarios: ScenariosFile) -> None:
     sections it needs exist, and every Caller | Receiver table has a row for each gender pair."""
     romance = scenarios.scams.get("romance", [])
     needed = list(ALWAYS) + [THREAT] * any(s.threatens for s in romance)
+    needed += [IMPERSONATION] * any(s.impersonates for s in romance)
     if missing := [n for n in needed if n not in sections]:
         raise ValueError(f"{PATH.name} has no section {missing}")
-    relations = sorted(set(sections) - set(ALWAYS) - {THREAT})
+    relations = sorted(set(sections) - set(ALWAYS) - {THREAT, IMPERSONATION})
     for scenario in romance:
         if scenario.relation not in relations:
             raise ValueError(
@@ -80,10 +83,11 @@ def voice(
     scenario: Scenario,
     seed_key: str,
 ) -> str:
-    """The caller's voice: its gender, then the all, relation, threat (if any) and endings
-    sections, each table cut to one row."""
+    """The caller's voice: its gender, then the all, relation, threat and impersonation (if
+    any) and endings sections, each table cut to one row."""
     first, last = ALWAYS
-    names = [first, scenario.relation] + [THREAT] * scenario.threatens + [last]
+    names = [first, scenario.relation] + [THREAT] * scenario.threatens
+    names += [IMPERSONATION] * scenario.impersonates + [last]
     rng = random.Random(f"voice-row:{seed_key}")
     parts = [_one_row(sections[n], gender, receiver_gender, rng) for n in names]
     return "\n\n".join([f"You are {gender}.", *parts])

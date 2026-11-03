@@ -10,7 +10,7 @@
 #   banks         {ORG} when a scenario's org is "ธนาคาร"
 #   made_up_orgs  {ORG} when a scenario's org is "*"
 #   podcasts      {ORG} when a scenario's org is "พอดแคสต์" (made-up podcast names)
-#   urls          {URL} = https://<word>-<word><2 digits>.<tld>
+#   urls          {URL} = <word>-<word><2 digits>.<tld> (no https://: it is said on a call)
 #   line_ids      {LINE_ID} = <part><part>, two different parts, lowercase letters only
 #
 # The caller's {CARD_NUMBER} (a card it says the receiver has) is 16 random digits as

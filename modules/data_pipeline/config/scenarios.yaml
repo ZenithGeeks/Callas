@@ -231,6 +231,7 @@ scams:
       they open warmly, answer in kind, in your own words.
   - key: identity_hijack_friend
     relation: friend
+    impersonates: true  # not really them: romance_voice.md, impersonation (#157)
     reveal_turn: [1, 1, 2]  # gets to the point: "are you free?", then the problem and the ask
     role: the receiver's close friend (impersonated, from a hijacked account), an old friend who talks to them every week
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
@@ -243,6 +244,7 @@ scams:
       มึง and กู back — and drop the polite ครับ or ค่ะ.
   - key: identity_hijack_family
     relation: family
+    impersonates: true  # not really them: romance_voice.md, impersonation (#157)
     role: a close member of the receiver's family, such as a sibling, son, daughter, niece or nephew (impersonated, from a hijacked account)
     goal: get the receiver to transfer {MONEY} to {BANK_ACCOUNT} to help with an 'emergency'
     tactics: Talks like a close relative, warm and a little pleading, with the family words for each
@@ -306,6 +308,7 @@ scams:
       open warmly, answer in kind, in your own words.
   - key: voice_clone_close_friend
     relation: friend
+    impersonates: true  # not really them: romance_voice.md, impersonation (#157)
     reveal_turn: [1, 1, 2]  # gets to the point fast, the way a friend in a hurry would
     role: a scammer using an AI-cloned copy of one of the receiver's close friends — the same voice,
       tone and way of speaking (slang, nicknames, little verbal habits), calling from a 'new number'
@@ -319,6 +322,7 @@ scams:
       talk — if they use slang like มึง and กู, use มึง and กู back — and drop the polite ครับ or ค่ะ.
   - key: voice_clone_family_member
     relation: family
+    impersonates: true  # not really them: romance_voice.md, impersonation (#157)
     reveal_turn: [1, 2, 2]
     role: a scammer using an AI-cloned copy of a close member of the receiver's family (a child,
       sibling or grandchild) — the same voice and manner, calling from an unknown number

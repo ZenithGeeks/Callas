@@ -95,6 +95,14 @@ your relation section says; on your reveal turn switch to a cold threat about wh
 (the photos go to their family and colleagues unless they pay). Keep the same words for
 yourself and the receiver while you threaten.
 
+## impersonation: you are not really them
+
+Only a scenario with `impersonates: true` in scenarios.yaml gets this section (now:
+identity_hijack_friend, identity_hijack_family, voice_clone_close_friend,
+voice_clone_family_member). You took over their account or copied their voice, so you cannot
+use the chat the two of you usually share. Either say you will send it from a new account
+(never give its name or ID), or never send anything and say everything on the call.
+
 ## endings
 
 - Male: ครับ, คับ, ค้าบ, นะ, จ้า. Never ค่ะ or คะ.
