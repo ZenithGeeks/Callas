@@ -289,6 +289,20 @@ def test_line_slots_and_names_are_not_flagged(line):
     assert "line_id_without_slot" not in filler().fill(line)[2]
 
 
+def test_the_paid_like_scenario_is_the_last_investment_one():
+    scenario = CONFIG.scenarios.scams["investment"][-1]
+    assert scenario.key == "paid_like_line_admin"
+    assert "LINE" in scenario.goal and "{MONEY}" not in scenario.goal  # no money on the call
+
+
+def test_only_task_and_job_scenarios_call_the_receiver_khun_phi():
+    tasks = {"task_job", "free_cctv_task", "online_job_onboarding", "paid_like_line_admin"}
+    for call_type, scenarios in CONFIG.scenarios.scams.items():
+        for scenario in scenarios:
+            says_phi = "คุณพี่" in scenario.tactics
+            assert says_phi == (call_type == "investment" and scenario.key in tasks), scenario.key
+
+
 def _passes_luhn(number: str) -> bool:
     digits = [int(d) for d in number if d.isdigit()][::-1]
     return sum(d if i % 2 == 0 else sum(divmod(d * 2, 10)) for i, d in enumerate(digits)) % 10 == 0
