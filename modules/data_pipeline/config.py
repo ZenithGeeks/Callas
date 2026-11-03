@@ -301,6 +301,9 @@ class Scenario(_Strict):
     # romance: the one exception to pity-only pressure; the caller also gets romance_voice.md's
     # `threat` section
     threatens: bool = False
+    # romance: the caller is not really that person (a taken-over account or a copied voice); it
+    # also gets romance_voice.md's `impersonation` section (#157)
+    impersonates: bool = False
     # the caller's own turn of the first ask, one drawn per call; empty: calls.reveal_turn_slow
     # or reveal_turn_fast by scam type
     reveal_turn: list[Annotated[int, Field(ge=0)]] = []

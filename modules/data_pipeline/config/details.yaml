@@ -12,7 +12,7 @@
 #   podcasts      {ORG} when a scenario's org is "พอดแคสต์" (made-up podcast names)
 #   schools       {ORG} when a scenario's org is "โรงเรียน" (made-up school names)
 #   police_stations {ORG} when a scenario's org is "สถานีตำรวจ" (made-up station names)
-#   urls          {URL} = https://<word>-<word><2 digits>.<tld>
+#   urls          {URL} = <word>-<word><2 digits>.<tld> (no https://: it is said on a call)
 #   line_ids      {LINE_ID} = <part><part>, two different parts, lowercase letters only
 #
 # The caller's {CARD_NUMBER} (a card it says the receiver has) is 16 random digits as

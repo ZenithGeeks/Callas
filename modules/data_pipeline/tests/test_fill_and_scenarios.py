@@ -380,6 +380,14 @@ def test_a_police_station_does_not_change_the_calls_other_values():
     }
 
 
+def test_a_url_is_the_site_only_without_https():
+    # on a call a person says the site, not "https://" (#157)
+    for seed in range(20):
+        url = filler("phishing_otp", seed).values["URL"]
+        assert not url.startswith(("http://", "https://", "www."))
+        assert re.fullmatch(r"[a-z]+-[a-z]+\d{2}\.[a-z]+", url)
+
+
 def test_no_scenario_puts_a_link_in_a_line_account_name():
     # a site said as part of a LINE display name is not something a caller would say (#175)
     named = re.compile(r"named '[^']*\{URL\}[^']*'")
