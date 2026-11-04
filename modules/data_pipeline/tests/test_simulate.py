@@ -815,7 +815,10 @@ def test_receiver_prompt_stays_small():
     exact self-word and way of addressing the caller every turn (a later turn had drifted to a
     different kin term) for ~1665, and then a line that the home region is a background, not an
     accent to perform (answer in standard central Thai unless the caller uses dialect first) for
-    ~1725. Content comes partly from the wiki, so expect some wording variance; this guard only
+    ~1725, and then #174 (match the sentence-final particle to the relationship) added one short
+    clause saying footing also names the particle to use for ~1745 — its few-shot example and the
+    longer voice lines (#174) were kept out of this prompt, since footing already names the particle
+    for each call (#179). Content comes partly from the wiki, so expect some wording variance; this guard only
     catches runaway growth. Still tiny against the 100k window. A stranger call sets footing to "",
     measured here."""
     from data_pipeline.budget import prompt_tokens
