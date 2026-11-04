@@ -386,3 +386,15 @@ def test_a_url_is_the_site_only_without_https():
         url = filler("phishing_otp", seed).values["URL"]
         assert not url.startswith(("http://", "https://", "www."))
         assert re.fullmatch(r"[a-z]+-[a-z]+\d{2}\.[a-z]+", url)
+
+
+def test_no_scenario_puts_a_link_in_a_line_account_name():
+    # a site said as part of a LINE display name is not something a caller would say (#175)
+    named = re.compile(r"named '[^']*\{URL\}[^']*'")
+    for scenarios in CONFIG.scenarios.scams.values():
+        for scenario in scenarios:
+            assert not named.search(scenario.goal + " " + scenario.tactics), scenario.key
+    land = {s.key: s for s in CONFIG.scenarios.scams["fake_authority"]}[
+        "fake_land_dept_line_contact"
+    ]
+    assert "named 'กรมที่ดิน เอกสาร'" in land.tactics
