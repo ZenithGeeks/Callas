@@ -21,8 +21,8 @@ speakers:
   receiver_tag: ผู้รับ
   empty_call: (สายเพิ่งต่อติด ยังไม่มีใครพูด)
   voice:
-    male: "male: say ผม; the polite particle is ครับ with a stranger, but in a close, intimate relationship (a lover or a very close friend) usually drop the particle, or use the casual คับ or playful งับ — never the formal ครับ"
-    female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; the polite particle is ค่ะ / คะ with a stranger, but in a close, intimate relationship (a lover or a very close friend) usually drop the particle, or use a soft คะ — not จ๊ะ / จ้ะ, which is for speaking to someone younger, not an intimacy marker"
+    male: "male: say ผม and ครับ"
+    female: "female: normally say ฉัน or เรา; use ดิฉัน only when the call is very formal; and ค่ะ / คะ"
   # The romance scam caller gets docs/scam-wiki/romance_voice.md instead of `voice`.
   # Added to the speaker's pacing (callers) or stage (receiver) on the last two turns, so a call
   # that reaches max_turns ends with a closing line instead of stopping mid-scene (#150).
@@ -160,13 +160,11 @@ receiver:
     accent you must perform: answer in standard central Thai unless the caller uses dialect (Isan,
     Northern, Southern) words first. If you are told you already know and trust the
     caller, talk to them warmly. `footing` tells you who the caller is to you and how to talk with
-    them — the exact word you use for yourself and the exact name or term you call the caller by,
-    and how formal or casual to be. Use those same words every turn; do not switch to a different
-    name or kinship word, and do not invent a relative the caller never mentioned. This includes the
-    sentence-final polite particle: when `footing` sets a casual, intimate register, match it —
-    often drop the particle, or use a casual one (a man says คับ or งับ, never the formal ครับ) —
-    and do not slip back to the formal particle. When `footing` is empty the caller is a stranger,
-    so stay politely formal (ครับ / ค่ะ). Treat the call
+    them — the exact word you use for yourself, the exact name or term you call the caller by, how
+    formal or casual to be, and which sentence-final particle to use. Use those same words every
+    turn; do not switch to a different name or kinship word, and do not invent a relative the caller
+    never mentioned. When `footing` is empty the caller is a stranger, so stay politely formal.
+    Treat the call
     as an ordinary one until something seems off: a
     trusting or unaware person goes along and reads out what is asked, even a code ({OTP}), phone
     ({RECEIVER_PHONE}), bank account ({RECEIVER_ACCOUNT}), ID ({ID_CARD}), birth date
@@ -181,15 +179,13 @@ receiver:
     not greet yourself by it. The caller's numbers and links reach you as slots too ({MONEY},
     {PHONE}, {BANK_ACCOUNT}, {URL}, {LINE_ID}, {CARD_NUMBER}): a slot is a detail already given, so do not ask for it again;
     to repeat one, write its slot.
-    Plan before you speak: in your reasoning first say what is going on and what the caller wants,
-    then what you will do this turn and why; then write your line to match.
+    Plan before you speak, but keep the reasoning short — one or two sentences: what the caller
+    wants and what you will do this turn; then write your line to match.
     Examples (for style and behaviour, do not copy the words):
     caller: การโอนเงินของผมติดปัญหา ตอนนี้โอนไม่ได้เลย
     you (a problem gets concern, not excitement): จริงเหรอคะ เป็นอะไรไหมคะ ไม่ต้องห่วงนะ ต้องทำยังไงถึงจะช่วยได้บ้างคะ
     caller: ขอรหัส OTP ที่เพิ่งส่งไปหน่อยครับ
     you (skeptical): เอ๊ะ ธนาคารไม่น่าขอ OTP แบบนี้นะคะ ขอโทรเช็คเองก่อนนะ
-    caller (your lover): วันนี้ที่ไซต์งานเหนื่อยมากเลย คิดถึงที่รักจัง
-    you (a man to his lover — intimate, so drop the particle or use คับ / งับ, never the formal ครับ): โธ่ เหนื่อยแย่เลยคับ พักผ่อนบ้างนะ เดี๋ยวเค้าโทรไปเป็นเพื่อนงับ
   fields:
     persona: who you are, as a JSON object; every field matters
     voice: your gender and the pronoun and polite particle to use
@@ -205,7 +201,7 @@ receiver:
   stage:
     stay: "Your turn {turn}. Like most people, you stay on the line for the first few exchanges to hear what this is about; do not hang up yet."
     free: "Your turn {turn}. React as you normally would."
-  lm: {temperature: 0.0, max_tokens: 1000}
+  lm: {temperature: 0.0, max_tokens: 800}
 
 # Runs once, on the caller's first line, for a call where the receiver already knows the caller
 # (romance, family, friend). Works out who the caller claims to be to the receiver and how the
