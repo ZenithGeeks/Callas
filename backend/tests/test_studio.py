@@ -114,6 +114,29 @@ def test_a_stopped_real_dataset_call_is_not_counted(client, tmp_path):
     assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
 
 
+def test_a_real_dataset_call_that_crashes_is_not_counted(client, tmp_path, monkeypatch):
+    import openai
+
+    real_stream = live.stream_call
+
+    def crash_after_the_first_turn(*args, **kwargs):
+        for event in real_stream(*args, **kwargs):
+            yield event
+            if event.kind == "turn":
+                # a model error that survived the retries: the call is marked rejected
+                raise openai.RateLimitError.__new__(openai.RateLimitError)
+
+    monkeypatch.setattr(live, "stream_call", crash_after_the_first_turn)
+    run_id = run_id_of(start(client, batch="real"))
+    wait_idle(studio.BOARD)
+    names = [n for n, _ in read_events(client, run_id)]
+    assert "failed" in names and "verdict" not in names
+    # mark_model_error rejected the call, but that is not the generator's verdict
+    assert saved(tmp_path, "phishing_otp_00000")["generation"]["status"] == "rejected"
+    assert 'data-real-result=""' in read_events(client, run_id)[-1][1]
+    assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
+
+
 def test_a_rejected_real_dataset_call_is_kept_apart(tmp_path):
     from backend.tests.test_dataset import record
 

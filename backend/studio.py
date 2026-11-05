@@ -474,7 +474,9 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
             "failed", render("partials/studio_failed.html", message=_failure_message(run, exc))
         )
     finally:
-        if run.real:
+        # Only a call that reached the verdict is tagged. A model error also leaves the call
+        # `rejected` (mark_model_error), but that is not the generator's verdict: not counted.
+        if run.real and outcome == "finished":
             run.dataset = _put_in_real_dataset(run, db_path)
         run.push("done", _done_html(run, outcome))
         run.finished = True  # last: a new run may start from here on
@@ -495,8 +497,9 @@ def _make_agents(
 
 
 def _put_in_real_dataset(run: StudioRun, db_path: Path) -> str:
-    """Tag a finished call of a real-dataset batch by the generator's verdict and return the tag.
-    "" for a call that did not finish (stopped, or the model server was down): it is not counted."""
+    """Tag a call of a real-dataset batch that reached the verdict, by that verdict, and return the
+    tag. "" if it is still unfinished in the store. _work does not call this for a call that was
+    stopped or failed, so those are never counted."""
     try:
         store = Store(db_path)
         record = store.load(run.spec.record_id)
