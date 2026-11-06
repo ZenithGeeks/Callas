@@ -3,7 +3,11 @@
   {% if outcome == 'finished' %}Done. The call is saved in the dataset.
   {% elif outcome == 'stopped' %}Stopped. What was written is saved as an unfinished call.
   {% else %}The run ended with an error.{% endif %}
+  {% if run.dataset == 'real_approved' %}It passed the checks and is in the real dataset (approved).
+  {% elif run.dataset == 'real_rejected' %}It failed the checks and is kept with the real dataset's rejected calls.{% endif %}
 </p>
+{# studio.js reads this to keep the approval rate of a real-dataset batch. Empty: not counted. #}
+{% if run.real %}<span hidden data-real-result="{{ run.dataset }}"></span>{% endif %}
 <p class="mt-2 flex flex-wrap gap-x-5 gap-y-1">
   {% if outcome != 'failed' %}<a class="btn-link" href="/dataset?id={{ run.record_id }}">Open {{ run.record_id }} in the dataset</a>{% endif %}
   <a class="btn-link" href="/studio">New call</a>

@@ -3,7 +3,9 @@
  * and "verdict" are list items for the thread (an item with the id of an earlier one replaces it,
  * which is how a "thinking" bubble becomes the message), "failed" is an error message and "done"
  * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
- * has to replace one element by id. Closing the tab does not stop the run; the server saves it. */
+ * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
+ * The two batch buttons send one call after another through the same form: all six kinds, or
+ * a real dataset (one call per scenario of the chosen kind, stopped when under half pass). */
 (function () {
   "use strict";
 
@@ -32,7 +34,7 @@
   }
 
   function setBusy(on) {
-    Array.prototype.forEach.call(document.querySelectorAll("[data-start], [data-start-all]"), function (start) {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-start], [data-start-all], [data-start-real]"), function (start) {
       start.disabled = on;
     });
   }
@@ -44,7 +46,12 @@
     var stop = root.querySelector("[data-stop-run]");
     if (stop) stop.hidden = true;
     setBusy(false);
-    if (advanceBatch) startNextBatch();
+    if (!advanceBatch) {
+      if (batch) endBatch(batch.real ? "Real dataset stopped: " + tally() : undefined);
+      return;
+    }
+    if (batch && batch.real) countReal(html);
+    startNextBatch();
   }
 
   function gone(root, status) {
@@ -119,23 +126,94 @@
     }
   }
 
-  // Run each kind in turn, through the same form as a single call. The server still permits
-  // only one active run; advancing after its "done" event preserves that contract.
-  function startNextBatch() {
-    if (!batch || batch.next >= batch.types.length) {
-      batch = null;
-      return;
+  function batchStatus(text) {
+    var line = document.getElementById("batch-status");
+    if (line) line.textContent = text;
+  }
+
+  // The batch is over: the next Start is a single call again, not part of the real dataset.
+  function endBatch(message) {
+    batch = null;
+    var field = document.getElementById("batch");
+    if (field) field.value = "";
+    if (message !== undefined) batchStatus(message);
+  }
+
+  function tally() {
+    var counted = batch.approved + batch.rejected;
+    var rate = counted ? " (" + Math.round((100 * batch.approved) / counted) + "% approved)" : "";
+    return batch.approved + " approved, " + batch.rejected + " rejected" + rate + ".";
+  }
+
+  // A call of the real dataset has ended: count it by the tag the server gave it. Stop the batch
+  // when the approval rate drops below half, or when the call did not finish (Stop, an error).
+  function countReal(html) {
+    var t = document.createElement("template");
+    t.innerHTML = html;
+    var mark = t.content.querySelector("[data-real-result]");
+    var result = mark ? mark.dataset.realResult : "";
+    var total = batch.scenarios.length;
+    if (result === "real_approved") {
+      batch.approved++;
+    } else if (result === "real_rejected") {
+      batch.rejected++;
+    } else {
+      return endBatch("Real dataset stopped after call " + batch.next + " of " + total + ", which did not finish. " + tally());
     }
+    if (batch.approved / (batch.approved + batch.rejected) < 0.5) {
+      return endBatch("Real dataset stopped after call " + batch.next + " of " + total + ": fewer than half passed the checks. " + tally());
+    }
+    if (batch.next >= total) endBatch("Real dataset done: all " + total + " scenarios. " + tally());
+  }
+
+  // Run each kind (or each scenario) in turn, through the same form as a single call. The
+  // server still permits only one active run; advancing after its "done" event preserves that.
+  function startNextBatch() {
+    var steps = batch && (batch.real ? batch.scenarios : batch.types);
+    if (!steps || batch.next >= steps.length) return endBatch();
     var form = document.getElementById("studio-form");
     var type = document.getElementById("call_type");
-    if (!form || !type) {
-      batch = null;
-      return;
+    var scenario = document.getElementById("scenario");
+    var field = document.getElementById("batch");
+    if (!form || !type || !scenario || !field) return endBatch();
+    if (batch.real) {
+      type.value = batch.type;
+      filterScenarios();
+      scenario.value = steps[batch.next];
+      randomCall();
+      field.value = "real";
+      batchStatus("Real dataset: call " + (batch.next + 1) + " of " + steps.length + ", " + scenario.selectedOptions[0].textContent + ". " + tally());
+    } else {
+      type.value = steps[batch.next];
+      filterScenarios();
+      field.value = "";
     }
-    type.value = batch.types[batch.next++];
-    filterScenarios();
+    batch.next++;
     setBusy(true);
     form.requestSubmit();
+  }
+
+  // A random person, a random outcome, the next free seed, no speech.
+  function randomCall() {
+    document.getElementById("receiver").value = "";
+    document.getElementById("outcome").value = "random";
+    document.getElementById("seed").value = "";
+    document.getElementById("speak").checked = false;
+    toggleCustom();
+  }
+
+  // Keep the chosen kind and make one call for each of its scenarios, in the list's order.
+  function startRealDataset() {
+    var type = document.getElementById("call_type");
+    var scenario = document.getElementById("scenario");
+    var ids = ["receiver", "outcome", "seed", "speak", "batch"];
+    if (!type || !scenario || ids.some(function (id) { return !document.getElementById(id); })) return;
+    var scenarios = Array.prototype.filter
+      .call(scenario.options, function (o) { return o.dataset.type === type.value; })
+      .map(function (o) { return o.value; });
+    if (!scenarios.length) return;
+    batch = { real: true, type: type.value, scenarios: scenarios, next: 0, approved: 0, rejected: 0 };
+    startNextBatch();
   }
 
   function startAllKinds() {
@@ -149,6 +227,7 @@
     var first = types.indexOf(type.value);
     if (first < 0) return;
     batch = { types: types.slice(first).concat(types.slice(0, first)), next: 0 };
+    batchStatus("");
     scenario.value = "";
     receiver.value = "";
     seed.value = "";
@@ -183,11 +262,22 @@
   }
 
   document.addEventListener("change", function (e) {
-    if (e.target.id === "call_type") filterScenarios();
+    if (e.target.id === "call_type") {
+      if (batch && batch.real) e.target.value = batch.type; // the kind stays fixed until it ends
+      filterScenarios();
+    }
     if (e.target.id === "receiver") toggleCustom();
   });
   document.addEventListener("click", function (e) {
     if (e.target.closest("[data-start-all]")) startAllKinds();
+    if (e.target.closest("[data-start-real]")) startRealDataset();
+  });
+  // The server refused the next call of a batch (another run is busy, a form problem): its
+  // message is in #form-error, and the batch ends so the buttons work again.
+  document.addEventListener("htmx:afterRequest", function (e) {
+    if (!batch || !e.target || e.target.id !== "studio-form" || e.detail.successful) return;
+    endBatch(batch.real ? "Real dataset stopped: the next call could not start. " + tally() : undefined);
+    setBusy(false);
   });
   document.addEventListener("htmx:afterSettle", function (e) {
     if (e.target && e.target.id === "studio-run") connectNew();

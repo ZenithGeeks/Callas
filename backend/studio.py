@@ -5,6 +5,11 @@ POST /studio/start starts a background thread that runs the simulator graph
 rendered as an HTML piece and added to the run's event list. GET /studio/{run}/events sends
 that list as server-sent events, so a page that opens late, or again, sees the whole call.
 One run at a time per server. Stop asks the thread to stop after the step it is working on.
+
+"Generate a real dataset" (studio.js) sends one call per scenario of the chosen kind with
+batch=real. When such a call ends accepted or rejected it is tagged with the dataset it belongs
+to (dataset.REAL_APPROVED or REAL_REJECTED), and the closing message tells the page which, so it
+can keep the approval rate and stop the batch.
 """
 
 from __future__ import annotations
@@ -49,6 +54,7 @@ CUSTOM = "__custom__"
 CUSTOM_KEY = "custom"  # the key in the call id of a call with a described receiver
 MAX_SEED = 99_999
 MAX_TEXT = 200
+REAL_BATCH = "real"  # the form's batch value for a call of "Generate a real dataset"
 
 # (form field, label, ReceiverProfile pool). The form field is sent as r_<field>; the pool fills
 # the suggestions list.
@@ -84,6 +90,8 @@ class StudioRun:
     finished: bool = False
     started: float = field(default_factory=time.monotonic)
     cancel: threading.Event = field(default_factory=threading.Event)
+    real: bool = False  # part of "Generate a real dataset": tag the finished call
+    dataset: str = ""  # the dataset the finished call was put in, set before "done"
 
     def push(self, name: str, html: str) -> None:
         self.events.append((name, html))  # list.append is atomic; readers only index it
@@ -212,7 +220,8 @@ def _begin(form: Any, demo: bool, pace: float) -> Response:
     try:
         config = _config()
         spec = parse_form(form, config, _taken_ids(config))
-        run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec)))
+        real = str(form.get("batch", "")) == REAL_BATCH
+        run = BOARD.start(lambda run_id: StudioRun(run_id, spec, _title(spec), real=real))
     except FormProblem as problem:
         return form_error(str(problem), problem.status)
     threading.Thread(
@@ -354,6 +363,8 @@ def _run_view(run: StudioRun) -> dict:
         # the outcome locked for this call (scenarios.sample_config draws it 50/50 by seed); shown
         # as a badge. "" when no outcome is locked.
         "scam_outcome": _locked_outcome(spec),
+        "real": run.real,
+        "dataset": run.dataset,
     }
 
 
@@ -463,6 +474,10 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
             "failed", render("partials/studio_failed.html", message=_failure_message(run, exc))
         )
     finally:
+        # Only a call that reached the verdict is tagged. A model error also leaves the call
+        # `rejected` (mark_model_error), but that is not the generator's verdict: not counted.
+        if run.real and outcome == "finished":
+            run.dataset = _put_in_real_dataset(run, db_path)
         run.push("done", _done_html(run, outcome))
         run.finished = True  # last: a new run may start from here on
 
@@ -479,6 +494,24 @@ def _make_agents(
 
     _sync_wiki(store)
     return Agents(config), Voices() if speak else None
+
+
+def _put_in_real_dataset(run: StudioRun, db_path: Path) -> str:
+    """Tag a call of a real-dataset batch that reached the verdict, by that verdict, and return the
+    tag. "" if it is still unfinished in the store. _work does not call this for a call that was
+    stopped or failed, so those are never counted."""
+    try:
+        store = Store(db_path)
+        record = store.load(run.spec.record_id)
+        status = record["generation"]["status"] if record else "in_progress"
+        name = {"accepted": dataset.REAL_APPROVED, "rejected": dataset.REAL_REJECTED}.get(status)
+        if name is None:
+            return ""
+        store.set_dataset(run.spec.record_id, name)
+        return name
+    except Exception:
+        log.exception("studio run %s: could not put the call in the real dataset", run.id)
+        return ""
 
 
 def _done_html(run: StudioRun, outcome: str) -> str:

@@ -218,6 +218,16 @@ def test_the_natural_score_shows_only_for_calls_judged_with_one(client, db_path)
     assert "Shows the call" in html and "Natural score" not in html
 
 
+def test_the_real_dataset_view_shows_its_approved_and_rejected_calls(client, db_path):
+    store = Store(db_path)
+    store.save(record("romance_00003"))  # not from the real-dataset button
+    store.set_dataset("phishing_otp_00001", dataset.REAL_APPROVED)
+    store.set_dataset("benign_00002", dataset.REAL_REJECTED)
+    html = client.get("/dataset?view=real").text
+    assert '>Real dataset<span class="view-count">2</span>' in html
+    assert html.count("data-row=") == 2 and "romance_00003" not in html.split("queue-views")[1]
+
+
 def test_detail_without_htmx_redirects_to_page(client, db_path):
     r = client.get("/dataset/call/phishing_otp_00001", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/dataset?id=phishing_otp_00001"

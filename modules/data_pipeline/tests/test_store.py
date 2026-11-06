@@ -150,6 +150,29 @@ def test_summaries_count_turns(tmp_path):
     assert row["call_type"] == "phishing_otp"
 
 
+def test_the_dataset_tag_is_listed_and_survives_a_save(tmp_path):
+    store = Store(tmp_path / "calls.db")
+    record = make_record()
+    store.save(record)
+    assert store.summaries()[0]["dataset"] == ""
+    assert store.set_dataset(record["id"], "real_approved")
+    store.save(record)  # a rerun of the generator does not take the call out of its dataset
+    assert store.summaries()[0]["dataset"] == "real_approved"
+    assert not store.set_dataset("phishing_otp_99999", "real_approved")
+
+
+def test_a_read_only_store_lists_an_old_database_without_the_dataset_column(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "calls.db"
+    Store(path).save(make_record())
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE calls DROP COLUMN dataset")
+    db.commit()
+    db.close()
+    assert Store(path, read_only=True).summaries()[0]["dataset"] == ""
+
+
 def test_delete_removes_turns_too(tmp_path):
     store = Store(tmp_path / "calls.db")
     store.save(make_record())

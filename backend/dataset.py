@@ -26,6 +26,10 @@ ID_RE = re.compile(r"[a-z_]+_\d{5}")
 TURN_AUDIO_RE = re.compile(r"\d{2}_[AB]\.wav")
 REVIEW_STATES = ("pending", "approved", "rejected")
 MAX_NOTE_CHARS = 500
+# The datasets the studio's "Generate a real dataset" run puts its finished calls in: the ones
+# that passed the generator's checks and the judge, and the ones that did not.
+REAL_APPROVED, REAL_REJECTED = "real_approved", "real_rejected"
+REAL_DATASETS = (REAL_APPROVED, REAL_REJECTED)
 
 CALL_TYPE_NAMES = {**{k: v for k, v in views.TYPE_NAMES.items() if k}, "benign": "Normal call"}
 # Generated calls and recordings use opposite letters. In a generated call (this page and the
@@ -140,6 +144,7 @@ class Row:
     turns: int
     seconds: float | None  # end of the last turn
     summary: str
+    dataset: str = ""  # REAL_APPROVED | REAL_REJECTED | "" (store column calls.dataset)
 
 
 def _row(record: dict) -> Row:
@@ -175,6 +180,7 @@ def _summary_row(row) -> Row:
         turns=row["turns"],
         seconds=row["seconds"],
         summary=row["reference_summary"],
+        dataset=row["dataset"],
     )
 
 
@@ -184,6 +190,7 @@ VIEWS: dict[str, tuple[str, Any]] = {
     "approved": ("Approved", lambda r: r.review == "approved"),
     "rejected": ("Rejected", lambda r: r.review == "rejected"),
     "failed": ("Failed checks", lambda r: r.status == "rejected" and r.review == "pending"),
+    "real": ("Real dataset", lambda r: r.dataset in REAL_DATASETS),
     "all": ("All", lambda r: True),
 }
 DEFAULT_VIEW = "todo"
