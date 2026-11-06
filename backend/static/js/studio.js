@@ -5,13 +5,15 @@
  * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
  * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
  * The two batch buttons send one call after another through the same form: all six kinds, or
- * a real dataset (one call per scenario of the chosen kind, stopped when under half pass). */
+ * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
+ * half pass). */
 (function () {
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var source = null;
   var batch = null;
+  var REAL_BATCH_SIZE = 100; // calls in one "Generate a real dataset" batch
 
   function toElement(html) {
     var t = document.createElement("template");
@@ -152,7 +154,7 @@
     t.innerHTML = html;
     var mark = t.content.querySelector("[data-real-result]");
     var result = mark ? mark.dataset.realResult : "";
-    var total = batch.scenarios.length;
+    var total = batch.size;
     if (result === "real_approved") {
       batch.approved++;
     } else if (result === "real_rejected") {
@@ -163,14 +165,17 @@
     if (batch.approved / (batch.approved + batch.rejected) < 0.5) {
       return endBatch("Real dataset stopped after call " + batch.next + " of " + total + ": fewer than half passed the checks. " + tally());
     }
-    if (batch.next >= total) endBatch("Real dataset done: all " + total + " scenarios. " + tally());
+    if (batch.next >= total) endBatch("Real dataset done: all " + total + " calls. " + tally());
   }
 
-  // Run each kind (or each scenario) in turn, through the same form as a single call. The
-  // server still permits only one active run; advancing after its "done" event preserves that.
+  // Run each kind (or each call of the real dataset) in turn, through the same form as a single
+  // call. The server still permits only one active run; advancing after its "done" event
+  // preserves that.
   function startNextBatch() {
-    var steps = batch && (batch.real ? batch.scenarios : batch.types);
-    if (!steps || batch.next >= steps.length) return endBatch();
+    if (!batch) return endBatch();
+    var steps = batch.real ? batch.scenarios : batch.types;
+    var total = batch.real ? batch.size : steps.length;
+    if (batch.next >= total) return endBatch();
     var form = document.getElementById("studio-form");
     var type = document.getElementById("call_type");
     var scenario = document.getElementById("scenario");
@@ -179,10 +184,10 @@
     if (batch.real) {
       type.value = batch.type;
       filterScenarios();
-      scenario.value = steps[batch.next];
+      scenario.value = steps[batch.next % steps.length]; // past the last scenario, start again
       randomCall();
       field.value = "real";
-      batchStatus("Real dataset: call " + (batch.next + 1) + " of " + steps.length + ", " + scenario.selectedOptions[0].textContent + ". " + tally());
+      batchStatus("Real dataset: call " + (batch.next + 1) + " of " + total + ", " + scenario.selectedOptions[0].textContent + ". " + tally());
     } else {
       type.value = steps[batch.next];
       filterScenarios();
@@ -202,7 +207,8 @@
     toggleCustom();
   }
 
-  // Keep the chosen kind and make one call for each of its scenarios, in the list's order.
+  // Keep the chosen kind and make REAL_BATCH_SIZE calls, going through its scenarios in the
+  // list's order and starting again from the first when there are fewer scenarios than calls.
   function startRealDataset() {
     var type = document.getElementById("call_type");
     var scenario = document.getElementById("scenario");
@@ -212,7 +218,7 @@
       .call(scenario.options, function (o) { return o.dataset.type === type.value; })
       .map(function (o) { return o.value; });
     if (!scenarios.length) return;
-    batch = { real: true, type: type.value, scenarios: scenarios, next: 0, approved: 0, rejected: 0 };
+    batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0 };
     startNextBatch();
   }
 

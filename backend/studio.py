@@ -6,8 +6,8 @@ rendered as an HTML piece and added to the run's event list. GET /studio/{run}/e
 that list as server-sent events, so a page that opens late, or again, sees the whole call.
 One run at a time per server. Stop asks the thread to stop after the step it is working on.
 
-"Generate a real dataset" (studio.js) sends one call per scenario of the chosen kind with
-batch=real. When such a call ends accepted or rejected it is tagged with the dataset it belongs
+"Generate a real dataset" (studio.js) sends 100 calls of the chosen kind, cycling through
+its scenarios, with batch=real. When such a call ends accepted or rejected it is tagged with the dataset it belongs
 to (dataset.REAL_APPROVED or REAL_REJECTED), and the closing message tells the page which, so it
 can keep the approval rate and stop the batch.
 """
