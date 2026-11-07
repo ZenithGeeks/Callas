@@ -1,0 +1,10 @@
+{# Token usage of one real-dataset batch, shown on /studio when the batch ends (studio.js asks
+   GET /studio/tokens with the calls it started). Expects `s` (data_pipeline.usage.summary over
+   those calls), `asked` (how many calls the page sent) and what dataset_tokens.html needs. #}
+<section class="slip p-5" aria-labelledby="batch-tokens-h" lang="en">
+  {% include "partials/_tokens_style.html" %}
+  <h3 id="batch-tokens-h" class="sec-h">Token usage of this batch</h3>
+  {% set unsaved = asked - s.calls - s.not_recorded %}
+  <p class="mt-1 mb-4 text-[14px] text-muted">Every call this batch started, {{ asked }} in all, including any that were stopped or failed.{% if unsaved > 0 %} {{ unsaved }} {{ 'was' if unsaved == 1 else 'were' }} never saved and {{ 'is' if unsaved == 1 else 'are' }} left out.{% endif %}</p>
+  {% include "partials/dataset_tokens.html" %}
+</section>

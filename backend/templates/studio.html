@@ -99,6 +99,9 @@
     <p class="mt-4 text-[14px] leading-[1.5] text-muted">One call at a time. It is saved to <code class="break-all">{{ db }}</code> like a command line run, and appears on <a class="btn-link" href="/dataset">Dataset</a>.</p>
   </form>
 
+  <div class="min-w-0">
+  {# Filled by studio.js when a real-dataset batch ends: the batch's token usage. #}
+  <div id="batch-tokens" class="mb-8 empty:hidden"></div>
   <div id="studio-run" class="min-w-0">
     {% if run_view %}
     {% set run = run_view %}
@@ -106,6 +109,7 @@
     {% else %}
     {{ ui.placeholder("No call yet", "Choose the kind of call and who answers, then press Start. The plan, each message with its reasoning and audio, and the judge's verdict appear here as they are written.") }}
     {% endif %}
+  </div>
   </div>
 </div>
 {% endblock %}
