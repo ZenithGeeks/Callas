@@ -343,7 +343,9 @@ judge:
       its turn, as [n] "word"
   intended:
     fake_authority: a scam call where the caller pretends to be police, a government office or a public utility
-    romance: a scam call from an online love interest who wants money
+    romance: >-
+      a scam call that exploits a close personal relationship to get money: an online love
+      interest, or someone impersonating the receiver's friend or family member
     investment: a scam call selling a fake investment with unrealistic returns
     phishing_otp: a scam call that tries to get an OTP, card details, or a visit to a fake link
     lottery: a scam call that says the receiver won a prize but must pay a fee first
