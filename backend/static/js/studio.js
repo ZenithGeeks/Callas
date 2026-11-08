@@ -5,12 +5,13 @@
  * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
  * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
  * The two batch buttons send one call after another through the same form: all six kinds, or
- * a real dataset (167 calls cycling through the scenarios of the chosen kind, stopped when under
- * half pass). When a real-dataset batch ends, for any reason, its token usage is shown above the
- * run (GET /studio/tokens with every call it started). A real-dataset batch that ends with an
- * error (a call failed, could not start, or the server went away) is saved in localStorage for
- * its kind, and the next "Generate a real dataset" of that kind carries on from the call that
- * went wrong, with the counts so far. */
+ * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
+ * half pass). While a real dataset is made, its status line gives the time the last finished call
+ * took. When the batch ends, for any reason, its time and token usage are shown above the run
+ * (GET /studio/tokens with every call it started and the seconds each took). A real-dataset
+ * batch that ends with an error (a call failed, could not start, or the server went away) is
+ * saved in localStorage for its kind, and the next "Generate a real dataset" of that kind
+ * carries on from the call that went wrong, with the counts and times so far. */
 (function () {
   "use strict";
 
@@ -30,6 +31,7 @@
       approved: b.approved,
       rejected: b.rejected,
       ids: b.ids,
+      seconds: b.seconds,
     };
     try {
       localStorage.setItem(RESUME_KEY + b.type, JSON.stringify(state));
@@ -200,15 +202,17 @@
       }
     }
     if (message !== undefined) batchStatus(message);
-    if (ended && ended.real && ended.ids.length) showTokens(ended.ids);
+    if (ended && ended.real && ended.ids.length) showTokens(ended.ids, ended.seconds);
   }
 
-  // The token usage of the calls a real-dataset batch started, above the run.
-  function showTokens(ids) {
+  // The time and token usage of the calls a real-dataset batch started, above the run.
+  function showTokens(ids, seconds) {
     var box = document.getElementById("batch-tokens");
     if (!box) return;
-    var query = ids.map(function (id) { return "id=" + encodeURIComponent(id); }).join("&");
-    box.innerHTML = "<p class='text-[15px] text-muted'>Adding up the batch’s token usage…</p>";
+    var query = ids.map(function (id) { return "id=" + encodeURIComponent(id); })
+      .concat(seconds.map(function (s) { return "seconds=" + encodeURIComponent(s); }))
+      .join("&");
+    box.innerHTML = "<p class='text-[15px] text-muted'>Adding up the batch’s time and token usage…</p>";
     fetch("/studio/tokens?" + query)
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
@@ -223,7 +227,21 @@
   function tally() {
     var counted = batch.approved + batch.rejected;
     var rate = counted ? " (" + Math.round((100 * batch.approved) / counted) + "% approved)" : "";
-    return batch.approved + " approved, " + batch.rejected + " rejected" + rate + ".";
+    return batch.approved + " approved, " + batch.rejected + " rejected" + rate + "." + lastTime();
+  }
+
+  // " The last call took 2 min 5 s." once a call of the batch has ended, else "".
+  function lastTime() {
+    var n = batch.seconds.length;
+    return n ? " The last call took " + elapsed(batch.seconds[n - 1]) + "." : "";
+  }
+
+  // Seconds as the server writes them (studio._elapsed): "45 s", "2 min 5 s", "1 h 3 min 0 s".
+  function elapsed(seconds) {
+    var total = Math.round(seconds);
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    if (h) return h + " h " + m + " min " + s + " s";
+    return m ? m + " min " + s + " s" : s + " s";
   }
 
   // A call of the real dataset has ended: count it by the tag the server gave it. Stop the batch
@@ -234,7 +252,11 @@
     var mark = t.content.querySelector("[data-real-result]");
     var result = mark ? mark.dataset.realResult : "";
     var total = batch.size;
-    if (mark && mark.dataset.recordId) batch.ids.push(mark.dataset.recordId); // counted or not, it spent tokens
+    if (mark && mark.dataset.recordId) {
+      batch.ids.push(mark.dataset.recordId); // counted or not, it spent tokens and time
+      var seconds = parseFloat(mark.dataset.seconds);
+      if (isFinite(seconds)) batch.seconds.push(seconds);
+    }
     if (result === "real_approved") {
       batch.approved++;
     } else if (result === "real_rejected") {
@@ -301,13 +323,15 @@
       .call(scenario.options, function (o) { return o.dataset.type === type.value; })
       .map(function (o) { return o.value; });
     if (!scenarios.length) return;
-    batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0, ids: [] };
+    batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0, ids: [], seconds: [] };
     var saved = loadResume(type.value, scenarios);
     if (saved) {
       batch.next = saved.next;
       batch.approved = saved.approved || 0;
       batch.rejected = saved.rejected || 0;
       batch.ids = saved.ids.slice();
+      // a batch saved before call times were kept has none
+      batch.seconds = Array.isArray(saved.seconds) ? saved.seconds.slice() : [];
     }
     var tokens = document.getElementById("batch-tokens");
     if (tokens) tokens.innerHTML = "";

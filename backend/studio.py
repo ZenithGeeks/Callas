@@ -10,13 +10,15 @@ One run at a time per server. Stop asks the thread to stop after the step it is 
 its scenarios, with batch=real. When such a call ends accepted or rejected it is tagged with
 the dataset it belongs to (dataset.REAL_APPROVED or REAL_REJECTED), and the closing message
 tells the page which, so it can keep the approval rate and stop the batch. When the batch ends,
-the page asks GET /studio/tokens for the token usage of the calls it started.
+the page asks GET /studio/tokens for the token usage of the calls it started, and the time
+each took (the closing message carries it, so the page can also show the last call's time).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import random
 import re
 import threading
@@ -95,6 +97,7 @@ class StudioRun:
     cancel: threading.Event = field(default_factory=threading.Event)
     real: bool = False  # part of "Generate a real dataset": tag the finished call
     dataset: str = ""  # the dataset the finished call was put in, set before "done"
+    seconds: float = 0.0  # wall time from start to end, set before "done"
 
     def push(self, name: str, html: str) -> None:
         self.events.append((name, html))  # list.append is atomic; readers only index it
@@ -368,6 +371,7 @@ def _run_view(run: StudioRun) -> dict:
         "scam_outcome": _locked_outcome(spec),
         "real": run.real,
         "dataset": run.dataset,
+        "seconds": run.seconds,
     }
 
 
@@ -391,7 +395,10 @@ def _started_outcome(spec: live.CallSpec) -> str | None:
 
 
 def _elapsed(seconds: float) -> str:
-    minutes, secs = divmod(int(seconds), 60)
+    minutes, secs = divmod(round(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours} h {minutes} min {secs} s"
     return f"{minutes} min {secs} s" if minutes else f"{secs} s"
 
 
@@ -457,9 +464,13 @@ def studio_stop(run_id: str) -> Response:
 
 
 @router.get("/studio/tokens", response_class=HTMLResponse)
-def studio_tokens(id: Annotated[list[str] | None, Query()] = None) -> HTMLResponse:
+def studio_tokens(
+    id: Annotated[list[str] | None, Query()] = None,
+    seconds: Annotated[list[str] | None, Query()] = None,
+) -> HTMLResponse:
     """Token usage of the given calls: studio.js asks for it when a real-dataset batch ends,
-    with every call the batch started (finished or not, since all of them spent tokens)."""
+    with every call the batch started (finished or not, since all of them spent tokens), and
+    the seconds each of them took."""
     store = dataset.store()
     ids = list(dict.fromkeys(id or []))[:MAX_TOKEN_CALLS]
     records = [r for r in (store.load(i) for i in ids) if r is not None] if store else []
@@ -468,10 +479,34 @@ def studio_tokens(id: Annotated[list[str] | None, Query()] = None) -> HTMLRespon
             "partials/studio_tokens.html",
             s=summary(records),
             asked=len(ids),
+            times=_time_summary(seconds or []),
             call_type="",
             type_names=dataset.CALL_TYPE_NAMES,
         )
     )
+
+
+def _time_summary(values: list[str]) -> dict | None:
+    """Total, average, shortest and longest of the calls' times, each as text; None without any.
+    Values that are not a time (not a number, negative, infinite) are skipped."""
+    times = []
+    for value in values[:MAX_TOKEN_CALLS]:
+        try:
+            number = float(value)
+        except ValueError:
+            continue
+        if math.isfinite(number) and number >= 0:
+            times.append(number)
+    if not times:
+        return None
+    total = sum(times)
+    return {
+        "calls": len(times),
+        "total": _elapsed(total),
+        "mean": _elapsed(total / len(times)),
+        "min": _elapsed(min(times)),
+        "max": _elapsed(max(times)),
+    }
 
 
 def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -> None:
@@ -499,6 +534,7 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
         # `rejected` (mark_model_error), but that is not the generator's verdict: not counted.
         if run.real and outcome == "finished":
             run.dataset = _put_in_real_dataset(run, db_path)
+        run.seconds = time.monotonic() - run.started
         run.push("done", _done_html(run, outcome))
         run.finished = True  # last: a new run may start from here on
 
