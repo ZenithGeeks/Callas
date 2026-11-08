@@ -395,7 +395,9 @@ def _started_outcome(spec: live.CallSpec) -> str | None:
 
 
 def _elapsed(seconds: float) -> str:
-    minutes, secs = divmod(round(seconds), 60)
+    """Whole seconds as "45 s", "2 min 5 s" or "1 h 3 min 0 s". Halves round up, like
+    Math.round in studio.js, so a call reads the same in the status line and the summary."""
+    minutes, secs = divmod(math.floor(seconds + 0.5), 60)
     hours, minutes = divmod(minutes, 60)
     if hours:
         return f"{hours} h {minutes} min {secs} s"
@@ -534,6 +536,9 @@ def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -
         # `rejected` (mark_model_error), but that is not the generator's verdict: not counted.
         if run.real and outcome == "finished":
             run.dataset = _put_in_real_dataset(run, db_path)
+            if not run.dataset:  # judged and saved, but not counted: the batch has to know
+                outcome = "failed"
+                run.push("failed", _untagged_html(run))
         run.seconds = time.monotonic() - run.started
         run.push("done", _done_html(run, outcome))
         run.finished = True  # last: a new run may start from here on
@@ -569,6 +574,20 @@ def _put_in_real_dataset(run: StudioRun, db_path: Path) -> str:
     except Exception:
         log.exception("studio run %s: could not put the call in the real dataset", run.id)
         return ""
+
+
+def _untagged_html(run: StudioRun) -> str:
+    """The error for a call of a real-dataset batch that reached the verdict but could not be put
+    in the real dataset (the store was locked or read-only). The run then ends as failed, so the
+    batch stops and can carry on from this call instead of reading it as a stopped one."""
+    return render(
+        "partials/studio_failed.html",
+        message=(
+            f"{run.spec.record_id} was written and judged, but it could not be put in the real "
+            "dataset, so it is not counted. It is saved and on the Dataset page. Check that "
+            "nothing else is writing to the dataset, then carry on with the batch."
+        ),
+    )
 
 
 def _done_html(run: StudioRun, outcome: str) -> str:

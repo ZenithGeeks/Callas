@@ -12,12 +12,18 @@
     <div>
       <dt>Time in all</dt>
       <dd>{{ times.total }}</dd>
+      {# A call retried after an error keeps its id (counted once in `asked`) but each run took
+         time, so there can be more runs than calls. #}
+      {% if times.calls > asked %}
+      <dd class="facts-note">{{ times.calls }} runs: a call made again after an error counts each time</dd>
+      {% else %}
       <dd class="facts-note">{{ times.calls }} call{{ 's' if times.calls != 1 }}</dd>
+      {% endif %}
     </div>
     <div>
       <dt>Time per call</dt>
       <dd>{{ times.mean }}</dd>
-      <dd class="facts-note">average</dd>
+      <dd class="facts-note">average{% if times.calls > asked %} per run{% endif %}</dd>
     </div>
     <div>
       <dt>Shortest · longest</dt>
