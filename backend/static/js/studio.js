@@ -7,7 +7,10 @@
  * The two batch buttons send one call after another through the same form: all six kinds, or
  * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
  * half pass). When a real-dataset batch ends, for any reason, its token usage is shown above the
- * run (GET /studio/tokens with every call it started). */
+ * run (GET /studio/tokens with every call it started). A real-dataset batch that ends with an
+ * error (a call failed, could not start, or the server went away) is saved in localStorage for
+ * its kind, and the next "Generate a real dataset" of that kind carries on from the call that
+ * went wrong, with the counts so far. */
 (function () {
   "use strict";
 
@@ -15,6 +18,51 @@
   var source = null;
   var batch = null;
   var REAL_BATCH_SIZE = 100; // calls in one "Generate a real dataset" batch
+  var RESUME_KEY = "studio-real-batch:"; // + the kind of call: a batch that ended with an error
+
+  // Remember where a real-dataset batch that ended with an error got to: the call that went
+  // wrong (already counted in batch.next) is made again.
+  function saveResume(b) {
+    var state = {
+      scenarios: b.scenarios,
+      size: b.size,
+      next: Math.max(0, b.next - 1),
+      approved: b.approved,
+      rejected: b.rejected,
+      ids: b.ids,
+    };
+    try {
+      localStorage.setItem(RESUME_KEY + b.type, JSON.stringify(state));
+    } catch (e) {
+      /* no storage: the next batch starts from the first call */
+    }
+  }
+
+  function forgetResume(type) {
+    try {
+      localStorage.removeItem(RESUME_KEY + type);
+    } catch (e) {
+      /* nothing to forget */
+    }
+  }
+
+  // The saved batch of this kind, if it still fits: the same scenarios in the same order.
+  function loadResume(type, scenarios) {
+    var state = null;
+    try {
+      state = JSON.parse(localStorage.getItem(RESUME_KEY + type) || "null");
+    } catch (e) {
+      return null;
+    }
+    if (!state || !Array.isArray(state.scenarios) || !Array.isArray(state.ids)) return null;
+    var same = state.scenarios.length === scenarios.length && state.scenarios.every(function (s, i) { return s === scenarios[i]; });
+    var size = REAL_BATCH_SIZE;
+    if (!same || state.size !== size || !(state.next >= 0 && state.next < size)) {
+      forgetResume(type);
+      return null;
+    }
+    return state;
+  }
 
   function toElement(html) {
     var t = document.createElement("template");
@@ -50,7 +98,7 @@
     if (stop) stop.hidden = true;
     setBusy(false);
     if (!advanceBatch) {
-      if (batch) endBatch(batch.real ? "Real dataset stopped: " + tally() : undefined);
+      if (batch) endBatch(batch.real ? "Real dataset stopped: " + tally() : undefined, true); // lost the server
       return;
     }
     if (batch && batch.real) countReal(html);
@@ -135,11 +183,22 @@
   }
 
   // The batch is over: the next Start is a single call again, not part of the real dataset.
-  function endBatch(message) {
+  // resumable: it ended with an error, so the next real dataset of this kind carries on from here.
+  function endBatch(message, resumable) {
     var ended = batch;
     batch = null;
     var field = document.getElementById("batch");
     if (field) field.value = "";
+    if (ended && ended.real) {
+      if (resumable) {
+        saveResume(ended);
+        if (message !== undefined) {
+          message += " Press “Generate a real dataset” with this kind again to carry on from call " + Math.max(1, ended.next) + ".";
+        }
+      } else {
+        forgetResume(ended.type);
+      }
+    }
     if (message !== undefined) batchStatus(message);
     if (ended && ended.real && ended.ids.length) showTokens(ended.ids);
   }
@@ -181,7 +240,9 @@
     } else if (result === "real_rejected") {
       batch.rejected++;
     } else {
-      return endBatch("Real dataset stopped after call " + batch.next + " of " + total + ", which did not finish. " + tally());
+      var failed = mark && mark.dataset.outcome === "failed"; // not Stop: carry on from it next time
+      var why = failed ? ", which ended with an error. " : ", which did not finish. ";
+      return endBatch("Real dataset stopped after call " + batch.next + " of " + total + why + tally(), failed);
     }
     if (batch.approved / (batch.approved + batch.rejected) < 0.5) {
       return endBatch("Real dataset stopped after call " + batch.next + " of " + total + ": fewer than half passed the checks. " + tally());
@@ -230,6 +291,7 @@
 
   // Keep the chosen kind and make REAL_BATCH_SIZE calls, going through its scenarios in the
   // list's order and starting again from the first when there are fewer scenarios than calls.
+  // If the last batch of this kind ended with an error, carry on from the call that went wrong.
   function startRealDataset() {
     var type = document.getElementById("call_type");
     var scenario = document.getElementById("scenario");
@@ -240,6 +302,13 @@
       .map(function (o) { return o.value; });
     if (!scenarios.length) return;
     batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0, ids: [] };
+    var saved = loadResume(type.value, scenarios);
+    if (saved) {
+      batch.next = saved.next;
+      batch.approved = saved.approved || 0;
+      batch.rejected = saved.rejected || 0;
+      batch.ids = saved.ids.slice();
+    }
     var tokens = document.getElementById("batch-tokens");
     if (tokens) tokens.innerHTML = "";
     startNextBatch();
@@ -305,7 +374,7 @@
   // message is in #form-error, and the batch ends so the buttons work again.
   document.addEventListener("htmx:afterRequest", function (e) {
     if (!batch || !e.target || e.target.id !== "studio-form" || e.detail.successful) return;
-    endBatch(batch.real ? "Real dataset stopped: the next call could not start. " + tally() : undefined);
+    endBatch(batch.real ? "Real dataset stopped: the next call could not start. " + tally() : undefined, true);
     setBusy(false);
   });
   document.addEventListener("htmx:afterSettle", function (e) {
