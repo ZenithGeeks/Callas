@@ -1,5 +1,6 @@
 """The /studio page, in demo mode (scripted agents on a real DSPy stack, silent voices)."""
 
+import re
 import sqlite3
 import time
 
@@ -102,10 +103,27 @@ def test_a_real_dataset_batch_reports_the_token_usage_of_its_calls(client):
     html = client.get(
         "/studio/tokens?id=phishing_otp_00000&id=phishing_otp_00001&id=never_saved"
     ).text
-    assert "Token usage of this batch" in html and "3 in all" in html
+    assert "Time and token usage of this batch" in html and "3 in all" in html
     assert "1 was never saved" in html
     assert "<dt>Calls recorded</dt>\n    <dd>2</dd>" in html
     assert "Receiver" in html  # the per-agent table
+    assert "Time in all" not in html  # no times were sent
+
+
+def test_a_real_dataset_call_says_how_long_it_took(client):
+    done = read_events(client, run_id_of(start(client, batch="real", speak="")))[-1][1]
+    seconds = re.search(r'data-seconds="([0-9.]+)"', done)
+    assert seconds and float(seconds.group(1)) > 0
+
+
+def test_the_batch_summary_gives_the_total_average_shortest_and_longest_time(client):
+    html = client.get(
+        "/studio/tokens?id=a&seconds=30&seconds=90.4&seconds=3700&seconds=oops&seconds=-1"
+    ).text
+    assert "<dt>Time in all</dt>\n      <dd>1 h 3 min 40 s</dd>" in html
+    assert "3 calls" in html  # the values that are not a time are skipped
+    assert "<dd>21 min 13 s</dd>" in html  # the average
+    assert "<dd>30 s · 1 h 1 min 40 s</dd>" in html
 
 
 def test_token_usage_without_a_database_says_there_is_none(client):
