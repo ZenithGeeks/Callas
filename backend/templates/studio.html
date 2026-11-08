@@ -94,7 +94,7 @@
       <button type="button" class="btn btn-secondary mt-3" data-start-real aria-describedby="real-help">Generate a real dataset</button>
       <input type="hidden" id="batch" name="batch" value="">
     </div>
-    <p id="real-help" class="studio-help">100 calls of the chosen kind, going through its scenarios in order and starting again from the first when they run out, each with a random person, a random outcome, the next free seed and no speech. Calls that pass the checks go to the real dataset; the rest are kept apart. It stops by itself if fewer than half pass.</p>
+    <p id="real-help" class="studio-help">100 calls of the chosen kind, going through its scenarios in order and starting again from the first when they run out, each with a random person, a random outcome, the next free seed and no speech. Calls that pass the checks go to the real dataset; the rest are kept apart. It stops by itself if fewer than half pass. If a call ends with an error, pressing it again with the same kind carries on from that call.</p>
     <p id="batch-status" class="mt-3 text-[15px] leading-[1.5] empty:hidden" aria-live="polite"></p>
     <p class="mt-4 text-[14px] leading-[1.5] text-muted">One call at a time. It is saved to <code class="break-all">{{ db }}</code> like a command line run, and appears on <a class="btn-link" href="/dataset">Dataset</a>.</p>
   </form>

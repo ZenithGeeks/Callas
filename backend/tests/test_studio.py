@@ -146,7 +146,10 @@ def test_a_stopped_real_dataset_call_is_not_counted(client, tmp_path):
         wait_idle(studio.BOARD)
     finally:
         client.app.state.pace = 0
-    assert 'data-real-result=""' in read_events(client, run_id)[-1][1]
+    done = read_events(client, run_id)[-1][1]
+    assert 'data-real-result=""' in done
+    # studio.js does not offer to carry on from a call the user stopped
+    assert 'data-outcome="stopped"' in done
     assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
 
 
@@ -169,7 +172,10 @@ def test_a_real_dataset_call_that_crashes_is_not_counted(client, tmp_path, monke
     assert "failed" in names and "verdict" not in names
     # mark_model_error rejected the call, but that is not the generator's verdict
     assert saved(tmp_path, "phishing_otp_00000")["generation"]["status"] == "rejected"
-    assert 'data-real-result=""' in read_events(client, run_id)[-1][1]
+    done = read_events(client, run_id)[-1][1]
+    assert 'data-real-result=""' in done
+    # studio.js reads this to carry the batch on from this call next time
+    assert 'data-outcome="failed"' in done
     assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
 
 
