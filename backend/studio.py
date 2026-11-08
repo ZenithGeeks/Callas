@@ -6,7 +6,7 @@ rendered as an HTML piece and added to the run's event list. GET /studio/{run}/e
 that list as server-sent events, so a page that opens late, or again, sees the whole call.
 One run at a time per server. Stop asks the thread to stop after the step it is working on.
 
-"Generate a real dataset" (studio.js) sends 100 calls of the chosen kind, cycling through
+"Generate a real dataset" (studio.js) sends 167 calls of the chosen kind, cycling through
 its scenarios, with batch=real. When such a call ends accepted or rejected it is tagged with
 the dataset it belongs to (dataset.REAL_APPROVED or REAL_REJECTED), and the closing message
 tells the page which, so it can keep the approval rate and stop the batch. When the batch ends,
@@ -59,7 +59,7 @@ CUSTOM_KEY = "custom"  # the key in the call id of a call with a described recei
 MAX_SEED = 99_999
 MAX_TEXT = 200
 REAL_BATCH = "real"  # the form's batch value for a call of "Generate a real dataset"
-MAX_TOKEN_CALLS = 200  # most calls /studio/tokens reads (a batch is 100)
+MAX_TOKEN_CALLS = 200  # most calls /studio/tokens reads (a batch is 167)
 
 # (form field, label, ReceiverProfile pool). The form field is sent as r_<field>; the pool fills
 # the suggestions list.

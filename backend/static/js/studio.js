@@ -18,7 +18,7 @@
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var source = null;
   var batch = null;
-  var REAL_BATCH_SIZE = 100; // calls in one "Generate a real dataset" batch
+  var REAL_BATCH_SIZE = 167; // calls in one "Generate a real dataset" batch
   var RESUME_KEY = "studio-real-batch:"; // + the kind of call: a batch that ended with an error
 
   // Remember where a real-dataset batch that ended with an error got to: the call that went
