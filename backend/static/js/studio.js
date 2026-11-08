@@ -5,7 +5,7 @@
  * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
  * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
  * The two batch buttons send one call after another through the same form: all six kinds, or
- * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
+ * a real dataset (167 calls cycling through the scenarios of the chosen kind, stopped when under
  * half pass). When a real-dataset batch ends, for any reason, its token usage is shown above the
  * run (GET /studio/tokens with every call it started). */
 (function () {
@@ -14,7 +14,7 @@
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var source = null;
   var batch = null;
-  var REAL_BATCH_SIZE = 100; // calls in one "Generate a real dataset" batch
+  var REAL_BATCH_SIZE = 167; // calls in one "Generate a real dataset" batch
 
   function toElement(html) {
     var t = document.createElement("template");
