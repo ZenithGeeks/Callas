@@ -6,7 +6,8 @@
  * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
  * The two batch buttons send one call after another through the same form: all six kinds, or
  * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
- * half pass). */
+ * half pass). When a real-dataset batch ends, for any reason, its token usage is shown above the
+ * run (GET /studio/tokens with every call it started). */
 (function () {
   "use strict";
 
@@ -135,10 +136,29 @@
 
   // The batch is over: the next Start is a single call again, not part of the real dataset.
   function endBatch(message) {
+    var ended = batch;
     batch = null;
     var field = document.getElementById("batch");
     if (field) field.value = "";
     if (message !== undefined) batchStatus(message);
+    if (ended && ended.real && ended.ids.length) showTokens(ended.ids);
+  }
+
+  // The token usage of the calls a real-dataset batch started, above the run.
+  function showTokens(ids) {
+    var box = document.getElementById("batch-tokens");
+    if (!box) return;
+    var query = ids.map(function (id) { return "id=" + encodeURIComponent(id); }).join("&");
+    box.innerHTML = "<p class='text-[15px] text-muted'>Adding up the batch’s token usage…</p>";
+    fetch("/studio/tokens?" + query)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (html) { box.innerHTML = html; })
+      .catch(function () {
+        box.innerHTML = "<p class='text-[15px] text-muted'>Could not load the batch’s token usage. Each call’s usage is on the Dataset page.</p>";
+      });
   }
 
   function tally() {
@@ -155,6 +175,7 @@
     var mark = t.content.querySelector("[data-real-result]");
     var result = mark ? mark.dataset.realResult : "";
     var total = batch.size;
+    if (mark && mark.dataset.recordId) batch.ids.push(mark.dataset.recordId); // counted or not, it spent tokens
     if (result === "real_approved") {
       batch.approved++;
     } else if (result === "real_rejected") {
@@ -218,7 +239,9 @@
       .call(scenario.options, function (o) { return o.dataset.type === type.value; })
       .map(function (o) { return o.value; });
     if (!scenarios.length) return;
-    batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0 };
+    batch = { real: true, type: type.value, scenarios: scenarios, size: REAL_BATCH_SIZE, next: 0, approved: 0, rejected: 0, ids: [] };
+    var tokens = document.getElementById("batch-tokens");
+    if (tokens) tokens.innerHTML = "";
     startNextBatch();
   }
 

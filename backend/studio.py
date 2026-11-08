@@ -9,7 +9,8 @@ One run at a time per server. Stop asks the thread to stop after the step it is 
 "Generate a real dataset" (studio.js) sends 100 calls of the chosen kind, cycling through
 its scenarios, with batch=real. When such a call ends accepted or rejected it is tagged with
 the dataset it belongs to (dataset.REAL_APPROVED or REAL_REJECTED), and the closing message
-tells the page which, so it can keep the approval rate and stop the batch.
+tells the page which, so it can keep the approval rate and stop the batch. When the batch ends,
+the page asks GET /studio/tokens for the token usage of the calls it started.
 """
 
 from __future__ import annotations
@@ -27,10 +28,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import dspy
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -40,6 +41,7 @@ from data_pipeline.config import BENIGN, CALL_TYPES, Config, ConfigError, Receiv
 from data_pipeline.config import load_config as load_default_config
 from data_pipeline.scenarios import sample_config, sample_receiver
 from data_pipeline.store import Store
+from data_pipeline.usage import summary
 from llm_serving.client import LLMUnavailable
 
 from . import dataset
@@ -55,6 +57,7 @@ CUSTOM_KEY = "custom"  # the key in the call id of a call with a described recei
 MAX_SEED = 99_999
 MAX_TEXT = 200
 REAL_BATCH = "real"  # the form's batch value for a call of "Generate a real dataset"
+MAX_TOKEN_CALLS = 200  # most calls /studio/tokens reads (a batch is 100)
 
 # (form field, label, ReceiverProfile pool). The form field is sent as r_<field>; the pool fills
 # the suggestions list.
@@ -451,6 +454,24 @@ def studio_stop(run_id: str) -> Response:
         return _unknown_run()
     run.cancel.set()
     return Response(status_code=204)
+
+
+@router.get("/studio/tokens", response_class=HTMLResponse)
+def studio_tokens(id: Annotated[list[str] | None, Query()] = None) -> HTMLResponse:
+    """Token usage of the given calls: studio.js asks for it when a real-dataset batch ends,
+    with every call the batch started (finished or not, since all of them spent tokens)."""
+    store = dataset.store()
+    ids = list(dict.fromkeys(id or []))[:MAX_TOKEN_CALLS]
+    records = [r for r in (store.load(i) for i in ids) if r is not None] if store else []
+    return HTMLResponse(
+        render(
+            "partials/studio_tokens.html",
+            s=summary(records),
+            asked=len(ids),
+            call_type="",
+            type_names=dataset.CALL_TYPE_NAMES,
+        )
+    )
 
 
 def _work(run: StudioRun, demo: bool, pace: float, speak: bool, db_path: Path) -> None:

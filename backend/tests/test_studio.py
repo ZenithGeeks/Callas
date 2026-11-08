@@ -95,6 +95,24 @@ def test_a_real_dataset_call_is_tagged_by_its_verdict_and_says_so(client, tmp_pa
     assert "phishing_otp_00000" in client.get("/dataset?view=real").text
 
 
+def test_a_real_dataset_batch_reports_the_token_usage_of_its_calls(client):
+    first = read_events(client, run_id_of(start(client, batch="real", speak="")))[-1][1]
+    assert 'data-record-id="phishing_otp_00000"' in first  # studio.js collects these
+    read_events(client, run_id_of(start(client, batch="real", speak="")))
+    html = client.get(
+        "/studio/tokens?id=phishing_otp_00000&id=phishing_otp_00001&id=never_saved"
+    ).text
+    assert "Token usage of this batch" in html and "3 in all" in html
+    assert "1 was never saved" in html
+    assert "<dt>Calls recorded</dt>\n    <dd>2</dd>" in html
+    assert "Receiver" in html  # the per-agent table
+
+
+def test_token_usage_without_a_database_says_there_is_none(client):
+    html = client.get("/studio/tokens").text
+    assert "No call has token usage yet" in html
+
+
 def test_an_ordinary_call_is_not_put_in_the_real_dataset(client, tmp_path):
     done = read_events(client, run_id_of(start(client)))[-1][1]
     assert "data-real-result" not in done
