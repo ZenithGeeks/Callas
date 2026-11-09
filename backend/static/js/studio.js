@@ -5,7 +5,7 @@
  * ends the run. A plain EventSource is used instead of the htmx sse extension because an event
  * has to replace one element by id. Closing the tab does not stop the run; the server saves it.
  * The two batch buttons send one call after another through the same form: all six kinds, or
- * a real dataset (100 calls cycling through the scenarios of the chosen kind, stopped when under
+ * a real dataset (167 calls cycling through the scenarios of the chosen kind, stopped when under
  * half pass). While a real dataset is made, its status line gives the time the last finished call
  * took. When the batch ends, for any reason, its time and token usage are shown above the run
  * (GET /studio/tokens with every call it started and the seconds each took). A real-dataset

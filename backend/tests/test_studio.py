@@ -118,12 +118,37 @@ def test_a_real_dataset_call_says_how_long_it_took(client):
 
 def test_the_batch_summary_gives_the_total_average_shortest_and_longest_time(client):
     html = client.get(
-        "/studio/tokens?id=a&seconds=30&seconds=90.4&seconds=3700&seconds=oops&seconds=-1"
+        "/studio/tokens?id=a&id=b&id=c&seconds=30&seconds=90.4&seconds=3700&seconds=oops&seconds=-1"
     ).text
     assert "<dt>Time in all</dt>\n      <dd>1 h 3 min 40 s</dd>" in html
     assert "3 calls" in html  # the values that are not a time are skipped
     assert "<dd>21 min 13 s</dd>" in html  # the average
     assert "<dd>30 s · 1 h 1 min 40 s</dd>" in html
+
+
+def test_times_round_halves_up_like_the_status_line():
+    # studio.js shows the last call's time with Math.round; the summary must agree with it
+    assert [studio._elapsed(s) for s in (0.5, 2.5, 59.5, 3599.5)] == [
+        "1 s",
+        "3 s",
+        "1 min 0 s",
+        "1 h 0 min 0 s",
+    ]
+
+
+def test_the_time_summary_counts_runs_when_a_call_was_made_again(client):
+    # one call, made twice: it failed, and the batch carried on from it with the same id
+    html = client.get("/studio/tokens?id=a&seconds=4&seconds=6").text
+    assert "2 runs: a call made again after an error counts each time" in html
+    assert "average per run" in html
+    once = client.get("/studio/tokens?id=a&id=b&seconds=4&seconds=6").text
+    assert "2 calls" in once and "runs" not in once
+
+
+def test_the_help_says_a_batch_carries_on_after_an_error(client):
+    html = client.get("/studio").text
+    assert "167 calls of the chosen kind" in html
+    assert "If a call ends with an error, pressing it again with the same kind" in html
 
 
 def test_token_usage_without_a_database_says_there_is_none(client):
@@ -150,6 +175,24 @@ def test_a_stopped_real_dataset_call_is_not_counted(client, tmp_path):
     assert 'data-real-result=""' in done
     # studio.js does not offer to carry on from a call the user stopped
     assert 'data-outcome="stopped"' in done
+    assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
+
+
+def test_a_judged_call_that_cannot_be_tagged_ends_the_run_with_an_error(
+    client, tmp_path, monkeypatch
+):
+    # the store was locked or read-only when the verdict was to be recorded as a tag
+    monkeypatch.setattr(studio, "_put_in_real_dataset", lambda run, db_path: "")
+    run_id = run_id_of(start(client, batch="real", speak=""))
+    wait_idle(studio.BOARD)
+    events = read_events(client, run_id)
+    names = [n for n, _ in events]
+    assert "verdict" in names and "failed" in names
+    failed = next(html for n, html in events if n == "failed")
+    assert "phishing_otp_00000 was written and judged" in failed
+    done = events[-1][1]
+    # studio.js reads this as an error, so the batch can carry on from this call
+    assert 'data-real-result=""' in done and 'data-outcome="failed"' in done
     assert dataset_tag(tmp_path, "phishing_otp_00000") == ""
 
 
