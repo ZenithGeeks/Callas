@@ -1,11 +1,11 @@
-"""The notebook export (export.py, issue #54).
+"""The notebook export (export.py, issue #54) and the notebook's part A.
 
 The notebook is the contract, so these tests run the notebook's own cells (its input format,
-loading, cleaning, checks and label mapping) on the exported csv instead of a copy of them.
+loading, masking, cleaning, checks, label mapping, class sizes, scenario split and export)
+instead of a copy of them. The notebook reads the simulated calls from dataset/*.jsonl.
 """
 
 import json
-import re
 import sqlite3
 from pathlib import Path
 
@@ -97,27 +97,80 @@ def cell(marker):
     return found[0]
 
 
-def run_notebook_cleaning(tmp_path, monkeypatch, generated, original_rows=None):
-    """Run the notebook's load, clean, check and label-mapping cells (steps 1 to 4) with the
-    hand-written data in `original_rows` and the exported csv `generated`. Returns the
-    namespace after each stage as a dict of snapshots."""
+def jsonl_call(
+    call_id="phishing_otp_00000",
+    label_type="phishing_otp",
+    texts=None,
+    speakers=None,
+    outcome="safe",
+    outcome_source="locked",
+    scam_start=2,
+    scenario=None,
+    entities=None,
+):
+    """One call as a line of dataset/*.jsonl. Turns alternate A, B. `scenario` is the name (or a
+    dict with "key") the file holds; `entities` are {"text", "label", "start", "end"} in text."""
+    texts = texts or default_texts()
+    speakers = speakers or ["AB"[i % 2] for i in range(len(texts))]
+    scam = label_type not in (None, "benign")
+    return {
+        "id": call_id,
+        "channel": "call",
+        "text": "\n".join(f"{s}: {t}" for s, t in zip(speakers, texts, strict=True)),
+        "audio_path": None,
+        "speaker_turns": [
+            {"speaker": s, "start": None, "end": None, "text": t}
+            for s, t in zip(speakers, texts, strict=True)
+        ],
+        "label_scam": scam,
+        "label_type": label_type if scam else None,
+        "scam_outcome": outcome,
+        "scam_outcome_source": outcome_source,
+        "scenario": scenario,
+        "entities": entities or [],
+        "reference_summary": "",
+        "scam_start_turn": scam_start if scam else None,
+        "source": "synthetic",
+        "receiver_leaked": [],
+        "first_leak_turn": None,
+    }
+
+
+def as_jsonl(call: dict) -> dict:
+    """A store record from make_call as the line --export would write for it."""
+    turns = call["generation"]["turns"]
+    return jsonl_call(
+        call["id"],
+        call["label_type"] if call["label_scam"] else None,
+        [t["text"] for t in turns],
+        [t["speaker"] for t in turns],
+    )
+
+
+def write_jsonl(path, calls):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in calls), encoding="utf-8"
+    )
+
+
+def run_notebook_cleaning(tmp_path, monkeypatch, calls=None, files=None):
+    """Run the notebook's load, clean, check and label-mapping cells (steps 1 to 4) on JSONL
+    calls in dataset/. `calls` go to one file; `files` maps file names to their calls. Returns
+    the notebook's namespace."""
     import matplotlib
 
     matplotlib.use("Agg")
     root = tmp_path / "nbroot"
     (root / "dataset").mkdir(parents=True)
     (root / "pyproject.toml").write_text("")
-    original_rows = original_rows or [
-        ("ผู้โทร: สวัสดีครับ จากธนาคาร ผู้รับ: ครับ ผู้โทร: ขอรหัส otp ครับ ผู้รับ: ไม่ให้ครับ",
-         "Scam", "Bank OTP Phishing"),
-        ("ผู้โทร: สวัสดีค่ะ จากคลินิก ผู้รับ: ค่ะ ผู้โทร: ยืนยันนัดค่ะ ผู้รับ: รับทราบค่ะ",
-         "Not a Scam", "Legit Clinic Call"),
-    ]  # fmt: skip
-    columns = ["dialogue", "scam_class", "scam_type", "group_hint"][: len(original_rows[0])]
-    pd.DataFrame(original_rows, columns=columns).to_csv(
-        root / "dataset" / "scam_dataset.csv", index=False, encoding="utf-8-sig"
-    )
-    (root / "dataset" / "scam_dataset_generated.csv").write_bytes(generated.read_bytes())
+    if files is None:
+        files = {
+            "calls.jsonl": calls
+            or [jsonl_call(), jsonl_call("benign_00000", None, themed_texts("clinic"))]
+        }
+    for name, rows in files.items():
+        write_jsonl(root / "dataset" / name, rows)
     monkeypatch.chdir(root)
     ns: dict = {}
 
@@ -125,17 +178,45 @@ def run_notebook_cleaning(tmp_path, monkeypatch, generated, original_rows=None):
         exec(compile(cell(marker), marker, "exec"), ns)  # noqa: S102
 
     run("SEED = 42")  # settings and ROOT
-    run("ROLE_TAGS =")  # step 1: the input format, load_raw
-    ns["EXCEL_SOURCE"] = None
-    run("raw = load_raw(DATA_FILE)")
+    run("SPEAKER_ROLES =")  # the input format: jsonl_row, load_jsonl
+    run("DATA_FILES = sorted(")  # step 1
     ns["rows_loaded"] = len(ns["raw"])
-    run("def has_narration")
+    run("spoken = raw[")  # step 2
     run("def clean_turns_mapped")
     run("after = pd.DataFrame")  # step 3 checks: drops what fails them
     ns["rows_after_checks"] = len(ns["df"])
     run("TYPE_MAP: dict")
     ns["plt"].close("all")  # the cells draw charts
     return ns
+
+
+def run_part_a_rest(ns, **settings):
+    """Steps 4b to 7 on a namespace from run_notebook_cleaning. `settings` replace the values the
+    class-size cell sets (SKIP_TYPES). Step 5 makes one group per scenario."""
+    pytest.importorskip("sklearn")
+    ns["plt"].show = lambda *a, **k: None
+    sizes = cell("typed_scam = ")
+    for name, value in settings.items():
+        line = next(x for x in sizes.splitlines() if x.startswith(f"{name}"))
+        sizes = sizes.replace(line, f"{name} = {value!r}")
+    exec(compile(sizes, "class sizes", "exec"), ns)  # noqa: S102
+    for marker in (
+        'df["group"] = pd.factorize(',
+        "def scenario_split",
+        "RECORD_KEYS = (",
+    ):
+        exec(compile(cell(marker), marker, "exec"), ns)  # noqa: S102
+    ns["plt"].close("all")
+    return ns
+
+
+THEMED = {
+    "clinic": ["สวัสดีค่ะ โทรจากคลินิกทันตกรรม", "ค่ะ", "ยืนยันนัดขูดหินปูนวันเสาร์ค่ะ", "ได้ค่ะ ไปตามนัด"],
+}
+
+
+def themed_texts(name):
+    return list(THEMED[name])
 
 
 def one_of_each_store(tmp_path):
@@ -151,38 +232,37 @@ def one_of_each_store(tmp_path):
 # ---- the export passes the notebook ----------------------------------------------------------
 
 
-def test_exported_csv_passes_the_notebooks_load_clean_and_map_steps(tmp_path, monkeypatch):
-    db = one_of_each_store(tmp_path)
-    out, written, skipped = run_export(db, tmp_path)
-    assert written == 6 and not skipped
+def test_jsonl_calls_pass_the_notebooks_load_clean_and_map_steps(tmp_path, monkeypatch):
+    # the notebook drops calls with the same text and different labels, so each text differs;
+    # a number marks them, not the type name, which the label-word check would drop
+    calls = [
+        jsonl_call(f"{t}_00000", t, [f"{x} ({n})" for x in default_texts()])
+        for n, t in enumerate(export.TYPE_NAMES)
+    ]
+    calls.append(jsonl_call("benign_00000", None, themed_texts("clinic")))
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, calls)
 
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-
-    assert ns["rows_loaded"] == 2 + 6  # nothing dropped at load
-    assert ns["rows_after_checks"] == 2 + 6  # 0 rows dropped by the step 3 checks
+    assert ns["rows_loaded"] == 6  # nothing dropped at load
+    assert ns["rows_after_checks"] == 6  # 0 rows dropped by the step 3 checks
     df = ns["df"]
-    simulated = df[df["source"] == "simulated"].copy()
-    assert len(simulated) == 6
-    assert (simulated["speaker_turns"].map(len) == 6).all()  # every turn survived the cleaning
-    assert set(simulated["scam_class"]) == {"Scam", "Not a Scam"}
-    assert set(simulated["label_scam"]) == {True, False}
+    assert set(df["source"]) == {"simulated"}
+    scams = df[df["label_scam"]]
+    assert (scams["speaker_turns"].map(len) == 6).all()  # every turn survived the cleaning
+    assert set(df["scam_class"]) == {"Scam", "Not a Scam"}
     # the five spec types map to themselves, normal calls to no type
-    typed = simulated[simulated["label_scam"]]
-    assert dict(zip(typed["scam_type"], typed["label_type"], strict=True)) == {
+    assert dict(zip(scams["scam_type"], scams["label_type"], strict=True)) == {
         t: t for t in export.TYPE_NAMES
     }
-    assert simulated.loc[~simulated["label_scam"], "label_type"].isna().all()
+    assert df.loc[~df["label_scam"], "label_type"].isna().all()
     # the noun in a receiver turn is kept as spoken
-    assert simulated["text"].str.contains("ผู้โทรคนนี้").all()
+    assert scams["text"].str.contains("ผู้โทรคนนี้").all()
+    assert set(df["call_id"]) == {c["id"] for c in calls}
 
 
-def test_the_exported_text_is_what_was_reviewed(tmp_path, monkeypatch):
+def test_the_jsonl_text_is_what_the_notebook_trains_on(tmp_path, monkeypatch):
     call = make_call()
-    db = build_store(tmp_path, call)
-    out, _, _ = run_export(db, tmp_path)
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    df = ns["df"]
-    got = df[df["source"] == "simulated"]["speaker_turns"].iat[0]
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, [as_jsonl(call)])
+    got = ns["df"]["speaker_turns"].iat[0]
     from nlp_core.text import normalize_text
 
     assert [t["text"] for t in got] == [
@@ -191,16 +271,166 @@ def test_the_exported_text_is_what_was_reviewed(tmp_path, monkeypatch):
     assert [t["speaker"] for t in got] == ["A", "B"] * 3
 
 
-def test_copied_cleaning_rules_match_the_notebook(tmp_path, monkeypatch):
-    db = build_store(tmp_path, make_call())
-    out, _, _ = run_export(db, tmp_path)
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    for name in ("SPEAKER_TAG", "BRACKET_NOTE", "STAGE_NOTE", "NARRATION"):
-        assert getattr(export, name).pattern == ns[name].pattern, name
-    assert export.LABEL_NAMES.pattern == ns["LABEL_NAMES"]
-    assert export.TAGS["A"] == ns["CALLER_TAG"]
-    assert {export.TAGS["A"]: "caller", export.TAGS["B"]: "receiver"} == ns["ROLE_TAGS"]
-    assert set(export.TYPE_NAMES.values()) <= {k for k, v in ns["TYPE_MAP"].items() if k == v}
+def test_a_jsonl_call_keeps_its_turns_and_roles(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch)
+    call = jsonl_call(texts=["สวัสดีครับ  จากธนาคาร", "ครับ"])
+    assert ns["jsonl_row"](call)["turns"] == [
+        ("caller", "สวัสดีครับ  จากธนาคาร"),
+        ("receiver", "ครับ"),
+    ]
+    cleaned = ns["clean_turns"](ns["jsonl_row"](call)["turns"])
+    assert cleaned == [("caller", "สวัสดีครับ จากธนาคาร"), ("receiver", "ครับ")]
+
+
+def test_a_normal_call_has_no_outcome_whatever_its_file_says(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch)
+    row = ns["jsonl_row"](jsonl_call("benign_00001", None, outcome="scammed"))
+    assert row["scam_class"] == "Not a Scam" and row["scam_type"] == ""
+    assert row["scam_outcome"] is None and row["scam_outcome_source"] is None
+    scam = ns["jsonl_row"](jsonl_call(outcome="scammed", outcome_source="inferred"))
+    assert (scam["scam_outcome"], scam["scam_outcome_source"]) == ("scammed", "inferred")
+
+
+@pytest.mark.parametrize(
+    ("label_type", "scenario", "expected"),
+    [
+        ("lottery", "gov_lottery", "lottery/gov_lottery"),  # a name
+        ("romance", {"key": "engineer_abroad", "role": "..."}, "romance/engineer_abroad"),  # a dict
+        (None, "bank_fraud_alert", "normal/bank_fraud_alert"),  # a normal call
+        ("lottery", None, "lottery/call_lottery_00007"),  # none: the call is its own scenario
+    ],
+)
+def test_the_scenario_is_read_with_its_type_in_front(
+    label_type, scenario, expected, tmp_path, monkeypatch
+):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch)
+    call = jsonl_call("lottery_00007", label_type, scenario=scenario)
+    assert ns["jsonl_row"](call)["scenario"] == expected
+
+
+# ---- masking the sensitive values --------------------------------------------------------------
+
+
+def entity(texts, turn, value, label):
+    """The entity for `value` in turn `turn` of a jsonl_call with these texts and A, B speakers."""
+    text = "\n".join(f"{'AB'[i % 2]}: {t}" for i, t in enumerate(texts))
+    line_start = sum(len(f"A: {t}") + 1 for t in texts[:turn])
+    start = text.index(value, line_start + 3)
+    return {"text": value, "label": label, "start": start, "end": start + len(value)}
+
+
+MASKED_TEXTS = [
+    "สวัสดีครับ โทรกลับเบอร์ 081-234-5678 นะครับ",
+    "ค่ะ",
+    "โอน 5,000 บาท เข้าบัญชี 123-4-56789-0 ครับ คุณสมชาย",
+    "ไม่โอนค่ะ",
+]
+
+
+def masked_call():
+    entities = [
+        entity(MASKED_TEXTS, 0, "081-234-5678", "PHONE"),
+        entity(MASKED_TEXTS, 2, "5,000 บาท", "MONEY"),
+        entity(MASKED_TEXTS, 2, "123-4-56789-0", "BANK_ACCOUNT"),
+        entity(MASKED_TEXTS, 2, "สมชาย", "PERSON"),  # not sensitive: it stays
+    ]
+    return jsonl_call(texts=MASKED_TEXTS, entities=entities)
+
+
+def test_sensitive_values_become_their_label(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, [masked_call()])
+    assert ns["rows_after_checks"] == 1  # the placeholders are not notes: the call stays
+    turns = [t["text"] for t in ns["df"]["speaker_turns"].iat[0]]
+    assert turns == [
+        "สวัสดีครับ โทรกลับเบอร์ [PHONE] นะครับ",
+        "ค่ะ",
+        "โอน [MONEY] เข้าบัญชี [BANK_ACCOUNT] ครับ คุณสมชาย",
+        "ไม่โอนค่ะ",
+    ]
+
+
+def test_a_note_in_brackets_is_still_removed_but_a_placeholder_stays(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch)
+    turns = ns["clean_turns"]([("caller", "โทรกลับ [PHONE] [วางสาย] ครับ"), ("receiver", "ค่ะ")])
+    assert turns == [("caller", "โทรกลับ [PHONE] ครับ"), ("receiver", "ค่ะ")]
+
+
+def test_an_entity_that_is_not_at_its_position_stops_the_notebook(tmp_path, monkeypatch):
+    call = masked_call()
+    call["entities"][0]["start"] += 1
+    with pytest.raises(ValueError, match=r"calls.jsonl line 1.*PHONE"):
+        run_notebook_cleaning(tmp_path, monkeypatch, [call])
+
+
+def test_a_number_the_masking_missed_is_listed_not_dropped(tmp_path, monkeypatch, capsys):
+    """A run of 3+ digits may be a missed value or just a year: the call stays, its id is shown."""
+    texts = ["สวัสดีครับ เรื่องภาษีปี 2567 ครับ", "ค่ะ", "ขอรหัสครับ", "ไม่ให้ค่ะ"]
+    ns = run_notebook_cleaning(
+        tmp_path, monkeypatch, [jsonl_call("phishing_otp_00003", texts=texts)]
+    )
+    assert ns["rows_after_checks"] == 1
+    out = capsys.readouterr().out
+    assert "1 calls with a run of 3+ digits left" in out and "phishing_otp_00003" in out
+
+
+def test_every_jsonl_file_in_dataset_is_read(tmp_path, monkeypatch):
+    files = {
+        "lottery.jsonl": [jsonl_call("lottery_00000", "lottery")],
+        "normal.jsonl": [jsonl_call("benign_00000", None, themed_texts("clinic"))],
+    }
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, files=files)
+    (tmp_path / "nbroot" / "dataset" / "notes.txt").write_text("not a call", encoding="utf-8")
+    exec(compile(cell("DATA_FILES = sorted("), "load", "exec"), ns)  # noqa: S102
+    assert sorted(ns["raw"]["call_id"]) == ["benign_00000", "lottery_00000"]
+
+
+def test_rejected_calls_are_dropped_and_counted(tmp_path, monkeypatch):
+    by_judge = jsonl_call("romance_00001", "romance", [f"{x} (1)" for x in default_texts()])
+    by_judge.update(dataset="real_rejected", review_status="rejected")
+    by_person = jsonl_call("romance_00002", "romance", [f"{x} (2)" for x in default_texts()])
+    by_person["review_status"] = "rejected"
+    approved = jsonl_call("romance_00003", "romance", [f"{x} (3)" for x in default_texts()])
+    approved.update(dataset="real_approved", review_status="approved")
+    no_fields = jsonl_call("romance_00004", "romance", [f"{x} (4)" for x in default_texts()])
+    files = {"romance.jsonl": [by_judge, by_person, approved, no_fields]}
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, files=files)
+    assert sorted(ns["raw"]["call_id"]) == ["romance_00003", "romance_00004"]
+    assert ns["rejected"] == {"romance.jsonl": 2}
+
+
+def test_an_unknown_speaker_stops_the_notebook_with_the_file_and_line(tmp_path, monkeypatch):
+    bad = jsonl_call(speakers=["A", "C", "A", "B", "A", "B"])
+    with pytest.raises(ValueError, match=r"calls.jsonl line 2"):
+        run_notebook_cleaning(tmp_path, monkeypatch, [jsonl_call("phishing_otp_00009"), bad])
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["นี่มันคือ Phishing ใช่ไหม", "scam แน่ๆ", "พวก SCAMMER", "เป็นการ impersonation",
+     "fraud ชัดๆ", "แบบ fake_authority", "สแกมแน่นอน", "ฟิชชิ่งค่ะ"],
+)  # fmt: skip
+def test_a_call_that_names_a_label_is_dropped(said, tmp_path, monkeypatch):
+    texts = ["สวัสดีครับ จากธนาคาร", said, "ขอรหัสครับ", "ไม่ให้ครับ"]
+    calls = [jsonl_call("phishing_otp_00001", texts=texts), jsonl_call("phishing_otp_00002")]
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, calls)
+    assert list(ns["df"]["call_id"]) == ["phishing_otp_00002"]
+
+
+def test_words_people_say_are_not_label_words(tmp_path, monkeypatch):
+    texts = ["ช่วงนี้มิจฉาชีพเยอะครับ", "lottery หรือ investment เหรอคะ", "ขอรหัส OTP ครับ", "ไม่ให้ค่ะ"]
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, [jsonl_call(texts=texts)])
+    assert ns["rows_after_checks"] == 1
+
+
+def test_shortcut_words_are_counted_by_class(tmp_path, monkeypatch):
+    warned = jsonl_call(texts=["ช่วงนี้มิจฉาชีพเยอะครับ", "ครับ", "ขอรหัสครับ", "ไม่ให้ครับ"])
+    ns = run_notebook_cleaning(
+        tmp_path, monkeypatch, [warned, jsonl_call("benign_00000", None, themed_texts("clinic"))]
+    )
+    assert ns["shortcuts"].loc["มิจฉาชีพ"].to_dict() == {
+        "% of Not a Scam calls": 0.0,
+        "% of Scam calls": 100.0,
+    }
 
 
 # ---- refusals --------------------------------------------------------------------------------
@@ -215,22 +445,8 @@ HAZARDS = {
 }
 
 
-def damaged_by_notebook(ns, speaker, text):
-    """True if the notebook's cleaning changes, or its checks reject, a call with this turn."""
-    turns = [("A", text), ("B", "ครับ")] if speaker == "A" else [("A", "สวัสดีครับ"), ("B", text)]
-    cleaned = ns["clean_turns"](export.render_dialogue(turns))
-    rendered = ns["render"](ns["speaker_turns"](cleaned))
-    expected = [(export.ROLES[export.TAGS[s]], export.normalize_text(t)) for s, t in turns]
-    return (
-        cleaned != expected
-        or re.search(ns["LABEL_NAMES"], rendered) is not None
-        or re.search(r"[\[\]]", rendered) is not None
-        or re.search(ns["ROLE_TAG_LEFT"], rendered) is not None
-    )
-
-
 @pytest.mark.parametrize("reason", list(HAZARDS))
-def test_a_turn_the_notebook_would_damage_gets_the_call_skipped(reason, tmp_path, monkeypatch):
+def test_a_turn_the_notebook_would_damage_gets_the_call_skipped(reason, tmp_path):
     speaker, bad = HAZARDS[reason]
     texts = ["สวัสดีครับ", "ครับ", bad, "ครับ"] if speaker == "A" else ["สวัสดีครับ", bad]
     bad_call = make_call("phishing_otp_00001", texts=texts)
@@ -240,37 +456,27 @@ def test_a_turn_the_notebook_would_damage_gets_the_call_skipped(reason, tmp_path
     assert skipped == {reason: 1}
     assert list(read(out)["call_id"]) == ["phishing_otp_00000"]
 
-    # and the hazard is real: the notebook does damage this text
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    assert damaged_by_notebook(ns, speaker, bad)
 
-
-def test_a_lone_bracket_gets_the_call_skipped(tmp_path, monkeypatch):
-    """No pair for the notebook to cut, but its step 3 check drops a text that still has one."""
+def test_a_lone_bracket_gets_the_call_skipped(tmp_path):
+    """No pair to cut, but a text that still has one would fail the notebook's bracket check."""
     out, written, skipped = run_export(
         build_store(tmp_path, make_call(texts=["สวัสดีครับ", "ไม่เอา ] ครับ"])), tmp_path
     )
     assert written == 0 and skipped == {export.BRACKET_IN_TURN: 1}
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    assert damaged_by_notebook(ns, "B", "ไม่เอา ] ครับ")
 
 
-def test_a_hazard_hidden_by_an_invisible_character_is_found(tmp_path, monkeypatch):
-    """The notebook cuts the caller word after normalizing, which removes the invisible mark."""
+def test_a_hazard_hidden_by_an_invisible_character_is_found(tmp_path):
+    """The caller word shows after normalizing, which removes the invisible mark."""
     bad = "ผมเป็นผู้โท​รจากธนาคารครับ"
     texts = ["สวัสดีครับ", "ครับ", bad, "ครับ"]
     out, written, skipped = run_export(build_store(tmp_path, make_call(texts=texts)), tmp_path)
     assert written == 0 and skipped == {export.CALLER_NOUN: 1}
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    assert damaged_by_notebook(ns, "A", bad)
 
 
-def test_the_noun_in_a_receiver_turn_is_not_a_hazard(tmp_path, monkeypatch):
+def test_the_noun_in_a_receiver_turn_is_not_a_hazard(tmp_path):
     call = make_call(texts=["สวัสดีครับ", "ผู้โทรเป็นใครครับ", "ผมเป็นเจ้าหน้าที่ครับ", "ครับ"])
     out, written, skipped = run_export(build_store(tmp_path, call), tmp_path)
     assert written == 1 and not skipped
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    assert not damaged_by_notebook(ns, "B", "ผู้โทรเป็นใครครับ")
 
 
 def test_an_empty_turn_gets_the_call_skipped(tmp_path):
@@ -291,9 +497,9 @@ def test_a_speaker_who_talks_twice_in_a_row_is_caught_by_the_final_check(tmp_pat
     out, written, skipped = run_export(build_store(tmp_path, call), tmp_path)
     assert written == 0 and skipped == {export.CLEANING_CHANGES_CALL: 1}
     # the notebook would have merged the two turns into one
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    merged = ns["clean_turns"](export.render_dialogue([("A", "x"), ("A", "y"), ("B", "z")]))
-    assert len(merged) == 2
+    ns = run_notebook_cleaning(tmp_path, monkeypatch)
+    merged = ns["clean_turns"]([("caller", "x"), ("caller", "y"), ("receiver", "z")])
+    assert merged == [("caller", "x y"), ("receiver", "z")]
 
 
 def test_a_call_with_one_turn_is_skipped(tmp_path):
@@ -418,209 +624,195 @@ def test_group_hint_falls_back_to_the_call_id(tmp_path):
     assert read(out)["group_hint"].iat[0] == "phishing_otp_00000"
 
 
-def test_rows_sharing_a_group_hint_share_a_notebook_group(tmp_path, monkeypatch):
-    """The notebook's step 5 cell, run on rows whose text is too different to be linked."""
-    pytest.importorskip("sklearn")
-    texts = [
-        ["สวัสดีครับ ผมจากธนาคารกสิกร", "ครับ มีอะไร", "ขอรหัสโอทีพี", "ไม่ให้ครับ"],
-        ["ฮัลโหล คุณถูกรางวัลที่หนึ่ง", "จริงเหรอคะ", "ต้องโอนค่าธรรมเนียม", "ไม่โอนค่ะ"],
-        ["ผมเป็นตำรวจสอบสวนกลาง", "อะไรนะ", "บัญชีคุณเกี่ยวกับฟอกเงิน", "ไม่จริง"],
-    ]
-    calls = [
-        make_call(f"phishing_otp_{i:05d}", texts=t, scenario="same") for i, t in enumerate(texts)
-    ]
-    calls.append(make_call("romance_00000", "romance", scenario="other"))
-    out, _, _ = run_export(build_store(tmp_path, *calls), tmp_path)
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out)
-    ns["NEAR_DUPLICATE_SIMILARITY"] = 0.99  # nothing is a near copy of anything
-    ns["plt"].show = lambda *a, **k: None
-    exec(compile(cell("from scipy.sparse import csr_matrix"), "groups", "exec"), ns)  # noqa: S102
-    df = ns["df"]
-    same = df[df["group_hint"] == "phishing_otp/same"]
-    assert len(same) == 3 and same["group"].nunique() == 1
-    assert df[df["group_hint"] == "romance/other"]["group"].iat[0] != same["group"].iat[0]
-    # the hand-written rows have no hint and stay apart
-    assert df[df["source"] == ns["ORIGINAL_SOURCE"]]["group"].nunique() == 2
+# ---- the notebook's class sizes, split and export ---------------------------------------------
+
+SCENARIOS_PER_TYPE = 8  # enough for the split to give every type a scenario in every split
 
 
-def test_a_group_hint_on_hand_written_rows_links_nothing(tmp_path, monkeypatch):
-    pytest.importorskip("sklearn")
-    bank = export.render_dialogue([("A", "สวัสดีครับ จากธนาคาร"), ("B", "ครับ")])
-    clinic = export.render_dialogue([("A", "ยืนยันนัดทันตกรรมค่ะ"), ("B", "ค่ะ")])
-    rows = [
-        (bank, "Scam", "Bank OTP Phishing", "h"),
-        (clinic, "Not a Scam", "Legit Call", "h"),
-    ]
-    out, _, _ = run_export(build_store(tmp_path, make_call()), tmp_path)
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out, rows)
-    ns["plt"].show = lambda *a, **k: None
-    exec(compile(cell("from scipy.sparse import csr_matrix"), "groups", "exec"), ns)  # noqa: S102
-    original = ns["df"][ns["df"]["source"] == ns["ORIGINAL_SOURCE"]]
-    assert len(original) == 2 and original["group"].nunique() == 2
-
-
-# ---- the notebook's split with generated rows -------------------------------------------------
-
-THEMES = {
-    "bank": [
-        "สวัสดีครับ ผมโทรจากธนาคารกรุงไทยเรื่องบัตรเครดิต",
-        "ครับ มีอะไรครับ",
-        "บัตรถูกระงับ ต้องยืนยันรหัสหลังบัตรก่อน",
-        "ไม่ให้ครับ",
-    ],
-    "police": [
-        "ผมพันตำรวจเอกจากกองปราบ บัญชีคุณเกี่ยวข้องกับคดีฟอกเงิน",
-        "อะไรนะคะ ฉันไม่ได้ทำ",
-        "ต้องโอนเงินมาตรวจสอบภายในวันนี้เท่านั้น",
-        "ไม่โอนค่ะ",
-    ],
-    "lottery": [
-        "ยินดีด้วยครับ คุณได้รับรางวัลสลากกินแบ่งรัฐบาลรางวัลที่หนึ่ง",
-        "จริงหรือคะ",
-        "ต้องโอนค่าธรรมเนียมรับรางวัลสามพันบาท",
-        "ขอคิดดูก่อนค่ะ",
-    ],
-    "clinic": [
-        "สวัสดีค่ะ โทรจากคลินิกทันตกรรม ยืนยันนัดขูดหินปูนวันเสาร์",
-        "ได้ค่ะ ไปตามนัด",
-        "ขอบคุณค่ะ แล้วพบกันนะคะ",
-        "สวัสดีค่ะ",
-    ],
-    "delivery": [
-        "พัสดุของคุณมาถึงแล้วครับ จะส่งช่วงบ่ายนี้",
-        "ผมอยู่บ้านครับ",
-        "รบกวนเตรียมเงินสดไว้ด้วยนะครับ",
-        "ได้ครับ",
-    ],
-    "family": ["แม่ครับ ผมเองนะ วันอาทิตย์กลับไปกินข้าวที่บ้านนะ", "ได้จ้ะ จะทำต้มยำให้", "ขอบคุณครับแม่", "เจอกันจ้ะ"],
-}
-
-
-def themed(name, extra=""):
-    turns = list(THEMES[name])
-    turns[-1] += extra
-    return turns
-
-
-def split_fixture(tmp_path, monkeypatch, capsys):
-    """Hand-written rows with a saved split, plus generated calls that are (or are not) near
-    copies of them. Runs the notebook's cells up to and including the split."""
-    pytest.importorskip("sklearn")
-    saved = {"bank": "test", "police": "train", "lottery": "valid", "lottery2": "train",
-             "clinic": "valid", "delivery": "train"}  # fmt: skip
-    originals, kinds = [], {}
-    for key in saved:
-        theme = key.rstrip("2")
-        turns = themed(theme, " ครับผม" if key == "lottery2" else "")
-        scam = theme in ("bank", "police", "lottery", "delivery")
-        originals.append(
-            (
-                " ".join(f"{export.TAGS['AB'[i % 2]]}: {t}" for i, t in enumerate(turns)),
-                "Scam" if scam else "Not a Scam",
-                "Bank OTP Phishing" if scam else "Legit Clinic Call",
-            )
+def calls_of(label_type, outcome, n, source="locked", start=0):
+    """n calls of one type and outcome, each with its own text, spread over SCENARIOS_PER_TYPE
+    scenarios. The text tells them apart with numbers: a type or outcome name in it would be
+    dropped by the label-word check."""
+    kind = label_type or "normal"
+    mark = len(f"{kind}{outcome}{source}") * 1000 + sum(map(ord, f"{kind}{outcome}{source}"))
+    return [
+        jsonl_call(
+            f"{kind}_{outcome}_{source}_{start + i:05d}",
+            label_type,
+            [f"สวัสดีครับ เรื่องที่ {mark} เลขที่ {start + i}", f"ครับ {i}",
+             f"รายละเอียดที่ {start + i} ของ {mark}", f"เข้าใจแล้วครับ {start + i}"],
+            outcome=outcome if label_type else None,
+            outcome_source=source if label_type else None,
+            scenario=f"scene_{(start + i) % SCENARIOS_PER_TYPE}",
         )
-        kinds[key] = turns
-    calls = [
-        make_call("phishing_otp_00000", texts=themed("bank", " ค่ะ"), scenario="bank"),  # near test
-        make_call("phishing_otp_00001", texts=themed("police", " ค่ะ"), scenario="police"),
-        make_call("phishing_otp_00002", texts=themed("lottery", " ค่ะ"), scenario="lottery"),
-        make_call("benign_00000", "benign", texts=themed("family"), scenario="family"),
-    ]
-    out, written, skipped = run_export(build_store(tmp_path, *calls), tmp_path)
-    assert written == 4 and not skipped
-    ns = run_notebook_cleaning(tmp_path, monkeypatch, out, originals)
-    ns["plt"].show = lambda *a, **k: None
-    exec(compile(cell("from scipy.sparse import csr_matrix"), "groups", "exec"), ns)  # noqa: S102
+        for i in range(n)
+    ]  # fmt: skip
+
+
+def balance_fixture():
+    return (
+        calls_of("lottery", "scammed", 6)
+        + calls_of("lottery", "scammed", 4, source="inferred", start=100)
+        + calls_of("lottery", "safe", 9)
+        + calls_of("phishing_otp", "scammed", 5)
+        + calls_of("phishing_otp", "safe", 7)
+        + calls_of("phishing_otp", None, 3, source=None)  # outcome never set: cannot be balanced
+        + calls_of(None, None, 20, source=None)
+    )
+
+
+def kept(ns):
     df = ns["df"]
-    processed = tmp_path / "nbroot" / "data" / "processed"
-    processed.mkdir(parents=True)
-    by_key = dict(zip(saved, df[df["source"] == ns["ORIGINAL_SOURCE"]]["text"], strict=True))
-    for name in ("train", "valid", "test"):
-        texts = [by_key[k] for k, v in saved.items() if v == name]
-        pd.DataFrame({"text": texts}).to_csv(
-            processed / f"{name}.csv", index=False, encoding="utf-8-sig"
+    return df.groupby([df["label_type"].fillna("normal"), df["scam_outcome"].fillna("-")]).size()
+
+
+def test_every_usable_call_is_kept_and_no_class_is_cut_down(tmp_path, monkeypatch):
+    """No downsampling: Part B weights the classes, so the counts stay as they were."""
+    ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+    assert kept(ns).to_dict() == {
+        ("lottery", "safe"): 9,
+        ("lottery", "scammed"): 10,  # locked and inferred alike
+        ("normal", "-"): 20,
+        ("phishing_otp", "-"): 3,  # an outcome that was never set does not leave a call out
+        ("phishing_otp", "safe"): 7,
+        ("phishing_otp", "scammed"): 5,
+    }
+    assert set(ns["df"]["stratum"]) == {"lottery", "phishing_otp", "not_scam"}
+
+
+def test_a_skipped_type_is_left_out_and_the_others_keep_every_call(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture())
+    ns = run_part_a_rest(ns, SKIP_TYPES={"phishing_otp"})
+    assert "phishing_otp" not in set(ns["df"]["label_type"])
+    assert kept(ns).to_dict() == {
+        ("lottery", "safe"): 9,
+        ("lottery", "scammed"): 10,
+        ("normal", "-"): 20,
+    }
+
+
+def test_a_group_is_one_scenario(tmp_path, monkeypatch):
+    ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+    df = ns["df"]
+    assert df.groupby("group")["scenario"].nunique().max() == 1
+    assert df.groupby("scenario")["group"].nunique().max() == 1
+    assert df["group"].nunique() == df["scenario"].nunique()
+    assert {s.split("/")[0] for s in df["scenario"]} == {"lottery", "phishing_otp", "normal"}
+
+
+def test_the_split_is_new_every_run_and_reads_no_saved_split(tmp_path, monkeypatch):
+    """An old test.csv that names every call as test, in both processed folders, is ignored."""
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture())
+    texts = ns["df"]["text"].tolist()
+    for folder in ("processed", "processed_balanced"):
+        old = tmp_path / "nbroot" / "data" / folder
+        old.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"text": texts + ["A: สายเก่า\nB: ครับ"]}).to_csv(
+            old / "test.csv", index=False, encoding="utf-8-sig"
         )
-    ns["PROCESSED"] = processed
-    capsys.readouterr()
-    exec(compile(cell("def group_stratified_split"), "split", "exec"), ns)  # noqa: S102
-    ns["plt"].close("all")
-    return ns, saved, capsys.readouterr().out
-
-
-def split_of(ns, theme_words):
+    ns = run_part_a_rest(ns)
     df = ns["df"]
-    return df[df["text"].str.contains(theme_words, regex=False)][["source", "split"]]
+    assert set(df["split"]) == {"train", "valid", "test"}
+    # a scenario is in one split only, so valid and test hold scenarios train never saw
+    assert df.groupby("group")["split"].nunique().max() == 1
+    assert df.groupby("scenario")["split"].nunique().max() == 1
+    # every stratum (the type, or not_scam) is in every split
+    assert (pd.crosstab(df["stratum"], df["split"]) > 0).all().all()
+    written = pd.read_csv(ns["PROCESSED"] / "test.csv", encoding="utf-8-sig")
+    assert "A: สายเก่า\nB: ครับ" not in set(written["text"])
+    assert len(written) < len(df)
 
 
-def test_hand_written_rows_keep_their_saved_split_and_generated_rows_follow_them(
-    tmp_path, monkeypatch, capsys
-):
-    ns, saved, shown = split_fixture(tmp_path, monkeypatch, capsys)
-    df = ns["df"]
-    original = df[df["source"] == ns["ORIGINAL_SOURCE"]]
-    assert len(original) == 6
-    texts = {k: THEMES[k.rstrip("2")][0][:12] for k in saved}
-    for key, expected in saved.items():
-        row = original[original["text"].str.contains(texts[key], regex=False)]
-        if key == "lottery":  # the lottery pair is one group in two saved splits (below)
-            row = row[~row["text"].str.contains("ครับผม")]
-        if key == "lottery2":
-            row = row[row["text"].str.contains("ครับผม")]
-        assert list(row["split"]) == [expected], key
-    generated = df[df["source"] == "simulated"]
-    # the copy of the police call follows its train row; the copy of the test call is dropped
-    assert list(split_of(ns, "ผมพันตำรวจเอก").query("source == 'simulated'")["split"]) == ["train"]
-    assert not len(split_of(ns, "ธนาคารกรุงไทย").query("source == 'simulated'"))
-    # nothing generated is in test
-    assert "test" not in set(generated["split"])
-    assert set(generated["split"]) <= {"train", "valid"}
-    assert "dropped" in shown
+def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
+    ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+    assert ns["PROCESSED"].name == "processed_balanced"
+    frame = pd.concat(
+        pd.read_csv(ns["PROCESSED"] / f"{n}.csv", encoding="utf-8-sig", keep_default_na=False)
+        for n in ("train", "valid", "test")
+    )
+    assert list(frame.columns)[-4:] == [
+        "call_id",
+        "scam_outcome",
+        "scam_outcome_source",
+        "scenario",
+    ]
+    assert frame["call_id"].is_unique and len(frame) == 54
+    assert set(frame["scenario"].str.split("/").str[0]) == {"lottery", "phishing_otp", "normal"}
+    normal = frame[frame["label_scam"] == False]  # noqa: E712
+    assert (normal["scam_outcome"] == "").all() and (normal["scam_outcome_source"] == "").all()
+    scams = frame[frame["label_scam"] == True]  # noqa: E712
+    # the 3 phishing_otp calls whose outcome was never set are kept, with an empty outcome
+    assert scams["scam_outcome"].value_counts().to_dict() == {"safe": 16, "scammed": 15, "": 3}
 
 
-def test_a_generated_row_between_two_saved_splits_is_dropped_with_a_warning(
-    tmp_path, monkeypatch, capsys
-):
-    ns, _, shown = split_fixture(tmp_path, monkeypatch, capsys)
-    assert "WARNING: 1 groups link hand-written rows that are in different saved splits" in shown
-    # the lottery copy was linked to a valid row and a train row, so it is not placed
-    assert not len(split_of(ns, "ยินดีด้วยครับ").query("source == 'simulated'"))
+# ---- the start of part B: the hand-written outside test and the evaluation helpers -----------
 
 
-def test_a_scenario_new_to_the_split_goes_to_train_or_valid(tmp_path, monkeypatch, capsys):
-    ns, _, _ = split_fixture(tmp_path, monkeypatch, capsys)
-    family = split_of(ns, "แม่ครับ ผมเองนะ")
-    assert list(family["source"]) == ["simulated"]
-    assert family["split"].iat[0] in ("train", "valid")
+def write_handwritten(root, rows):
+    """A data/processed/dataset.csv like the one the earlier notebook wrote: (label_type, scam)."""
+    folder = root / "data" / "processed"
+    folder.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "text": [f"A: สวัสดีครับ {i}\nB: ครับ" for i in range(len(rows))],
+            "speaker_turns": "[]",
+            "entities": "[]",
+            "label_scam": [scam for _, scam in rows],
+            "label_type": [label_type for label_type, _ in rows],
+        }
+    ).to_csv(folder / "dataset.csv", index=False, encoding="utf-8-sig")
 
 
-def test_without_a_generated_file_the_notebook_writes_the_committed_processed_files(
-    tmp_path, monkeypatch
-):
-    """Part A on the repo's own data must give back data/processed byte for byte."""
-    pytest.importorskip("sklearn")
-    import shutil
+def run_part_b_start(tmp_path, monkeypatch, handwritten_rows=None):
+    """Part A on the balance fixture, the first cell of part B, then the setup cell of the added
+    evaluation section after step 13 (no GPU needed). Every type of the small fixture counts as
+    trained."""
+    ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+    if handwritten_rows is not None:
+        write_handwritten(tmp_path / "nbroot", handwritten_rows)
+    ns["MIN_TYPE_SAMPLES"] = ns["MIN_TYPE_EVAL_SAMPLES"] = 1
+    exec(compile(cell("def read_records"), "part B", "exec"), ns)  # noqa: S102
+    exec(compile(cell("def recall_by_outcome"), "added evaluation", "exec"), ns)  # noqa: S102
+    return ns
 
-    import matplotlib
 
-    matplotlib.use("Agg")
-    repo = NOTEBOOK.parents[1]
-    root = tmp_path / "root"
-    (root / "dataset").mkdir(parents=True)
-    (root / "pyproject.toml").write_text("")
-    shutil.copy(repo / "dataset" / "scam_dataset.csv", root / "dataset")
-    (root / "data" / "processed").mkdir(parents=True)
-    shutil.copy(repo / "data" / "processed" / "test.csv", root / "data" / "processed")
-    monkeypatch.chdir(root)
-    ns: dict = {}
-    for source in notebook_cells():
-        exec(compile(source, "part A", "exec"), ns)  # noqa: S102
-        if "write_records(path, records[name])" in source:
-            break
-    ns["plt"].close("all")
-    for name in ("train", "valid", "test", "dataset"):
-        made = (root / "data" / "processed" / f"{name}.csv").read_bytes()
-        assert made == (repo / "data" / "processed" / f"{name}.csv").read_bytes(), name
+def test_recall_by_outcome_counts_each_ending_and_leaves_normal_calls_out(tmp_path, monkeypatch):
+    ns = run_part_b_start(tmp_path, monkeypatch)
+    frame = pd.DataFrame(
+        {
+            "label_scam": [True, True, True, True, True, False, False],
+            "scam_outcome": ["scammed", "scammed", "safe", "safe", "safe", None, None],
+        }
+    )
+    got = ns["recall_by_outcome"](frame, [1, 0, 1, 1, 1, 1, 0])
+    assert got.loc["scammed"].to_dict() == {"calls": 2, "caught": 1, "recall": 0.5}
+    assert got.loc["safe"].to_dict() == {"calls": 3, "caught": 3, "recall": 1.0}
+    assert got.loc["all scams"].to_dict() == {"calls": 5, "caught": 4, "recall": 0.8}
+
+
+def test_macro_f1_leaves_out_classes_that_are_not_scored(tmp_path, monkeypatch):
+    ns = run_part_b_start(tmp_path, monkeypatch)
+    # class 2 has no true sample: averaged over 0 and 1 only it does not count as an F1 of 0
+    got = ns["macro_f1_over"]([0, 0, 1, 1], [0, 0, 1, 2], [0, 1])
+    assert got == pytest.approx((1.0 + 2 / 3) / 2)
+
+
+def test_the_hand_written_calls_are_read_as_an_outside_test(tmp_path, monkeypatch):
+    rows = [("lottery", True)] * 2 + [("fake_authority", True)] * 4 + [(None, False)] * 3
+    ns = run_part_b_start(tmp_path, monkeypatch, rows)
+    assert len(ns["handwritten"]) == 9 and ns["handwritten"]["gate"].sum() == 6
+    # fake_authority is not a type the fixture trains, so only lottery can be scored
+    assert ns["TYPE_LABELS"] == ["phishing_otp", "lottery"]
+    assert ns["HANDWRITTEN_TYPES"] == ["lottery"]
+    typed = ns["handwritten_typed"]
+    assert set(typed["label_type"]) == {"lottery"}
+    assert set(typed["type"]) == {ns["TYPE_LABELS"].index("lottery")}
+
+
+def test_without_the_hand_written_file_the_outside_test_is_skipped(tmp_path, monkeypatch, capsys):
+    ns = run_part_b_start(tmp_path, monkeypatch)
+    assert ns["handwritten"] is None and ns["HANDWRITTEN_TYPES"] == []
+    assert "outside test is skipped" in capsys.readouterr().out
 
 
 # ---- leak columns from another branch ---------------------------------------------------------

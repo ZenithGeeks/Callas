@@ -38,3 +38,7 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 eval/results/asr_cache/
+# Hugging Face release files of the simulated calls (made from the store with --export)
+dataset/*.jsonl
+# The balanced split the scam classifier notebook writes (part A), built from dataset/*.jsonl
+data/processed_balanced/
