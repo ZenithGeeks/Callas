@@ -8,6 +8,7 @@ instead of a copy of them. The notebook reads the simulated calls from dataset/*
 import json
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -190,9 +191,24 @@ def run_notebook_cleaning(tmp_path, monkeypatch, calls=None, files=None):
     return ns
 
 
-def run_part_a_rest(ns, **settings):
+def word_count(text: str) -> int:
+    """Stands in for the tokenizer of step 6b: one token per word."""
+    return len(text.split())
+
+
+STEP_6B_CELLS = (
+    "def scam_start_of",  # the label rule and "one_line"
+    "def call_so_far_rows",  # "call_so_far"
+    "call_rows = {",  # build the rows with ROW_TEXT
+    "longest = line_tokens",  # the token tables
+)
+
+
+def run_part_a_rest(ns, max_tokens=10_000, row_text=None, **settings):
     """Steps 4b to 7 on a namespace from run_notebook_cleaning. `settings` replace the values the
-    class-size cell sets (SKIP_TYPES). Step 5 makes one group per scenario."""
+    class-size cell sets (SKIP_TYPES). Step 5 makes one group per scenario. Step 6b uses the
+    notebook's ROW_TEXT unless `row_text` is given, and counts words instead of tokens (its
+    tokenizer cell is not run), at most `max_tokens`."""
     pytest.importorskip("sklearn")
     ns["plt"].show = lambda *a, **k: None
     sizes = cell("typed_scam = ")
@@ -200,11 +216,12 @@ def run_part_a_rest(ns, **settings):
         line = next(x for x in sizes.splitlines() if x.startswith(f"{name}"))
         sizes = sizes.replace(line, f"{name} = {value!r}")
     exec(compile(sizes, "class sizes", "exec"), ns)  # noqa: S102
-    for marker in (
-        'df["group"] = pd.factorize(',
-        "def scenario_split",
-        "RECORD_KEYS = (",
-    ):
+    for marker in ('df["group"] = pd.factorize(', "def scenario_split", "ROW_TEXTS = ("):
+        exec(compile(cell(marker), marker, "exec"), ns)  # noqa: S102
+    if row_text is not None:
+        ns["ROW_TEXT"] = row_text
+    ns["count_tokens"], ns["MAX_TOKENS"] = word_count, max_tokens
+    for marker in (*STEP_6B_CELLS, "RECORD_KEYS = ("):
         exec(compile(cell(marker), marker, "exec"), ns)  # noqa: S102
     ns["plt"].close("all")
     return ns
@@ -268,7 +285,8 @@ def test_the_jsonl_text_is_what_the_notebook_trains_on(tmp_path, monkeypatch):
     assert [t["text"] for t in got] == [
         normalize_text(t["text"]) for t in call["generation"]["turns"]
     ]
-    assert [t["speaker"] for t in got] == ["A", "B"] * 3
+    # letters by role, as in the app: B the caller (who speaks first here), A the receiver
+    assert [t["speaker"] for t in got] == ["B", "A"] * 3
 
 
 def test_a_jsonl_call_keeps_its_turns_and_roles(tmp_path, monkeypatch):
@@ -720,7 +738,12 @@ def test_the_split_is_new_every_run_and_reads_no_saved_split(tmp_path, monkeypat
     assert (pd.crosstab(df["stratum"], df["split"]) > 0).all().all()
     written = pd.read_csv(ns["PROCESSED"] / "test.csv", encoding="utf-8-sig")
     assert "A: สายเก่า\nB: ครับ" not in set(written["text"])
-    assert len(written) < len(df)
+    assert len(written) < len(ns["rows"])
+    # every row of a call is in the call's split
+    assert ns["rows"].groupby("call_id")["split"].nunique().max() == 1
+    assert (
+        ns["rows"]["split"] == ns["rows"]["call_id"].map(df.set_index("call_id")["split"])
+    ).all()
 
 
 def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
@@ -730,19 +753,196 @@ def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
         pd.read_csv(ns["PROCESSED"] / f"{n}.csv", encoding="utf-8-sig", keep_default_na=False)
         for n in ("train", "valid", "test")
     )
-    assert list(frame.columns)[-4:] == [
+    # turns_dropped is only written with ROW_TEXT = "call_so_far"
+    assert list(frame.columns)[-5:] == [
         "call_id",
         "scam_outcome",
         "scam_outcome_source",
         "scenario",
+        "turn_index",
     ]
-    assert frame["call_id"].is_unique and len(frame) == 54
+    # the notebook's default ROW_TEXT: one row per turn, the turn's line on its own; of exact
+    # copies one is kept (54 calls of 4 turns; "ครับ 0" and the like repeat across calls)
+    assert ns["ROW_TEXT"] == "one_line"
+    assert frame["id"].is_unique and frame["text"].is_unique and len(frame) < 54 * 4
+    assert not frame["text"].str.contains("\n").any()
+    assert set(frame["id"].str.rsplit("_t", n=1).str[1]) == {"00", "01", "02", "03"}
     assert set(frame["scenario"].str.split("/").str[0]) == {"lottery", "phishing_otp", "normal"}
-    normal = frame[frame["label_scam"] == False]  # noqa: E712
-    assert (normal["scam_outcome"] == "").all() and (normal["scam_outcome_source"] == "").all()
+    safe = frame[frame["label_scam"] == False]  # noqa: E712
+    assert (safe["scam_outcome"] == "").all() and (safe["scam_outcome_source"] == "").all()
+    assert (safe["label_type"] == "").all()
     scams = frame[frame["label_scam"] == True]  # noqa: E712
-    # the 3 phishing_otp calls whose outcome was never set are kept, with an empty outcome
+    # one scam row per scam call (turn 2, the start); the 3 phishing_otp calls whose outcome
+    # was never set keep an empty outcome
+    assert (scams["turn_index"] == 2).all()
     assert scams["scam_outcome"].value_counts().to_dict() == {"safe": 16, "scammed": 15, "": 3}
+    # the calls themselves, one row each, in calls_*.csv
+    calls = pd.concat(
+        pd.read_csv(ns["PROCESSED"] / f"calls_{n}.csv", encoding="utf-8-sig", keep_default_na=False)
+        for n in ("train", "valid", "test")
+    )
+    assert calls["call_id"].is_unique and len(calls) == 54
+    assert "turn_index" not in calls.columns and "turns_dropped" not in calls.columns
+
+
+def test_the_export_with_the_call_so_far(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture())
+    ns = run_part_a_rest(ns, row_text="call_so_far")
+    frame = pd.concat(
+        pd.read_csv(ns["PROCESSED"] / f"{n}.csv", encoding="utf-8-sig", keep_default_na=False)
+        for n in ("train", "valid", "test")
+    )
+    # with the call so far, the rows also say how many old lines were cut
+    assert list(frame.columns)[-2:] == ["turn_index", "turns_dropped"]
+    assert (frame["turns_dropped"].astype(int) == 0).all()  # these short calls all fit
+    calls = pd.read_csv(ns["PROCESSED"] / "calls_train.csv", encoding="utf-8-sig")
+    assert "turns_dropped" not in calls.columns
+    # every call-so-far text is unique here, so all 54 calls x 4 turns are rows
+    assert len(frame) == 54 * 4 and frame["text"].is_unique
+    assert set(frame["text"].str.count("\n")) == {0, 1, 2, 3}
+    scams = frame[frame["label_scam"] == True]  # noqa: E712
+    assert (scams["turn_index"] == 2).all()
+    assert (scams["scam_start_turn"].astype(int) == 2).all()
+
+
+# ---- step 6b: one row per turn: the turn's line, or the call so far --------------------------
+
+
+@pytest.fixture
+def part_a(tmp_path, monkeypatch):
+    """The notebook's namespace after part A, so its step 6b functions can be called."""
+    return run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+
+
+def rows_of(ns, texts, scam_start=None, label_type=None, row_text="one_line", max_tokens=10_000):
+    """Step 6b's rows of one call with this ROW_TEXT: the caller speaks first, then the turns
+    alternate. Tokens are words (word_count), at most `max_tokens` a row."""
+    roles = [("caller", "receiver")[i % 2] for i in range(len(texts))]
+    call = SimpleNamespace(
+        call_id="lottery_09999",
+        speaker_turns=ns["speaker_turns"](list(zip(roles, texts, strict=True))),
+        scam_start_clean=scam_start,
+        label_scam=label_type is not None,
+        label_type=label_type,
+        scam_outcome="scammed" if label_type else None,
+        scam_outcome_source="locked" if label_type else None,
+        source="simulated",
+        scam_type=label_type or "",
+        group=0,
+        split="train",
+        scenario=f"{label_type or 'normal'}/test",
+    )
+    ns["ROW_TEXT"], ns["MAX_TOKENS"] = row_text, max_tokens
+    return ns[f"{row_text}_rows"](call)
+
+
+FIVE_TURNS = [
+    "สวัสดีครับ ติดต่อจาก บริษัท",
+    "ครับ มีอะไรครับ",
+    "ขอเลขบัตร ประชาชน ครับ",
+    "ไม่ให้ครับ",
+    "ขอเลขบัตร อีกที ครับ",
+]
+
+
+@pytest.mark.parametrize("row_text", ["one_line", "call_so_far"])
+def test_a_scam_call_is_labelled_scam_from_its_start_on_the_caller_turns_only(part_a, row_text):
+    rows = rows_of(part_a, FIVE_TURNS, scam_start=2, label_type="lottery", row_text=row_text)
+    # the same label rule for both row texts: before the start: safe; from it on: the caller
+    # turns are scam, the receiver turns safe
+    assert [r["label_scam"] for r in rows] == [False, False, True, False, True]
+    assert [r["label_type"] for r in rows] == [None, None, "lottery", None, "lottery"]
+    assert [r["scam_outcome"] for r in rows] == [None, None, "scammed", None, "scammed"]
+
+
+@pytest.mark.parametrize("row_text", ["one_line", "call_so_far"])
+def test_every_row_of_a_normal_call_is_safe(part_a, row_text):
+    rows = rows_of(part_a, FIVE_TURNS, row_text=row_text)
+    assert len(rows) == 5 and not any(r["label_scam"] for r in rows)
+    assert all(r["label_type"] is None and r["scam_outcome"] is None for r in rows)
+
+
+def test_a_row_is_the_turns_line_on_its_own_with_the_caller_as_b(part_a):
+    rows = rows_of(part_a, FIVE_TURNS, scam_start=2, label_type="lottery")
+    assert [r["text"] for r in rows] == [
+        "B: สวัสดีครับ ติดต่อจาก บริษัท",
+        "A: ครับ มีอะไรครับ",
+        "B: ขอเลขบัตร ประชาชน ครับ",
+        "A: ไม่ให้ครับ",
+        "B: ขอเลขบัตร อีกที ครับ",
+    ]
+    assert [r["turn_index"] for r in rows] == [0, 1, 2, 3, 4]
+    assert all(len(r["speaker_turns"]) == 1 for r in rows)
+    assert {r["speaker_turns"][0]["speaker"] for r in rows if r["label_scam"]} == {"B"}
+    # 0 on the row where the scam starts, empty on the others; nothing is ever cut
+    assert [r["scam_start_turn"] for r in rows] == [None, None, 0, None, None]
+    assert not any("turns_dropped" in r for r in rows)
+
+
+def test_a_call_so_far_row_holds_every_line_up_to_its_turn(part_a):
+    rows = rows_of(part_a, FIVE_TURNS, scam_start=2, label_type="lottery", row_text="call_so_far")
+    assert rows[2]["text"] == "B: สวัสดีครับ ติดต่อจาก บริษัท\nA: ครับ มีอะไรครับ\nB: ขอเลขบัตร ประชาชน ครับ"
+    assert [len(r["speaker_turns"]) for r in rows] == [1, 2, 3, 4, 5]
+    # where the start sits inside each row, when the row holds it
+    assert [r["scam_start_turn"] for r in rows] == [None, None, 2, 2, 2]
+
+
+def test_a_long_call_so_far_row_loses_its_oldest_lines_and_keeps_its_own(part_a):
+    # word_count counts "B:" as a word: the lines are 4, 3, 4, 2 and 4 words long
+    rows = rows_of(
+        part_a, FIVE_TURNS, scam_start=2, label_type="lottery", row_text="call_so_far", max_tokens=9
+    )
+    assert [r["turns_dropped"] for r in rows] == [0, 0, 1, 1, 3]
+    for r in rows:
+        assert r["text"].rsplit("\n", 1)[-1].endswith(FIVE_TURNS[r["turn_index"]])
+        assert word_count(r["text"]) <= 9
+    # the start counted inside the row; once it is cut away, it is unknown in that row
+    assert [r["scam_start_turn"] for r in rows] == [None, None, 1, 1, None]
+    assert [r["label_scam"] for r in rows] == [False, False, True, False, True]
+
+
+def test_a_single_line_longer_than_the_limit_is_kept_whole_in_the_call_so_far(part_a):
+    rows = rows_of(part_a, FIVE_TURNS, row_text="call_so_far", max_tokens=2)
+    assert [r["turns_dropped"] for r in rows] == [0, 1, 2, 3, 4]
+    assert [r["text"] for r in rows][0] == "B: สวัสดีครับ ติดต่อจาก บริษัท"
+
+
+def test_row_text_must_be_one_of_the_two(part_a):
+    settings = cell("ROW_TEXTS = (").replace('ROW_TEXT = "one_line"', 'ROW_TEXT = "whole_call"')
+    with pytest.raises(ValueError, match="ROW_TEXT must be one of"):
+        exec(compile(settings, "settings", "exec"), dict(part_a))  # noqa: S102
+
+
+def test_a_scam_start_on_a_receiver_turn_stops_the_notebook(part_a):
+    with pytest.raises(ValueError, match=r"lottery_09999: the scam start is not a caller turn"):
+        rows_of(part_a, FIVE_TURNS, scam_start=1, label_type="lottery")
+
+
+def test_a_scam_call_with_no_start_is_dropped_but_a_normal_call_is_kept(tmp_path, monkeypatch):
+    calls = [
+        jsonl_call("phishing_otp_00001", texts=[f"{x} (1)" for x in default_texts()]),
+        jsonl_call(
+            "phishing_otp_00002", texts=[f"{x} (2)" for x in default_texts()], scam_start=None
+        ),
+        jsonl_call("benign_00000", None, themed_texts("clinic")),
+    ]
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, calls)
+    assert sorted(ns["df"]["call_id"]) == ["benign_00000", "phishing_otp_00001"]
+
+
+def test_part_a_writes_one_row_per_turn_in_its_calls_split(part_a):
+    rows, df = part_a["rows"], part_a["df"]
+    # every turn is a row, less the exact copies (one copy of each text is kept)
+    dropped = part_a["copies"].sum() + part_a["two_labels"].sum()
+    assert len(rows) == df["speaker_turns"].map(len).sum() - dropped
+    assert rows["text"].is_unique and not rows["text"].str.contains("\n").any()
+    assert (rows["split"] == rows["call_id"].map(df.set_index("call_id")["split"])).all()
+
+
+def test_the_token_table_stops_on_a_line_longer_than_the_limit(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture())
+    with pytest.raises(AssertionError, match="a line is longer than part B reads"):
+        run_part_a_rest(ns, max_tokens=3)
 
 
 # ---- the start of part B: the hand-written outside test and the evaluation helpers -----------
