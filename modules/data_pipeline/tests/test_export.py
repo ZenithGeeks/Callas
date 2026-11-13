@@ -746,8 +746,16 @@ def test_the_split_is_new_every_run_and_reads_no_saved_split(tmp_path, monkeypat
     ).all()
 
 
-def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
+def test_the_notebooks_default_row_text_is_the_call_so_far(tmp_path, monkeypatch):
+    """The app classifies the call so far after each turn, so the rows hold it by default."""
     ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
+    assert ns["ROW_TEXT"] == "call_so_far"
+    assert "turns_dropped" in ns["rows"].columns
+
+
+def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
+    ns = run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture())
+    ns = run_part_a_rest(ns, row_text="one_line")
     assert ns["PROCESSED"].name == "processed_balanced"
     frame = pd.concat(
         pd.read_csv(ns["PROCESSED"] / f"{n}.csv", encoding="utf-8-sig", keep_default_na=False)
@@ -761,9 +769,8 @@ def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
         "scenario",
         "turn_index",
     ]
-    # the notebook's default ROW_TEXT: one row per turn, the turn's line on its own; of exact
-    # copies one is kept (54 calls of 4 turns; "ครับ 0" and the like repeat across calls)
-    assert ns["ROW_TEXT"] == "one_line"
+    # ROW_TEXT = "one_line": one row per turn, the turn's line on its own; of exact copies one
+    # is kept (54 calls of 4 turns; "ครับ 0" and the like repeat across calls)
     assert frame["id"].is_unique and frame["text"].is_unique and len(frame) < 54 * 4
     assert not frame["text"].str.contains("\n").any()
     assert set(frame["id"].str.rsplit("_t", n=1).str[1]) == {"00", "01", "02", "03"}
@@ -906,7 +913,7 @@ def test_a_single_line_longer_than_the_limit_is_kept_whole_in_the_call_so_far(pa
 
 
 def test_row_text_must_be_one_of_the_two(part_a):
-    settings = cell("ROW_TEXTS = (").replace('ROW_TEXT = "one_line"', 'ROW_TEXT = "whole_call"')
+    settings = cell("ROW_TEXTS = (").replace('ROW_TEXT = "call_so_far"', 'ROW_TEXT = "whole_call"')
     with pytest.raises(ValueError, match="ROW_TEXT must be one of"):
         exec(compile(settings, "settings", "exec"), dict(part_a))  # noqa: S102
 
@@ -933,7 +940,9 @@ def test_part_a_writes_one_row_per_turn_in_its_calls_split(part_a):
     # every turn is a row, less the exact copies (one copy of each text is kept)
     dropped = part_a["copies"].sum() + part_a["two_labels"].sum()
     assert len(rows) == df["speaker_turns"].map(len).sum() - dropped
-    assert rows["text"].is_unique and not rows["text"].str.contains("\n").any()
+    assert rows["text"].is_unique
+    # the default ROW_TEXT: each row holds one line per turn it keeps
+    assert (rows["text"].str.count("\n") == rows["speaker_turns"].map(len) - 1).all()
     assert (rows["split"] == rows["call_id"].map(df.set_index("call_id")["split"])).all()
 
 
