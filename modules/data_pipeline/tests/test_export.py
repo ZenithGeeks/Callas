@@ -776,13 +776,13 @@ def test_the_export_has_the_call_id_and_the_outcome(tmp_path, monkeypatch):
     # was never set keep an empty outcome
     assert (scams["turn_index"] == 2).all()
     assert scams["scam_outcome"].value_counts().to_dict() == {"safe": 16, "scammed": 15, "": 3}
-    # the calls themselves, one row each, in calls_*.csv
-    calls = pd.concat(
-        pd.read_csv(ns["PROCESSED"] / f"calls_{n}.csv", encoding="utf-8-sig", keep_default_na=False)
-        for n in ("train", "valid", "test")
-    )
-    assert calls["call_id"].is_unique and len(calls) == 54
-    assert "turn_index" not in calls.columns and "turns_dropped" not in calls.columns
+    # only the row files are written: the whole calls stay in dataset/*.jsonl
+    assert sorted(p.name for p in ns["PROCESSED"].iterdir()) == [
+        "dataset.csv",
+        "test.csv",
+        "train.csv",
+        "valid.csv",
+    ]
 
 
 def test_the_export_with_the_call_so_far(tmp_path, monkeypatch):
@@ -795,8 +795,6 @@ def test_the_export_with_the_call_so_far(tmp_path, monkeypatch):
     # with the call so far, the rows also say how many old lines were cut
     assert list(frame.columns)[-2:] == ["turn_index", "turns_dropped"]
     assert (frame["turns_dropped"].astype(int) == 0).all()  # these short calls all fit
-    calls = pd.read_csv(ns["PROCESSED"] / "calls_train.csv", encoding="utf-8-sig")
-    assert "turns_dropped" not in calls.columns
     # every call-so-far text is unique here, so all 54 calls x 4 turns are rows
     assert len(frame) == 54 * 4 and frame["text"].is_unique
     assert set(frame["text"].str.count("\n")) == {0, 1, 2, 3}
