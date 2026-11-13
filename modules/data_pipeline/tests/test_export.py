@@ -963,16 +963,20 @@ def write_handwritten(root, rows):
     ).to_csv(folder / "dataset.csv", index=False, encoding="utf-8-sig")
 
 
-def run_part_b_start(tmp_path, monkeypatch, handwritten_rows=None):
+def run_part_b_start(tmp_path, monkeypatch, handwritten_rows=None, run_handwritten=True):
     """Part A on the balance fixture, the first cell of part B, then the setup cell of the added
     evaluation section after step 13 (no GPU needed). Every type of the small fixture counts as
-    trained."""
+    trained. `run_handwritten` sets the RUN_HANDWRITTEN switch of that cell (off in the
+    notebook)."""
     ns = run_part_a_rest(run_notebook_cleaning(tmp_path, monkeypatch, balance_fixture()))
     if handwritten_rows is not None:
         write_handwritten(tmp_path / "nbroot", handwritten_rows)
     ns["MIN_TYPE_SAMPLES"] = ns["MIN_TYPE_EVAL_SAMPLES"] = 1
     exec(compile(cell("def read_records"), "part B", "exec"), ns)  # noqa: S102
-    exec(compile(cell("def recall_by_outcome"), "added evaluation", "exec"), ns)  # noqa: S102
+    setup = cell("def recall_by_outcome")
+    assert setup.count("RUN_HANDWRITTEN = False") == 1
+    setup = setup.replace("RUN_HANDWRITTEN = False", f"RUN_HANDWRITTEN = {run_handwritten}")
+    exec(compile(setup, "added evaluation", "exec"), ns)  # noqa: S102
     return ns
 
 
@@ -1013,6 +1017,15 @@ def test_without_the_hand_written_file_the_outside_test_is_skipped(tmp_path, mon
     ns = run_part_b_start(tmp_path, monkeypatch)
     assert ns["handwritten"] is None and ns["HANDWRITTEN_TYPES"] == []
     assert "outside test is skipped" in capsys.readouterr().out
+
+
+def test_the_hand_written_test_is_off_by_default_even_with_the_file(tmp_path, monkeypatch, capsys):
+    """RUN_HANDWRITTEN is False in the notebook: the file holds whole calls with the old letters,
+    while the models learn from one row per turn."""
+    rows = [("lottery", True)] * 2 + [(None, False)] * 2
+    ns = run_part_b_start(tmp_path, monkeypatch, rows, run_handwritten=False)
+    assert ns["handwritten"] is None and ns["HANDWRITTEN_TYPES"] == []
+    assert "RUN_HANDWRITTEN is False" in capsys.readouterr().out
 
 
 # ---- leak columns from another branch ---------------------------------------------------------
