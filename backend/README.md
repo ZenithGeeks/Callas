@@ -40,7 +40,7 @@ The shell opens the stream with the htmx `sse` extension. The server renders eac
 
 `live.js` reads the microphone with `getUserMedia` and an AudioWorklet (`pcm-worklet.js`, 16 kHz PCM16, 100 ms frames) and sends the audio over the WebSocket. On a `reply` event it sends `{"type":"pause"}`, plays the audio, then sends `{"type":"resume"}`. The message format is in [`modules/orchestrator/README.md`](../modules/orchestrator/README.md#live-calls).
 
-In real mode the server uses `orchestrator.live.LiveCall`. In demo mode it uses `DemoLiveCall` (`live_demo.py`): three normal turns, a spoken reply, and the scam at turn 4. The choice is made in `live_ws.make_live_call`.
+In real mode the server uses `orchestrator.live.LiveCall`, and the page shows a random call from the classifier's test split to read aloud (`test_calls.py`, `GET /live/script`): the call ids in `data/processed_balanced/test.csv`, the text from `dataset/*.jsonl`. Train and valid calls are never shown. In demo mode it uses `DemoLiveCall` (`live_demo.py`): three normal turns, a spoken reply, and the scam at turn 4. The choice is made in `live_ws.make_live_call`.
 
 ## Build the CSS
 

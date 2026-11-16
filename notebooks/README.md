@@ -38,7 +38,7 @@ Install torch first. The normal Windows wheel has no GPU support.
 
 All csv files are UTF-8 with BOM, so Thai text looks right in Excel. The columns `speaker_turns` and `entities` hold JSON text because a csv cell cannot hold a list.
 
-Each model folder also has `preprocessing.json`. It lists the text steps the model was trained with. Code that uses the model must do the same steps.
+Each model folder also has `preprocessing.json`. It lists the text steps the model was trained with: the row text, the speaker letters, the masked entity labels, the space token and the length limit. `modules/nlp_core/phayathaibert.py` reads it to write the live call the same way, and refuses a model saved by an older notebook. With `NLP_CLASSIFIER=phayathaibert` the web demo uses the saved models; the `/live` page then shows a test-split call to read aloud.
 
 ## Steps
 

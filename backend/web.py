@@ -37,6 +37,7 @@ templates.env.globals.update(
     diarizer_label=views.diarizer_label,
     segments=views.segments,
     entity_rows=views.entity_rows,
+    type_name=views.type_name,
     asset=asset,
 )
 

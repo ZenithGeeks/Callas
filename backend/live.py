@@ -1,7 +1,7 @@
 """The "Live call" page and its WebSocket.
 
-URLs: GET /live (the page), WebSocket /ws/live (audio in, analysis events out). The socket
-loop itself lives in live_ws.py.
+URLs: GET /live (the page), GET /live/script (a test-split call to read aloud, test_calls.py),
+WebSocket /ws/live (audio in, analysis events out). The socket loop lives in live_ws.py.
 """
 
 from __future__ import annotations
@@ -13,22 +13,28 @@ from fastapi import APIRouter, Request, WebSocket
 from fastapi.responses import HTMLResponse
 from starlette.concurrency import run_in_threadpool
 
-from . import live_ws, views
-from .web import page
+from nlp_core import registry
+
+from . import live_ws, test_calls, views
+from .web import page, render
 
 log = logging.getLogger("callas.web")
 
 router = APIRouter()
 
+# Registry names (NLP_CLASSIFIER) as the page shows them. Other names are shown as they are.
+CLASSIFIER_NAMES = {"llm": "LLM", "phayathaibert": "fine-tuned PhayaThaiBERT"}
+
 
 @router.get("/live", response_class=HTMLResponse)
-async def live_page(request: Request) -> HTMLResponse:
-    """The live-call page."""
+def live_page(request: Request) -> HTMLResponse:
+    """The live-call page. Sync, so reading the test calls runs in a thread."""
     sample = {"word": "", "subtype": "", "instruction": "", "fact_label": "", "fact_big": ""}
     bands = {
         kind: views.Band(kind, fact_note="", inline_fact="-", **sample)
         for kind in ("safe", "scam", "unsure")
     }
+    is_demo = request.app.state.app_runtime.is_demo
     return page(
         request,
         "live.html",
@@ -36,7 +42,15 @@ async def live_page(request: Request) -> HTMLResponse:
         bands=bands,
         high_conf=views.HIGH_CONFIDENCE,
         types_json=json.dumps(views.TYPE_NAMES),
+        classifier=CLASSIFIER_NAMES.get(name := registry.default_name("classifier"), name),
+        call=None if is_demo else test_calls.random_test_call(),
     )
+
+
+@router.get("/live/script", response_class=HTMLResponse)
+def live_script() -> HTMLResponse:  # sync: FastAPI runs it in a thread, off the event loop
+    """Another random test-split call to read aloud: the inner part of the script section."""
+    return HTMLResponse(render("partials/live_script.html", call=test_calls.random_test_call()))
 
 
 @router.websocket("/ws/live")

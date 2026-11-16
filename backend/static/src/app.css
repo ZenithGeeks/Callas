@@ -1290,6 +1290,49 @@
   white-space: pre-line;
 }
 
+/* Live page: the test call the presenter reads aloud (partials/live_script.html). live.js
+   fades the lines already read and marks the next one with aria-current. */
+@media (min-width: 1024px) {
+  .script-box {
+    max-height: 34vh;
+    overflow-y: auto;
+    padding: 0 10px 0 2px;
+  }
+}
+.script {
+  list-style: decimal;
+  padding-left: 1.75rem;
+}
+.script li {
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--ink);
+  border-radius: 6px;
+  transition: color 200ms var(--ease), background-color 200ms var(--ease);
+}
+.script li:first-child {
+  margin-top: 0;
+}
+.script li::marker {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.script li[data-read] {
+  color: var(--muted);
+}
+/* The next line: paper behind it, grown with a spread shadow so the text does not move. */
+.script li[aria-current="step"] {
+  font-weight: 600;
+  background: var(--paper);
+  box-shadow: 0 0 0 6px var(--paper);
+}
+@media (min-width: 1024px) {
+  .script li {
+    font-size: 18px;
+  }
+}
+
 .note-field {
   min-height: 0;
   padding: 10px 12px;
@@ -1398,7 +1441,6 @@ kbd {
 }
 .meter-part {
   height: 100%;
-  transition: width 500ms var(--ease);
 }
 .meter-part[data-tone="safe"] {
   background: var(--safe);

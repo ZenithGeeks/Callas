@@ -1,0 +1,15 @@
+{# The script part of the live page's "Read this call aloud" section (backend/test_calls.py).
+   GET /live/script swaps it for another call. live.js marks the line to read next. #}
+{% if call %}
+<ol class="script" lang="th" data-script-lines>
+  {% for line in call.caller_lines %}
+  <li>{{ line }}</li>
+  {% endfor %}
+</ol>
+<details class="why mt-4">
+  <summary>Answer key</summary>
+  <p>{{ type_name(call.label) if call.label != "normal" else "Normal call" }}. Test-split call {{ call.call_id }}.</p>
+</details>
+{% else %}
+<p class="text-[15px] leading-[1.5] text-muted">No test call to show. The test split has not been built on this machine yet.</p>
+{% endif %}

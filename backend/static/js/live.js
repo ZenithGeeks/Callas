@@ -35,6 +35,7 @@
     start: $('[data-act="start"]'),
     end: $('[data-act="end"]'),
     pause: $('[data-act="pause"]'),
+    script: $('[data-act="script"]'), // real mode only
     afterEsc: $("[data-after-escalation]"),
     memory: $("[data-memory]"),
     stages: $("[data-stages]"),
@@ -336,6 +337,21 @@
     setBar(t.col, "idle");
     setStage(2, "done", null, "Done");
     setStage(3, "busy", "Turn " + n + (n > 1 ? " · checking with turns 1–" + n : " · checking"), "…");
+    markScript();
+  }
+  // The read-aloud script: lines already read fade, the next one is marked. Every turn the
+  // microphone hears is the caller, so the caller's turn count is the number of lines read.
+  function markScript() {
+    var read = S.turns.filter(function (t) {
+      return t.speaker !== "A";
+    }).length;
+    var lines = document.querySelectorAll("[data-script-lines] li");
+    lines.forEach(function (li, i) {
+      li.toggleAttribute("data-read", i < read);
+      if (i === read) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
+    });
+    if (read > 0 && lines[read]) lines[read].scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
   function turnFor(ev) {
     return S.byServerTurn[ev.turn] || S.turns[S.turns.length - 1];
@@ -557,6 +573,8 @@
     el.end.hidden = !running;
     el.pause.hidden = !running;
     el.pause.textContent = "Pause mic";
+    // A new script mid-call would no longer match the lines already spoken.
+    if (el.script) el.script.disabled = running;
   }
 
   async function start() {
@@ -717,6 +735,7 @@
     el.audio.removeAttribute("src");
     S = freshState();
     el.bandSlot.replaceChildren(placeholderBand());
+    markScript();
   }
   var placeholderHtml = el.bandSlot.innerHTML;
   function placeholderBand() {
@@ -743,8 +762,13 @@
     }
   });
 
+  document.body.addEventListener("htmx:afterSwap", function (e) {
+    if (e.target.id === "live-script") markScript();
+  });
+
   buildMeter();
   buildWave();
+  markScript();
   flatMeter();
   updateStatus();
 })();
