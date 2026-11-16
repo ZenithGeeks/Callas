@@ -18,6 +18,8 @@
   var METER_BARS = 44;
   var WAVE_BARS = 28;
   var MIN_COLUMNS = 7;
+  var WIDE = window.matchMedia("(min-width: 1024px)");
+  var SCROLL = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 
   var $ = function (sel, scope) {
     return (scope || root).querySelector(sel);
@@ -292,6 +294,9 @@
     if (tone) tag.setAttribute("data-tone", tone);
     else tag.removeAttribute("data-tone");
   }
+  function keepInView(row) {
+    if (WIDE.matches && S.listening) row.scrollIntoView({ block: "nearest", behavior: SCROLL });
+  }
   function ensurePartialRow() {
     if (S.partialRow) return S.partialRow;
     var row = tpl("tpl-row");
@@ -306,6 +311,7 @@
     el.rows.appendChild(row);
     el.rowsEmpty.hidden = true;
     S.partialRow = row;
+    keepInView(row);
     return row;
   }
   function drawPartial(text) {
@@ -329,14 +335,14 @@
     S.partialRow = null;
     row.setAttribute("data-state", "pending");
     row.setAttribute("data-speaker", ev.speaker);
-    slot(row, "speaker").textContent = ev.speaker;
+    slot(row, "speaker").textContent = ev.speaker.charAt(0);
     slot(row, "time").textContent = fmt(ev.start);
     setTag(row, "Reading", "");
     var t = { n: n, row: row, col: colFor(n), text: ev.text, speaker: ev.speaker, level: null };
     S.turns.push(t);
     S.byServerTurn[ev.turn] = t;
     fillText(slot(row, "text"), ev.text, S.entities);
-    slot(t.col, "who").textContent = whoLabel(ev.speaker);
+    slot(t.col, "who").textContent = ev.speaker === "Caller" ? "" : whoLabel(ev.speaker);
     setBar(t.col, "idle");
     setStage(2, "done", null, "Done");
     setStage(3, "busy", "Turn " + n + (n > 1 ? " · checking with turns 1–" + n : " · checking"), "…");
@@ -354,7 +360,7 @@
       if (i === read) li.setAttribute("aria-current", "step");
       else li.removeAttribute("aria-current");
     });
-    if (read > 0 && lines[read]) lines[read].scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (read > 0 && lines[read]) lines[read].scrollIntoView({ block: "nearest", behavior: SCROLL });
   }
   function turnFor(ev) {
     return S.byServerTurn[ev.turn] || S.turns[S.turns.length - 1];
@@ -452,11 +458,27 @@
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return bytes;
   }
+  function addReplyRow(t, text) {
+    var row = tpl("tpl-row");
+    row.removeAttribute("data-turn");
+    row.setAttribute("data-speaker", "Callas");
+    row.setAttribute("data-state", "reply");
+    var badge = slot(row, "speaker");
+    badge.textContent = "";
+    badge.appendChild(tpl("tpl-callas-mark"));
+    $(".trow-turn", row).textContent = "Callas";
+    slot(row, "time").textContent = "Reply to turn " + t.n;
+    slot(row, "text").textContent = text;
+    setTag(row, "", "");
+    t.row.after(row);
+    keepInView(row);
+  }
   function onReply(ev) {
     var t = turnFor(ev);
     if (t) {
       t.replied = true;
       setTag(t.row, "Reply sent", "safe");
+      addReplyRow(t, ev.text);
     }
     el.replyCard.hidden = false;
     el.replyTitle.textContent = "Callas answered after turn " + (t ? t.n : ev.turn);
