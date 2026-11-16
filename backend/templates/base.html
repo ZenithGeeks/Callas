@@ -33,7 +33,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     {# The full tagline fits on one line from 1280 px; below that the nav needs the room. #}
     <p class="ml-auto hidden whitespace-nowrap pl-8 lg:block text-[15px] text-muted">Runs on this machine.<span class="hidden xl:inline"> Call text never leaves it.</span></p>
     <details class="relative ml-auto lg:hidden">
-      <summary class="cursor-pointer list-none font-display font-semibold text-[16px] leading-none text-ink py-3">
+      <summary class="cursor-pointer list-none font-display font-semibold text-[16px] leading-none text-ink py-[14px]">
         {% for key, href, label in tabs %}{% if key == active %}{{ label }}{% endif %}{% endfor %}
       </summary>
       <div class="absolute right-0 top-full z-20 mt-1 w-[220px] rounded-[16px] border border-rule bg-surface shadow-[0_1px_2px_rgba(28,27,25,.05),0_6px_20px_rgba(28,27,25,.05)] overflow-hidden">

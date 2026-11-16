@@ -542,7 +542,8 @@
   font-size: 15px;
   line-height: 1;
 }
-.trow[data-speaker="B"] .badge {
+.trow[data-speaker="B"] .badge,
+.trow[data-speaker="Caller"] .badge {
   background: var(--ink);
   border-color: var(--ink);
   color: #fff;
@@ -553,6 +554,12 @@
   font-size: 14px;
   line-height: 1.4;
   color: var(--ink);
+}
+/* Callas's spoken reply, placed after the turn it answers (live.js addReplyRow). */
+.trow[data-speaker="Callas"] .badge {
+  background: var(--safe-tint);
+  border-color: var(--safe);
+  color: var(--safe);
 }
 .trow-time {
   font-size: 14px;
@@ -917,10 +924,12 @@
   display: block;
   flex: 1 1 0;
   min-width: 2px;
-  height: 6px;
+  height: 56px;
   border-radius: 2px;
   background: var(--ink);
-  transition: height 90ms linear;
+  /* live.js sets scaleY from the speech level; 6px is the resting bar */
+  transform: scaleY(calc(6 / 56));
+  transition: transform 90ms linear;
 }
 .meter i[data-off] {
   background: var(--rule-strong);
@@ -933,7 +942,7 @@
   flex: none;
 }
 [data-listening="true"] .status-dot {
-  background: var(--alarm);
+  background: var(--ink);
 }
 .wave {
   display: flex;
@@ -1300,8 +1309,12 @@
   }
 }
 .script {
+  max-width: 70ch;
   list-style: decimal;
   padding-left: 1.75rem;
+}
+#live-script .why summary {
+  min-height: 44px;
 }
 .script li {
   margin-top: 12px;

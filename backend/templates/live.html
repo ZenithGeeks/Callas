@@ -35,7 +35,7 @@
   {% if not demo %}
   <section class="order-6 lg:mb-12" aria-labelledby="script-h">
     <h2 id="script-h" class="sec-h">Read this call aloud</h2>
-    <p class="mt-2 text-[15px] leading-[1.5] text-muted">You play the caller. Read the marked line, then wait until Callas has checked it.</p>
+    <p class="mt-2 max-w-[60ch] text-[15px] leading-[1.5] text-muted">You play the caller. Read the marked line, then wait until Callas has checked it.</p>
     <div id="live-script" class="script-box mt-4">{% include "partials/live_script.html" %}</div>
     <button type="button" class="btn mt-4" data-act="script" hx-get="/live/script" hx-target="#live-script" hx-disabled-elt="this">Another test call</button>
   </section>
@@ -45,7 +45,7 @@
     <h2 id="pipeline-h" class="sec-h">Pipeline</h2>
     <ol class="mt-3" data-stages>
       {{ ui.stage(1, "Listen", "Streaming, partial text every 0.5 s") }}
-      {{ ui.stage(2, "Split speakers", "Turn closes on silence") }}
+      {{ ui.stage(2, "Split speakers" if demo else "Close turn", "Turn closes on silence") }}
       {{ ui.stage(3, "Read", "Checks each turn with the turns before it") }}
       {{ ui.stage(4, "Decide", "Fixed rules. Reply or warn.") }}
     </ol>
@@ -53,7 +53,7 @@
   </div>
 
   <div class="contents lg:block lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:min-w-0">
-    <div class="order-2" data-band-slot aria-live="polite">
+    <div class="order-2 lg:sticky lg:top-0 lg:z-10 lg:-mt-4 lg:bg-ground lg:pt-4" data-band-slot aria-live="polite">
       {{ ui.placeholder("No result yet", "Start the call and speak in Thai. Each turn is checked as soon as it closes.") }}
     </div>
 
@@ -98,6 +98,7 @@
 <template id="tpl-band-scam">{{ ui.band(bands.scam) }}</template>
 <template id="tpl-band-unsure">{{ ui.band(bands.unsure) }}</template>
 <template id="tpl-row">{{ ui.trow(0, "B", "0:00", segments("", []), "partial") }}</template>
+<template id="tpl-callas-mark"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><rect x="2" y="6" width="2.5" height="4" rx="1.25" fill="currentColor"/><rect x="6.75" y="3" width="2.5" height="10" rx="1.25" fill="currentColor"/><rect x="11.5" y="5" width="2.5" height="6" rx="1.25" fill="currentColor"/></svg></template>
 <template id="tpl-col">{{ ui.strip_col(0, "", "idle") }}</template>
 <template id="tpl-bar-normal">{{ ui.bar("normal") }}</template>
 <template id="tpl-bar-scam">{{ ui.bar("scam") }}</template>
