@@ -9,7 +9,7 @@ Callas checks Thai phone calls and text messages for scams. It turns a call into
 
 Callas works in Thai only. It does not connect to LINE, Messenger, Instagram or a real phone line. You use it through a web demo.
 
-Status: the full pipeline and the web demo work. The scam check and the summary still use the LLM. A fine-tuned PhayaThaiBERT scam classifier exists (see [`notebooks/README.md`](notebooks/README.md)), but it is not connected to the pipeline yet.
+Status: the full pipeline and the web demo work. The scam check and the summary still use the LLM. A fine-tuned PhayaThaiBERT scam classifier (see [`notebooks/README.md`](notebooks/README.md)) runs instead of the LLM check when `NLP_CLASSIFIER=phayathaibert`.
 
 ## Where to read more
 
@@ -121,7 +121,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |
 | `LEAK_JUDGE` | `off` | `on` adds a DSPy leak judge after the leak rules. It can only block more replies |
-| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. A real environment variable wins over `.env` |
+| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. `NLP_CLASSIFIER=phayathaibert` uses the fine-tuned models in `models/`. A real environment variable wins over `.env` |
 | `TRACING` | `off` | `phoenix` sends traces to a local Phoenix server; see [Tracing](#tracing) |
 | `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006` | Where traces go. Must be localhost, 127.0.0.1 or ::1, or startup fails |
 | `TRACE_CALL_TEXT` | `off` | `on` keeps prompts and answers in web traces; see [Tracing](#tracing) |
@@ -198,7 +198,6 @@ Every number in the report comes from a script run on the test set and is saved 
 ## Open items
 
 - Team sign-off on the reply prompt and the reply templates.
-- Connect the fine-tuned PhayaThaiBERT classifier to nlp-core. It is not registered yet.
 - Eval scripts for the other measures in the spec.
 - Tune the DSPy reply writer: `python -m llm_serving.dspy_optimize` once `.env` points at vLLM.
 - Test the silence threshold for live calls on a real microphone (`VAD_RMS_THRESHOLD` in `modules/asr_diarization/streaming.py`).

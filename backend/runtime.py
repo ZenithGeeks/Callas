@@ -105,8 +105,12 @@ def build(force_demo: bool | None = None) -> AppRuntime:
         asr_pipeline.run = _recording(demo.fake_pipeline_run)
     else:
         from llm_serving.client import LLMClient
+        from nlp_core import registry
         from tts_voice_agent.speech import Speaker
 
+        # Build the classifier now: a fine-tuned model loads once at startup, and a missing or
+        # outdated one stops the server here instead of failing the first live turn.
+        registry.get("classifier")
         runtime = Runtime(llm=LLMClient(), speaker=Speaker())
         asr_pipeline.run = _recording(original)
     return AppRuntime("demo" if is_demo else "real", runtime, CallSessions(runtime), original)

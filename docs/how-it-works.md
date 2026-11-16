@@ -146,7 +146,7 @@ Turn 3 → MONEY  "1,500 บาท"
 | `phishing_otp` | Asks for an OTP, a password or account data, or sends a fake link |
 | `lottery` | Says you won a prize, but you must pay first |
 
-**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) is trained but not connected to the pipeline. Only `scripts/eval_autocorrect.py` loads it. When it is connected it plugs in behind the same function (`NLP_CLASSIFIER`), so nothing else has to change.
+**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) plugs in behind the same function with `NLP_CLASSIFIER=phayathaibert` (`nlp_core/phayathaibert.py`).
 
 For our example, turn 3 should get `fake_authority`.
 
