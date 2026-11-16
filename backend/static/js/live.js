@@ -128,7 +128,7 @@
     var offset = METER_BARS - S.meterLevels.length;
     for (var i = 0; i < METER_BARS; i++) {
       var v = i < offset ? 0 : S.meterLevels[i - offset];
-      bars[i].style.height = Math.max(6, Math.round(v * 56)) + "px";
+      bars[i].style.transform = "scaleY(" + Math.max(6, Math.round(v * 56)) / 56 + ")";
       if (v > 0.02) bars[i].removeAttribute("data-off");
       else bars[i].setAttribute("data-off", "");
     }
@@ -137,7 +137,7 @@
     S.meterLevels = [];
     var bars = el.meter.children;
     for (var i = 0; i < bars.length; i++) {
-      bars[i].style.height = "6px";
+      bars[i].style.transform = "";
       bars[i].setAttribute("data-off", "");
     }
   }
@@ -209,6 +209,9 @@
     var band = el.bandSlot.querySelector("[data-band]");
     if (!band || S.bandKind !== kind) {
       band = tpl("tpl-band-" + kind);
+      // The slot is the live region; a band inserted with its own would be read twice.
+      band.removeAttribute("role");
+      band.removeAttribute("aria-live");
       band.classList.add("is-arriving"); // wash + rise, only when the kind changes
       if (fresh) band.classList.add("is-fresh");
       el.bandSlot.replaceChildren(band);
@@ -228,12 +231,12 @@
         {
           word: scam ? "SCAM" : "UNSURE",
           subtype: scam ? TYPES[S.escType] || TYPES.null || "Type not known" : "Might be a scam. Type not known",
-          instruction: "Warn the user. No reply was spoken.",
+          instruction: "Hang up on your phone too. Do not transfer money.",
           inline: "Escalated at turn " + S.escN + ". Callas stopped replying.",
           "fact-label": "Escalated at",
           "fact-big": "Turn " + S.escN,
           "fact-note": "of " + S.turns.length + " so far. Stays escalated until the call ends.",
-          "fact-extra": "Confidence: " + conf,
+          "fact-extra": "Confidence: " + conf + ". No reply was spoken.",
         },
         true
       );
@@ -298,7 +301,7 @@
     slot(row, "speaker").textContent = "";
     row.setAttribute("data-speaker", "");
     slot(row, "time").textContent = fmt(S.listening ? (performance.now() - S.startedAt) / 1000 : 0);
-    setTag(row, "Hearing", "alarm");
+    setTag(row, "Hearing", "");
     row.classList.add("is-new");
     el.rows.appendChild(row);
     el.rowsEmpty.hidden = true;

@@ -35,7 +35,7 @@
   {% if not demo %}
   <section class="order-6 lg:mb-12" aria-labelledby="script-h">
     <h2 id="script-h" class="sec-h">Read this call aloud</h2>
-    <p class="mt-2 text-[15px] leading-[1.5] text-muted">You play the caller. Read the marked line, then wait until Callas has checked it.</p>
+    <p class="mt-2 max-w-[60ch] text-[15px] leading-[1.5] text-muted">You play the caller. Read the marked line, then wait until Callas has checked it.</p>
     <div id="live-script" class="script-box mt-4">{% include "partials/live_script.html" %}</div>
     <button type="button" class="btn mt-4" data-act="script" hx-get="/live/script" hx-target="#live-script" hx-disabled-elt="this">Another test call</button>
   </section>
