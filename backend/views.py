@@ -185,8 +185,22 @@ class Band:
     fresh: bool = False
 
 
-def message_band(verdict: dict) -> Band:
-    """The verdict band for a checked message. `verdict` has level, label_type, confidence."""
+# Under the confidence: which model gave the label, by nlp_core registry name.
+CLASSIFIER_NOTES: dict[str, str] = {
+    "phayathaibert": "A fine-tuned PhayaThaiBERT model gives this label.",
+    "llm": "The local LLM gives this label.",
+    "demo": "A scripted demo model gives this label.",
+}
+
+
+def classifier_note(name: str) -> str:
+    """The sentence that names the classifier `name`, for a registry name we have no text for."""
+    return CLASSIFIER_NOTES.get(name, f"The {name} classifier gives this label.")
+
+
+def message_band(verdict: dict, classifier: str = "llm") -> Band:
+    """The verdict band for a checked message. `verdict` has level, label_type, confidence;
+    `classifier` is the registry name of the model that gave the label."""
     level, label_type = verdict["level"], verdict["label_type"]
     confidence = confidence_word(verdict["confidence"])
     if level == "scam":
@@ -208,6 +222,6 @@ def message_band(verdict: dict) -> Band:
         instruction=instruction,
         fact_label="Confidence",
         fact_big=confidence,
-        fact_note="The LLM gives this label. A PhayaThaiBERT model is planned to replace it.",
+        fact_note=classifier_note(classifier),
         inline_fact=f"Confidence: {confidence.lower()}",
     )

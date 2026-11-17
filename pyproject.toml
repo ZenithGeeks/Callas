@@ -28,6 +28,7 @@ asr = [
     "pythaiasr>=2.3",
     "onnxruntime>=1.18",
     "soundfile>=0.12",
+    "av>=14",  # decodes .m4a (AAC), which soundfile cannot read; bundles its own FFmpeg
 ]
 tts = [
     "pythaitts>=0.6",

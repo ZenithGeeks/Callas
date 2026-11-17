@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from importlib import metadata
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -52,6 +57,46 @@ class PyThaiASR:
         """Transcribe mono samples that are already in memory."""
         audio = np.asarray(audio, dtype=np.float32)
         return str(self._asr(audio, sampling_rate=sample_rate)).strip()
+
+
+# Containers libsndfile cannot open (AAC audio, as phones record .m4a). They are decoded once
+# with PyAV, which bundles its own FFmpeg, into a WAV that every later step can read.
+NEEDS_DECODING = (".m4a", ".mp4", ".aac")
+
+
+@contextmanager
+def readable(audio_path: str, sample_rate: int = SAMPLE_RATE) -> Iterator[str]:
+    """A path every step can read: `audio_path` itself, or for a NEEDS_DECODING file a temporary
+    16 kHz mono WAV of it, deleted when the block ends."""
+    if Path(audio_path).suffix.lower() not in NEEDS_DECODING:
+        yield audio_path
+        return
+    import soundfile as sf
+
+    fd, wav_path = tempfile.mkstemp(suffix=".wav", prefix="callas-decoded-")
+    os.close(fd)
+    try:
+        sf.write(wav_path, decode(audio_path, sample_rate), sample_rate, subtype="PCM_16")
+        yield wav_path
+    finally:
+        Path(wav_path).unlink(missing_ok=True)
+
+
+def decode(audio_path: str, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Every audio stream frame of the file as mono float32 at sample_rate, with PyAV."""
+    try:
+        import av
+    except ImportError as exc:
+        raise RuntimeError(
+            f"Reading {Path(audio_path).suffix} files needs PyAV: pip install -e .[asr]"
+        ) from exc
+    resampler = av.AudioResampler(format="flt", layout="mono", rate=sample_rate)
+    chunks: list[np.ndarray] = []
+    with av.open(audio_path) as container:
+        for frame in container.decode(audio=0):
+            chunks += [f.to_ndarray().reshape(-1) for f in resampler.resample(frame)]
+        chunks += [f.to_ndarray().reshape(-1) for f in resampler.resample(None)]  # flush
+    return np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
 
 
 def load_audio(audio_path: str, sample_rate: int = SAMPLE_RATE) -> np.ndarray:

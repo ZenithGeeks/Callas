@@ -146,7 +146,7 @@ Turn 3 → MONEY  "1,500 บาท"
 | `phishing_otp` | Asks for an OTP, a password or account data, or sends a fake link |
 | `lottery` | Says you won a prize, but you must pay first |
 
-**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) is trained but not connected to the pipeline. Only `scripts/eval_autocorrect.py` loads it. When it is connected it plugs in behind the same function (`NLP_CLASSIFIER`), so nothing else has to change.
+**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) plugs in behind the same function: `NLP_CLASSIFIER=phayathaibert` runs it instead of the LLM (see [`modules/orchestrator/README.md`](../modules/orchestrator/README.md#the-phayathaibert-classifier)).
 
 For our example, turn 3 should get `fake_authority`.
 
@@ -238,7 +238,7 @@ A slower scam, such as a romance scam over ten turns, never has one turn that is
 | Word tokenization | 3, 7 | PyThaiNLP `newmm` |
 | Entity extraction | 4a | Regular expressions |
 | Summarization | 4b | Prompted LLM (Qwen on vLLM) |
-| Text classification | 4c | Prompted LLM (PhayaThaiBERT trained, not connected) |
+| Text classification | 4c | Prompted LLM by default; fine-tuned PhayaThaiBERT with `NLP_CLASSIFIER=phayathaibert` |
 | Redaction | 6 | Rules + the entity list |
 | Spell check | 7 | PyThaiNLP dictionary |
 | Text to speech | 8 | PyThaiTTS |

@@ -81,10 +81,30 @@ The three parts are protocols in `nlp_core/interfaces.py`. The registry is `nlp_
 | Kind | Method | Variable | Built-in names (default first) |
 |---|---|---|---|
 | `ner` | `extract(text) -> list[Entity]` | `NLP_NER` | `rules` |
-| `classifier` | `predict(text) -> (label_scam, label_type, confidence)` | `NLP_CLASSIFIER` | `llm` |
+| `classifier` | `predict(text) -> (label_scam, label_type, confidence)` | `NLP_CLASSIFIER` | `llm`, `phayathaibert` |
 | `summarizer` | `summarize(text) -> str` | `NLP_SUMMARIZER` | `llm` |
 
-Today only these built-in names exist. The fine-tuned PhayaThaiBERT models from [`notebooks/README.md`](../../notebooks/README.md) (`models/phayathaibert-scam-gate` and `-scam-type`, not in git) are not registered. Only `scripts/eval_autocorrect.py` loads them. Steps to connect one:
+### The PhayaThaiBERT classifier
+
+`NLP_CLASSIFIER=phayathaibert` runs the models the notebook trains (`nlp_core/phayathaibert.py`). It needs the `ml` extra and `models/phayathaibert-scam-gate`, which is not in git; `models/phayathaibert-scam-type` is used when it is there. `NLP_MODELS_DIR` points at another folder. The web backend loads the model when it starts, so a missing model stops startup with a message that says how to get it.
+
+The models learned from the call so far, written one way (the notebook's step 6b), so `predict` rewrites the text it gets into that shape first:
+
+- Speakers become letters: `A` and Callas' own replies (`agent`) are the person called, `A`; any other speaker (`B`, the live page's `Caller`, a third voice) is the caller, `B`. Lines in a row from one letter are joined.
+- A text with no `X:` lines (a text message) is one caller line. Lines without a speaker, such as the summary of older turns, are left out.
+- Each line is normalized and the sensitive values the entity rules find become `[PHONE]`, `[MONEY]`, ...
+- The oldest lines are dropped until the text fits the model's 256 tokens. The newest line always stays.
+
+On the test split this rebuilds every row exactly as the notebook did and gives the same macro-F1. The gate's top probability is the confidence. Below 0.60 the answer is `(True, None, 0.0)`; the scam type is left empty below 0.50 (the notebook's starting values, `GATE_MIN_CONFIDENCE` and `TYPE_MIN_CONFIDENCE` in `phayathaibert.py`).
+
+Known limits:
+
+- The entity rules find phone numbers, bank accounts, OTPs, links and amounts. The training rows also masked LINE IDs, card and ID numbers, birth dates and addresses, which stay as written here.
+- The model is trained on generated calls. On hand-written ones it leans on the masked values: a fake-police call that asks for "all your money" with no amount or account scored 0.0003 scam, the same call with `[MONEY]` and `[BANK_ACCOUNT]` 0.997. A text message is read as one caller line, which the model never saw in training.
+
+### Add a model
+
+Steps to connect another one:
 
 1. Write a class with the method above. For a classifier, `label_type` is one of `SCAM_TYPES` or `None`. If the model is unsure, return `(True, None, 0.0)`. Never return "safe" when unsure.
 2. Register it, and make sure that module is imported before the first call (for example from `nlp_core/__init__.py`):

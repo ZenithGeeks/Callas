@@ -1,7 +1,10 @@
 """Registry of pluggable nlp-core parts: NER, scam classifier, summarizer.
 
-    register("classifier", "phayathaibert", lambda: PhayaThaiBertClassifier(...))
-    # then set NLP_CLASSIFIER=phayathaibert in .env
+    register("classifier", "mine", lambda: MyClassifier(...))
+    # then set NLP_CLASSIFIER=mine in .env
+
+Built in: NER "rules"; classifier "llm" and "phayathaibert" (the notebook's fine-tuned model,
+see phayathaibert.py); summarizer "llm".
 
 Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"): the
 process environment first, read at each `get()`, then .env. Each (kind, name) instance is
@@ -80,8 +83,16 @@ def get(kind: str, name: str | None = None) -> Any:
         return _INSTANCES[(kind, name)]
 
 
+def _phayathaibert() -> Any:
+    """The notebook's fine-tuned classifier. Imported here, so torch loads only when chosen."""
+    from .phayathaibert import from_settings
+
+    return from_settings()
+
+
 register("ner", "rules", RulesNER)
 register("classifier", "llm", LLMClassifier)
+register("classifier", "phayathaibert", _phayathaibert)
 register("summarizer", "llm", LLMSummarizer)
 
 

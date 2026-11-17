@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "callas-phayathaibert",
+      "runtimeExecutable": "C:\\Repositories\\Callas\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "backend.main:app", "--port", "8077"],
+      "env": {
+        "NLP_CLASSIFIER": "phayathaibert",
+        "PYTHONIOENCODING": "utf-8",
+        "HF_HUB_DISABLE_SYMLINKS_WARNING": "1"
+      },
+      "port": 8077
+    },
+    {
+      "name": "callas-phayathaibert-8078",
+      "runtimeExecutable": "C:\\Repositories\\Callas\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "backend.main:app", "--port", "8078"],
+      "env": {
+        "NLP_CLASSIFIER": "phayathaibert",
+        "PYTHONIOENCODING": "utf-8",
+        "HF_HUB_DISABLE_SYMLINKS_WARNING": "1"
+      },
+      "port": 8078
+    }
+  ]
+}

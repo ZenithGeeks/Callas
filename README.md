@@ -121,7 +121,8 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |
 | `LEAK_JUDGE` | `off` | `on` adds a DSPy leak judge after the leak rules. It can only block more replies |
-| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. A real environment variable wins over `.env` |
+| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. A real environment variable wins over `.env`. `NLP_CLASSIFIER=phayathaibert` runs the notebook's fine-tuned classifier; see [`modules/orchestrator/README.md`](modules/orchestrator/README.md#the-phayathaibert-classifier) |
+| `NLP_MODELS_DIR` | empty (`models/`) | Folder with the notebook's trained models, for `NLP_CLASSIFIER=phayathaibert` |
 | `TRACING` | `off` | `phoenix` sends traces to a local Phoenix server; see [Tracing](#tracing) |
 | `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006` | Where traces go. Must be localhost, 127.0.0.1 or ::1, or startup fails |
 | `TRACE_CALL_TEXT` | `off` | `on` keeps prompts and answers in web traces; see [Tracing](#tracing) |

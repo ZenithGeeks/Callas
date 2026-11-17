@@ -53,7 +53,7 @@
 <tr><td>Split speakers (diarization)</td><td><span class="tool">pythaiasr</span> (Nemotron-3 diarization, ONNX)</td><td>pyannote segmentation 3.0 (ONNX, through pythaiasr; set <code>DIARIZER=pyannote_segmentation</code>)</td></tr>
 <tr><td>NER</td><td>Regex rules (phone, bank account, OTP, link, money)</td><td>no trained NER model yet</td></tr>
 <tr><td>Summary</td><td>LLM on <span class="tool">vLLM</span></td><td>—</td></tr>
-<tr><td>Scam classifier</td><td>LLM on <span class="tool">vLLM</span> (what runs today)</td><td>fine-tuned <span class="tool">PhayaThaiBERT</span> (trained in a notebook, not connected to the pipeline yet); <span class="tool">TF-IDF + LogReg</span> baseline</td></tr>
+<tr><td>Scam classifier</td><td>LLM on <span class="tool">vLLM</span> (what runs today)</td><td>fine-tuned <span class="tool">PhayaThaiBERT</span> (trained in a notebook, chosen with <code>NLP_CLASSIFIER=phayathaibert</code>); <span class="tool">TF-IDF + LogReg</span> baseline</td></tr>
 <tr><td>LLM serving</td><td><span class="tool">vLLM</span> + open-source LLM (now <code>qwen3.8-27b-fp8</code>)</td><td>—</td></tr>
 <tr><td>Reply text</td><td>LLM on <span class="tool">vLLM</span>, optional <span class="tool">DSPy</span> writer</td><td>fixed templates</td></tr>
 <tr><td>Voice reply (TTS)</td><td><span class="tool">PyThaiTTS</span> with the <span class="tool">FastThaiG2P</span> engine</td><td>—</td></tr>
@@ -106,7 +106,7 @@
 <li><p><strong>Diarization:</strong> Nemotron-3 diarization (ONNX) through <span class="tool">pythaiasr</span>. On a generated 34 s two-speaker call it labelled 97.8% of speech correctly; pyannote segmentation 3.0 found only one speaker (49.6%). <code>DIARIZER</code> switches between them, and the default is <code>nemotron</code>. Live calls are labelled "Caller" for now, because pythaiasr has no streaming speaker split.</p></li>
 <li><p><strong>NER:</strong> regex rules today (phone, bank account, OTP, link, money). They find no names or organisations. A trained NER model is not started.</p></li>
 <li><p><strong>Summary:</strong> the LLM on <span class="tool">vLLM</span> writes it. A fine-tuned summary model is not started.</p></li>
-<li><p><strong>Scam classifier:</strong> the LLM on <span class="tool">vLLM</span> does the scam check today. A fine-tuned <span class="tool">PhayaThaiBERT</span> classifier (<code>clicknext/phayathaibert</code>) is trained in <code>notebooks/scam_classifier_phayathaibert.ipynb</code>, next to a <span class="tool">TF-IDF + LogReg</span> baseline. It is not connected to the pipeline yet. The eval report will compare the three.</p></li>
+<li><p><strong>Scam classifier:</strong> the LLM on <span class="tool">vLLM</span> does the scam check today. A fine-tuned <span class="tool">PhayaThaiBERT</span> classifier (<code>clicknext/phayathaibert</code>) is trained in <code>notebooks/scam_classifier_phayathaibert.ipynb</code>, next to a <span class="tool">TF-IDF + LogReg</span> baseline. <code>NLP_CLASSIFIER=phayathaibert</code> runs it in the pipeline instead of the LLM. The eval report will compare the three.</p></li>
 <li><p><strong>LLM:</strong> one open-source LLM (now <code>qwen3.8-27b-fp8</code>) served with <span class="tool">vLLM</span> on a server the team runs. It writes the summary and the scam check for nlp-core, and the voice agent's reply text. Its hidden "thinking" is turned off (<code>VLLM_THINKING=false</code>), because with small output limits it used the whole budget and returned no answer. Call text never goes to a third-party LLM API.</p></li>
 <li><p><strong>Reply safety:</strong> before the LLM writes a reply, numbers, names and links from the call are masked. The reply then passes the leak rules and a Thai spelling check, and an optional <span class="tool">DSPy</span> judge can only block more. Any failure uses a fixed template.</p></li>
 <li><p><strong>Call memory:</strong> the voice agent remembers every turn of the current call, so a scam that only shows up after several turns is still caught. Memory is deleted when the call ends.</p></li>
@@ -212,12 +212,12 @@ class LLMClient:
 <p><strong>Speed and memory.</strong></p>
 <ul>
 <li><p><strong>Quantization:</strong> use AWQ 4-bit or FP8 weights so the LLM leaves room for the other models.</p></li>
-<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so the speech models, and the PhayaThaiBERT classifier once it is connected, still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
+<li><p><strong><code>--gpu-memory-utilization</code>:</strong> caps vLLM's share of GPU memory, so the speech models, and the PhayaThaiBERT classifier when it is chosen, still fit. 0.6 is a starting value; tune it on the demo computer.</p></li>
 <li><p><strong><code>--max-model-len</code>:</strong> set it to the call memory context budget, not the model's maximum. A shorter length means a smaller KV cache.</p></li>
 <li><p><strong>Prefix caching:</strong> each job's prompt starts with the same fixed text on every request, so vLLM reuses it instead of processing it again.</p></li>
 <li><p><strong>Short outputs:</strong> each job has a max output length (see <code>JOBS</code>). The classifier answers with one label, not an explanation. Thinking models must run with thinking off, or a 20-token answer comes back empty.</p></li>
 <li><p><strong>DSPy tuning:</strong> on 10 hard synthetic contexts the tuned reply writer gave 10/10 usable replies at 2.7 s each; the untuned one gave 5/10 at 9.6 s.</p></li>
-<li><p><strong>Other models:</strong> The PhayaThaiBERT classifier is not loaded by the backend yet. The pythaiasr models (Typhoon ASR, Nemotron diarization) are ONNX and run on CPU or GPU. Every model loads once when the backend starts, never per request.</p></li>
+<li><p><strong>Other models:</strong> The PhayaThaiBERT classifier loads when the backend starts, if <code>NLP_CLASSIFIER=phayathaibert</code> (GPU if there is one, else CPU). The pythaiasr models (Typhoon ASR, Nemotron diarization) are ONNX and run on CPU or GPU. Every model loads once when the backend starts, never per request.</p></li>
 <li><p><strong>Timing:</strong> log the time of each stage (ASR, diarization, nlp-core, LLM, TTS) on every run, so we know where the 15s goes.</p></li>
 </ul>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> with a fake LLM client (CI has no GPU) for prompt building and output parsing. bench.py records tokens per second, time to first token, and peak GPU memory. These numbers go to evaluation-report.</p>
@@ -296,7 +296,7 @@ class PyThaiASR(ASRBackend):
 <li><span class="job">Language</span> <span class="tool">Python 3.10+</span></li>
 <li><span class="job">Tokenize + base NER</span> <span class="tool">PyThaiNLP</span></li>
 <li><span class="job">NER</span> regex rules <span class="note">(<code>nlp_core.entities</code>; a trained NER model is not started)</span></li>
-<li><span class="job">Classifier</span> <span class="tool">PhayaThaiBERT</span> fine-tuned with <code>transformers</code> <span class="note">(clicknext/phayathaibert, trained in the notebook; not connected to the pipeline yet)</span></li>
+<li><span class="job">Classifier</span> <span class="tool">PhayaThaiBERT</span> fine-tuned with <code>transformers</code> <span class="note">(clicknext/phayathaibert, trained in the notebook; <code>NLP_CLASSIFIER=phayathaibert</code>)</span></li>
 <li><span class="job">Baseline classifier</span> <span class="tool">TF-IDF + LogReg</span> with <code>scikit-learn</code> <span class="note">(to compare against in the eval report)</span></li>
 <li><span class="job">Summary</span> prompted LLM <span class="note">(a fine-tuned summary model is not started)</span></li>
 <li><span class="job">LLM</span> prompted LLM on <span class="tool">vLLM</span> <span class="note">(through llm-serving; today it does the summary and the scam check)</span></li>
@@ -318,7 +318,7 @@ def analyze(text: str) -&gt; NLPResult:
     summary = summarizer.summarize(text)
     label_scam, label_type, confidence = classifier.predict(text)
     return NLPResult(entities, summary, label_scam, label_type, confidence)</code></pre>
-<p>One analyze() function handles both calls and messages, because both become plain text before they reach this module. For a live call, the text is the call memory context from tts-voice-agent (recent turns plus a summary of older ones), not only the newest turn. The summarizer and classifier have an LLM version today, behind the same interface. The PhayaThaiBERT classifier is meant to plug in the same way once it is connected; <code>NLP_CLASSIFIER</code> picks which one runs.</p>
+<p>One analyze() function handles both calls and messages, because both become plain text before they reach this module. For a live call, the text is the call memory context from tts-voice-agent (recent turns plus a summary of older ones), not only the newest turn. The summarizer and classifier have an LLM version today, behind the same interface. The PhayaThaiBERT classifier plugs in the same way; <code>NLP_CLASSIFIER</code> picks which one runs.</p>
 <p><strong>Testing strategy.</strong> <span class="tool">pytest</span> for the pipeline interface and the steps before and after the model (tokenization, entity span alignment), using small fixed test inputs. Model quality is measured, not unit-tested. eval.py reports precision/recall/F1 per scam type and overall, entity-level NER F1, and ROUGE-L for summaries on data-pipeline's test set. These numbers go straight to evaluation-report. The baseline and the LLM run next to the fine-tuned model so the report can compare all three. The baseline comparison is required.</p>
 <p><strong>Boundaries.</strong></p>
 <ul>

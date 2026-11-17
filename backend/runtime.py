@@ -1,6 +1,7 @@
 """Build the orchestrator Runtime once, at startup.
 
-Real mode: LLMClient + Speaker + the default nlp-core registry.
+Real mode: LLMClient + Speaker + the default nlp-core registry. The scam classifier is built at
+startup (NLP_CLASSIFIER chooses it).
 Demo mode (env CALLAS_FAKE=1): scripted parts from backend.demo, no models and no GPU.
 """
 
@@ -63,6 +64,14 @@ class AppRuntime:
     def is_demo(self) -> bool:
         return self.mode == "demo"
 
+    @property
+    def classifier_name(self) -> str:
+        """Registry name of the scam classifier the graphs use: the runtime's own choice (demo
+        mode sets one), else NLP_CLASSIFIER."""
+        from nlp_core import registry
+
+        return self.runtime.classifier or registry.default_name("classifier")
+
     def llm_reachable(self) -> bool | None:
         """True or False for the real LLM server. None in demo mode (nothing to reach)."""
         if self.is_demo:
@@ -105,8 +114,12 @@ def build(force_demo: bool | None = None) -> AppRuntime:
         asr_pipeline.run = _recording(demo.fake_pipeline_run)
     else:
         from llm_serving.client import LLMClient
+        from nlp_core import registry
         from tts_voice_agent.speech import Speaker
 
+        # Build the scam classifier now: a fine-tuned one (NLP_CLASSIFIER=phayathaibert) loads its
+        # model here, so a missing model stops startup instead of the first call.
+        registry.get("classifier")
         runtime = Runtime(llm=LLMClient(), speaker=Speaker())
         asr_pipeline.run = _recording(original)
     return AppRuntime("demo" if is_demo else "real", runtime, CallSessions(runtime), original)

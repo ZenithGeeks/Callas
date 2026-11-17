@@ -55,7 +55,7 @@ async def message_check(request: Request, text: str = Form("")) -> HTMLResponse:
     nlp = result["nlp"]
     html = render(
         "partials/message_result.html",
-        band=views.message_band(result["verdict"]),
+        band=views.message_band(result["verdict"], app_runtime.classifier_name),
         text=text,
         entities=nlp.entities,
         summary=nlp.summary,

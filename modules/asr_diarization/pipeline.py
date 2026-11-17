@@ -51,8 +51,9 @@ def run(
     audio_loader = audio_loader or backends.load_audio
 
     started = time.perf_counter()
-    audio = audio_loader(audio_path)
-    segments = diarizer(audio_path)
+    with backends.readable(audio_path) as path:  # .m4a and the like become a WAV first
+        audio = audio_loader(path)
+        segments = diarizer(path)
     if segments:
         turns = _turns_from_segments(audio, segments, backend)
     else:

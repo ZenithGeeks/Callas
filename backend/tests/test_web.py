@@ -80,6 +80,35 @@ def test_message_check_highlights_entities(client):
     assert "Why" in r.text and "Summary" in r.text
 
 
+def test_message_band_names_the_classifier_that_gave_the_label(client):
+    html = client.post("/message/check", data={"text": PHISHING}).text
+    assert "A scripted demo model gives this label." in html  # demo mode runs the demo classifier
+    assert "planned to replace" not in html
+
+
+@pytest.mark.parametrize(
+    ("name", "note"),
+    [
+        ("phayathaibert", "A fine-tuned PhayaThaiBERT model gives this label."),
+        ("llm", "The local LLM gives this label."),
+        ("mine", "The mine classifier gives this label."),
+    ],
+)
+def test_message_band_note_follows_the_registry_name(name, note):
+    from backend import views
+
+    verdict = {"level": "scam", "label_type": "lottery", "confidence": 0.9}
+    assert views.message_band(verdict, name).fact_note == note
+
+
+def test_classifier_name_follows_nlp_classifier_outside_demo_mode(client, monkeypatch):
+    app_runtime = client.app.state.app_runtime
+    assert app_runtime.classifier_name == "demo"
+    monkeypatch.setattr(app_runtime.runtime, "classifier", None)
+    monkeypatch.setenv("NLP_CLASSIFIER", "phayathaibert")
+    assert app_runtime.classifier_name == "phayathaibert"
+
+
 def test_message_check_safe(client):
     r = client.post("/message/check", data={"text": "พรุ่งนี้เจอกันที่ร้านกาแฟนะ"})
     assert r.status_code == 200 and 'data-kind="safe"' in r.text and "NORMAL" in r.text

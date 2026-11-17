@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     nlp_ner: str = ""
     nlp_classifier: str = ""
     nlp_summarizer: str = ""
+    # Folder with the notebook's trained models (NLP_CLASSIFIER=phayathaibert); empty: models/.
+    nlp_models_dir: str = ""
 
     # Local traces: "off" or "phoenix" (see callas_tracing). The endpoint must be on this machine.
     tracing: str = "off"

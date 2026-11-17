@@ -1,6 +1,8 @@
 import json
+from pathlib import Path
 
 import numpy as np
+import pytest
 
 from asr_diarization import pipeline
 from asr_diarization.diarize import Segment, label_for, relabel_and_merge
@@ -118,6 +120,56 @@ def test_json_output(tmp_path):
         "model_version": "9.9",
         "speaker_turns": [{"speaker": "A", "start": 0, "end": 1, "text": "สวัสดีค่ะ"}],
     }
+
+
+def write_m4a(path, seconds=1.5, rate=44_100):
+    """A real AAC .m4a with a 440 Hz tone, the format phones record."""
+    av = pytest.importorskip("av")
+    t = np.arange(int(seconds * rate)) / rate
+    samples = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    with av.open(str(path), "w", format="mp4") as out:
+        stream = out.add_stream("aac", rate=rate, layout="mono")
+        for start in range(0, len(samples), 1024):
+            frame = av.AudioFrame.from_ndarray(
+                samples[None, start : start + 1024], format="flt", layout="mono"
+            )
+            frame.sample_rate = rate
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode(None):
+            out.mux(packet)
+
+
+def test_m4a_is_decoded_to_a_wav_both_steps_read(tmp_path):
+    sf = pytest.importorskip("soundfile")
+    m4a = tmp_path / "Test 1.m4a"
+    write_m4a(m4a)
+    seen = []
+
+    def diarizer(path):
+        seen.append(path)
+        return [Segment("A", 0, 1)]
+
+    def audio_loader(path):
+        seen.append(path)
+        audio, rate = sf.read(path, dtype="float32")  # libsndfile alone cannot open the .m4a
+        assert rate == SR
+        return audio
+
+    backend = FakeBackend(["ฮัลโหล"])
+    t = pipeline.run(str(m4a), backend, diarizer, audio_loader)
+    assert [x.text for x in t.turns] == ["ฮัลโหล"]
+    assert len(set(seen)) == 1 and seen[0].endswith(".wav")
+    assert abs(backend.calls[0] - SR) < SR // 10  # the first second of 16 kHz audio
+    assert not Path(seen[0]).exists()  # the decoded copy is deleted afterwards
+    assert m4a.exists()  # the upload itself is left to its owner
+
+
+def test_other_formats_are_read_as_they_are():
+    seen = []
+    diarizer = lambda p: seen.append(p) or [Segment("A", 0, 1)]  # noqa: E731
+    pipeline.run("x.mp3", FakeBackend(["ครับ"]), diarizer, loader(1))
+    assert seen == ["x.mp3"]
 
 
 def test_main_writes_json(tmp_path, monkeypatch, capsys):
