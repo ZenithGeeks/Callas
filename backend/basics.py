@@ -31,5 +31,6 @@ async def healthz(request: Request) -> JSONResponse:
             "mode": app_runtime.mode,
             "llm_reachable": reachable,
             "live_call": live_ws.live_backend_name(app_runtime),
+            "models": dict(app_runtime.models()),
         }
     )

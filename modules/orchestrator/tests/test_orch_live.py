@@ -148,6 +148,7 @@ def test_exception_in_turn_gives_error_event_and_call_continues(fakes, monkeypat
     assert err["turn"] == 1 and err["message"].startswith("RuntimeError")
     assert "secret" not in err["message"]
     assert [e["turn"] for e in events if e["type"] == "reply"] == [2]
+    assert [e["turn"] for e in events if e["type"] == "done"] == [1, 2]  # a failed turn too
 
 
 def test_no_speaker_gives_reply_with_null_audio(fakes):
@@ -184,3 +185,16 @@ def test_turns_close_together_are_merged_into_one_reply(fakes):
     analyze = next(e for e in events if e["type"] == "node" and e["node"] == "analyze")
     assert analyze["data"]["transcript"] == "Caller: hello again"
     assert [e["turn"] for e in events if e["type"] == "verdict"] == [1, 2]  # no row left pending
+
+
+def test_each_turn_ends_with_done_after_its_reply(fakes):
+    batches = [[turn_ev(f"hello {i}", speaker=f"S{i}")] for i in range(3)]
+    call, _, _ = make(batches)
+    for _ in batches:
+        call.feed(b"x")
+    events = drain_until_ended(call)
+    done = [e for e in events if e["type"] == "done"]
+    assert [e["turn"] for e in done] == [1, 2, 3]
+    for e in done:
+        reply = next(r for r in events if r["type"] == "reply" and r["turn"] == e["turn"])
+        assert events.index(reply) < events.index(e)

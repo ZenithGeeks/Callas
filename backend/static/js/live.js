@@ -1,6 +1,8 @@
 /* Live call page.
  *
  * Browser microphone -> AudioWorklet (16 kHz PCM16, about 100 ms frames) -> WebSocket /ws/live.
+ * "Play test call with TTS" feeds the worklet the script's caller lines, spoken by the server's
+ * TTS (GET /live/script/{call}/{line}.wav), instead of the microphone, one line per turn.
  * The server answers with JSON events (ready, partial, turn, node, verdict, reply, error, ended)
  * and this file draws them into the same markup the server pages use (the <template> tags in
  * live.html). Decisions are the server's; this file only shows them.
@@ -38,6 +40,8 @@
     end: $('[data-act="end"]'),
     pause: $('[data-act="pause"]'),
     script: $('[data-act="script"]'), // real mode only
+    tts: $('[data-act="tts"]'), // real mode with a test call only
+    models: $("[data-models]"), // real mode with a fine-tuned classifier only
     afterEsc: $("[data-after-escalation]"),
     memory: $("[data-memory]"),
     stages: $("[data-stages]"),
@@ -84,6 +88,10 @@
       bandKind: null,
       meterLevels: [],
       replyUrl: null,
+      tts: false, // the TTS reads the script instead of the microphone
+      ttsLine: 0, // the script line the TTS is on
+      ttsGap: false, // between two TTS lines: the server is paused so the caller's turn closes
+      doneUpTo: 0, // the last turn the server finished checking
     };
   }
   S = freshState();
@@ -351,9 +359,11 @@
   // The read-aloud script: lines already read fade, the next one is marked. Every turn the
   // microphone hears is the caller, so the caller's turn count is the number of lines read.
   function markScript() {
-    var read = S.turns.filter(function (t) {
-      return t.speaker !== "A";
-    }).length;
+    var read = S.tts
+      ? S.ttsLine
+      : S.turns.filter(function (t) {
+          return t.speaker !== "A";
+        }).length;
     var lines = document.querySelectorAll("[data-script-lines] li");
     lines.forEach(function (li, i) {
       li.toggleAttribute("data-read", i < read);
@@ -541,7 +551,7 @@
 
   // ---- pause / resume (mic button and reply playback) ------------------------------------
   function syncPause() {
-    var want = S.userPaused || S.replyPlaying;
+    var want = S.userPaused || S.replyPlaying || S.ttsGap;
     if (want === S.serverPaused || !S.ws || S.ws.readyState !== WebSocket.OPEN) return;
     S.serverPaused = want;
     S.ws.send(JSON.stringify({ type: want ? "pause" : "resume" }));
@@ -549,9 +559,20 @@
     updateStatus();
   }
   function updateStatus() {
-    var label = !S.listening ? "Not listening" : S.userPaused ? "Mic paused" : S.replyPlaying ? "Callas is speaking" : "Listening";
+    var label = !S.listening
+      ? "Not listening"
+      : S.userPaused
+        ? "Mic paused"
+        : S.replyPlaying
+          ? "Callas is speaking"
+          : S.ttsGap
+            ? "Callas is checking"
+            : S.tts
+              ? "TTS caller speaking"
+              : "Listening";
     el.status.textContent = label;
-    el.slip.setAttribute("data-listening", S.listening && !S.userPaused && !S.replyPlaying ? "true" : "false");
+    var hearing = S.listening && !S.userPaused && !S.replyPlaying && !S.ttsGap;
+    el.slip.setAttribute("data-listening", hearing ? "true" : "false");
   }
 
   // ---- WebSocket events -----------------------------------------------------------------
@@ -577,6 +598,9 @@
       case "error":
         showError(ev.message || "Something went wrong during the call.");
         break;
+      case "done":
+        S.doneUpTo = Math.max(S.doneUpTo, ev.turn);
+        break;
       case "ended":
         finish(true);
         break;
@@ -596,36 +620,50 @@
   function setControls(running) {
     el.start.hidden = running;
     el.end.hidden = !running;
-    el.pause.hidden = !running;
+    el.pause.hidden = !running || S.tts;
+    if (el.tts) el.tts.hidden = running;
     el.pause.textContent = "Pause mic";
     // A new script mid-call would no longer match the lines already spoken.
     if (el.script) el.script.disabled = running;
+    // The models are loaded when the call starts; switching mid-call would not apply.
+    if (el.models) el.models.disabled = running;
   }
 
-  async function start() {
+  async function start(useTts) {
     showError("");
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.AudioWorkletNode || !window.WebSocket) {
+    var needMic = !useTts;
+    if ((needMic && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) || !window.AudioWorkletNode || !window.WebSocket) {
       showError("This browser cannot record audio here. Use a current Chrome, Edge, Firefox or Safari over https or localhost.");
       return;
     }
-    el.start.disabled = true;
+    setStartDisabled(true);
     resetCall();
-    var stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-      });
-    } catch (err) {
-      el.start.disabled = false;
-      showError(micMessage(err));
-      return;
+    S.tts = useTts;
+    var stream = null;
+    if (needMic) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        });
+      } catch (err) {
+        setStartDisabled(false);
+        showError(micMessage(err));
+        return;
+      }
     }
     S.stream = stream;
     try {
       var Ctx = window.AudioContext || window.webkitAudioContext;
       S.ctx = new Ctx();
       await S.ctx.audioWorklet.addModule(root.dataset.worklet || "/static/js/pcm-worklet.js");
-      S.source = S.ctx.createMediaStreamSource(stream);
+      if (stream) {
+        S.source = S.ctx.createMediaStreamSource(stream);
+      } else {
+        // Silence between the lines keeps frames flowing, so each line's last frame is sent.
+        S.source = S.ctx.createConstantSource();
+        S.source.offset.value = 0;
+        S.source.start();
+      }
       S.node = new AudioWorkletNode(S.ctx, "pcm16-downsampler", {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -639,7 +677,7 @@
       S.sink.connect(S.ctx.destination);
     } catch (err) {
       cleanupAudio();
-      el.start.disabled = false;
+      setStartDisabled(false);
       showError("The audio engine could not start in this browser. Try Chrome or Edge.");
       return;
     }
@@ -652,6 +690,9 @@
       }
     };
     var url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/live";
+    if (el.models) {
+      url += "?" + new URLSearchParams({ gate: $("#model-gate").value, type: $("#model-type").value });
+    }
     var ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     S.ws = ws;
@@ -662,9 +703,10 @@
         el.timer.textContent = fmt((performance.now() - S.startedAt) / 1000);
       }, 250);
       setControls(true);
-      el.start.disabled = false;
+      setStartDisabled(false);
       stagesForListening();
       updateStatus();
+      if (S.tts) playTestCall();
     };
     ws.onmessage = function (m) {
       try {
@@ -687,10 +729,107 @@
     };
   }
 
+  function setStartDisabled(disabled) {
+    el.start.disabled = disabled;
+    if (el.tts) el.tts.disabled = disabled;
+  }
+
+  // ---- TTS caller -------------------------------------------------------------------------
+  // Each line: play it, pause the server (which closes the caller's turn), wait until the
+  // server has checked that turn and Callas has finished speaking, then go on.
+  async function playTestCall() {
+    var call = S;
+    var list = document.querySelector("[data-script-lines]");
+    var count = list ? list.children.length : 0;
+    var alive = function () {
+      return S === call && call.listening;
+    };
+    var next = count ? fetchLine(list.dataset.callId, 0) : null;
+    for (var i = 0; i < count; i++) {
+      var buffer;
+      try {
+        buffer = await next;
+      } catch (err) {
+        if (alive()) showError("The TTS could not read line " + (i + 1) + " of the script. Try another test call.");
+        break;
+      }
+      if (i + 1 < count) next = fetchLine(list.dataset.callId, i + 1);
+      await waitFor(alive, function () {
+        return !call.replyPlaying;
+      });
+      if (!alive()) return;
+      call.ttsLine = i;
+      markScript();
+      call.ttsGap = false;
+      syncPause();
+      updateStatus();
+      await playBuffer(buffer);
+      await waitFor(alive, null, 400); // the line's last frames reach the server first
+      if (!alive()) return;
+      var turnsBefore = call.turns.length;
+      call.ttsGap = true;
+      syncPause();
+      // No turn after 5 s: the speech recogniser heard nothing in this line.
+      await waitFor(alive, function () {
+        return call.turns.length > turnsBefore;
+      }, 5000);
+      await waitFor(alive, function () {
+        return call.doneUpTo >= call.turns.length;
+      }, 60000);
+    }
+    if (!alive()) return;
+    call.ttsLine = count;
+    markScript();
+    await waitFor(alive, function () {
+      return !call.replyPlaying;
+    });
+    if (alive()) endCall();
+  }
+  function fetchLine(callId, i) {
+    var ctx = S.ctx;
+    var p = fetch("/live/script/" + encodeURIComponent(callId) + "/" + i + ".wav")
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.arrayBuffer();
+      })
+      .then(function (bytes) {
+        return ctx.decodeAudioData(bytes);
+      });
+    p.catch(function () {}); // reported when the loop reaches this line
+    return p;
+  }
+  function playBuffer(buffer) {
+    return new Promise(function (resolve) {
+      var line = S.ctx.createBufferSource();
+      line.buffer = buffer;
+      line.connect(S.node); // to the server
+      line.connect(S.ctx.destination); // and to the speakers, so you hear the caller
+      line.onended = function () {
+        line.disconnect();
+        resolve();
+      };
+      line.start();
+    });
+  }
+  // Resolves once done() is true (or after `ms`, when given), or the call is over.
+  function waitFor(alive, done, ms) {
+    var waited = 0;
+    return new Promise(function (resolve) {
+      var id = window.setInterval(function () {
+        waited += 100;
+        if (!alive() || (done && done()) || (ms && waited >= ms)) {
+          window.clearInterval(id);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+
   function cleanupAudio() {
     try {
       if (S.node) S.node.port.onmessage = null;
       if (S.source) S.source.disconnect();
+      if (S.source && S.source.stop) S.source.stop();
       if (S.node) S.node.disconnect();
     } catch (e) {
       /* already disconnected */
@@ -723,7 +862,7 @@
       if (live) setBar(live.closest("[data-turn]"), "idle");
     }
     setControls(false);
-    el.start.disabled = false;
+    setStartDisabled(false);
     el.start.textContent = "Start a new call";
     el.memory.textContent = clean ? "The call has ended. Its memory was deleted." : "The call stopped. Its memory was deleted.";
     flatMeter();
@@ -769,7 +908,13 @@
     return d.firstElementChild;
   }
 
-  el.start.addEventListener("click", start);
+  el.start.addEventListener("click", function () {
+    start(false);
+  });
+  if (el.tts)
+    el.tts.addEventListener("click", function () {
+      start(true);
+    });
   el.end.addEventListener("click", endCall);
   el.pause.addEventListener("click", function () {
     S.userPaused = !S.userPaused;

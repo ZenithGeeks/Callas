@@ -103,3 +103,15 @@ def test_analyze_with_tools_composes():
     r = registry.analyze_with_tools("โทร 081-234-5678", "r", "c", "s")
     assert (r.label_scam, r.label_type, r.confidence, r.summary) == (True, "romance", 1.0, "sum")
     assert [e.label for e in r.entities] == ["PHONE"]
+
+
+def test_a_failed_summary_still_gives_the_scam_label():
+    class DownSummarizer:
+        def summarize(self, text):
+            raise PermissionError("model turned off")
+
+    registry.register("ner", "r", RulesNER)
+    registry.register("classifier", "c", lambda: LLMClassifier(FakeLLM({"classify": "romance"})))
+    registry.register("summarizer", "down", DownSummarizer)
+    r = registry.analyze_with_tools("x", "r", "c", "down")
+    assert (r.label_scam, r.label_type, r.summary) == (True, "romance", "")

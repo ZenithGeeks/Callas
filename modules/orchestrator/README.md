@@ -84,7 +84,7 @@ The three parts are protocols in `nlp_core/interfaces.py`. The registry is `nlp_
 | `classifier` | `predict(text) -> (label_scam, label_type, confidence)` | `NLP_CLASSIFIER` | `llm` |
 | `summarizer` | `summarize(text) -> str` | `NLP_SUMMARIZER` | `llm` |
 
-Today only these built-in names exist. The fine-tuned PhayaThaiBERT models from [`notebooks/README.md`](../../notebooks/README.md) (`models/phayathaibert-scam-gate` and `-scam-type`, not in git) are not registered. Only `scripts/eval_autocorrect.py` loads them. Steps to connect one:
+The fine-tuned classifiers from [`notebooks/README.md`](../../notebooks/README.md) (`models/<encoder>-scam-gate` and `-scam-type`, not in git) are registered too: `best`, `phayathaibert`, `wangchanberta`, `bge_m3` and every `<gate>+<type>` pair (`nlp_core/finetuned.py`). Steps to connect another model:
 
 1. Write a class with the method above. For a classifier, `label_type` is one of `SCAM_TYPES` or `None`. If the model is unsure, return `(True, None, 0.0)`. Never return "safe" when unsure.
 2. Register it, and make sure that module is imported before the first call (for example from `nlp_core/__init__.py`):
@@ -92,9 +92,9 @@ Today only these built-in names exist. The fine-tuned PhayaThaiBERT models from 
    ```python
    from nlp_core.registry import register
 
-   register("classifier", "phayathaibert", lambda: MyClassifier("models/phayathaibert-scam-gate"))
+   register("classifier", "mymodel", lambda: MyClassifier("models/mymodel"))
    ```
-3. Set `NLP_CLASSIFIER=phayathaibert` in `.env`. A real environment variable wins over `.env`. If both are empty the built-in default is used (`registry.default_name`).
+3. Set `NLP_CLASSIFIER=mymodel` in `.env`. A real environment variable wins over `.env`. If both are empty the built-in default is used (`registry.default_name`).
 4. Run `python -m pytest modules -q`. An unknown name raises a `KeyError` that lists the registered names.
 
 The tools in `tools.py` and the graphs pick the new model up through the registry. Nothing else changes.

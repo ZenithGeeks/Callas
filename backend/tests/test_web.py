@@ -243,13 +243,13 @@ def test_ws_live_builds_the_call_off_the_event_loop(client, monkeypatch):
     seen = []
     real = live_ws.make_live_call
 
-    def recording(app_runtime):
+    def recording(app_runtime, classifier):
         try:  # inside the event loop's thread a loop is running; in a worker thread none is
             asyncio.get_running_loop()
             seen.append(True)
         except RuntimeError:
             seen.append(False)
-        return real(app_runtime)
+        return real(app_runtime, classifier)
 
     monkeypatch.setattr(live_ws, "make_live_call", recording)
     with client.websocket_connect("/ws/live") as ws:
@@ -298,3 +298,11 @@ def test_the_app_imports_without_pythonpath():
         text=True,
     )
     assert result.returncode == 0, result.stderr[-500:]
+
+
+def test_live_model_choice_accepts_only_known_encoders():
+    from backend.live import chosen_classifier
+
+    assert chosen_classifier("bge_m3", "wangchanberta") == "bge_m3+wangchanberta"
+    assert chosen_classifier("bge_m3", "llm") is None
+    assert chosen_classifier(None, None) is None

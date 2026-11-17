@@ -35,12 +35,21 @@ class TestCall:
 
 def random_test_call() -> TestCall | None:
     """A random call from the test split, or None when test.csv or its calls are missing."""
+    calls = _current_calls()
+    return random.choice(calls) if calls else None
+
+
+def find_test_call(call_id: str) -> TestCall | None:
+    """The test-split call with this id, or None."""
+    return next((call for call in _current_calls() if call.call_id == call_id), None)
+
+
+def _current_calls() -> tuple[TestCall, ...]:
     if not TEST_SPLIT.exists():
-        return None
+        return ()
     jsonl = tuple(sorted(DATASET_DIR.glob("*.jsonl")))
     mtimes = tuple(path.stat().st_mtime_ns for path in (TEST_SPLIT, *jsonl))
-    calls = _test_calls(jsonl, mtimes)
-    return random.choice(calls) if calls else None
+    return _test_calls(jsonl, mtimes)
 
 
 @lru_cache(maxsize=1)

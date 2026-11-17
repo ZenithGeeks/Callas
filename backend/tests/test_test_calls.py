@@ -1,8 +1,11 @@
+import io
 import json
 
+import numpy as np
 import pytest
+import soundfile as sf
 
-from backend import test_calls
+from backend import live, test_calls
 
 
 def call(call_id: str, label_type: str | None) -> dict:
@@ -59,3 +62,38 @@ def test_script_route_shows_a_test_call(split, client):
     assert r.status_code == 200
     assert "Answer key" in r.text
     assert "romance_2" not in r.text
+
+
+def test_find_test_call_only_finds_test_split_calls(split):
+    assert test_calls.find_test_call("romance_1").caller_lines == ("caller line of romance_1",)
+    assert test_calls.find_test_call("romance_2") is None
+
+
+def test_script_line_route_speaks_a_test_call_line(split, client):
+    r = client.get("/live/script/romance_1/0.wav")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "audio/wav"
+    assert r.content.startswith(b"RIFF")
+
+
+@pytest.mark.parametrize("path", ["/live/script/romance_1/1.wav", "/live/script/romance_2/0.wav"])
+def test_script_line_route_refuses_other_lines_and_calls(split, client, path):
+    assert client.get(path).status_code == 404
+
+
+def test_long_lines_are_split_at_spaces_under_the_limit():
+    assert live.tts_chunks("aaa bb cc dddd", limit=6) == ["aaa bb", "cc", "dddd"]
+    assert live.tts_chunks("toolongword ok", limit=4) == ["toolongword", "ok"]
+
+
+def test_a_long_line_is_spoken_in_chunks_and_joined(monkeypatch):
+    class Speaker:
+        def synthesize_bytes(self, text, check_leaks=True):
+            assert not check_leaks
+            out = io.BytesIO()
+            sf.write(out, np.ones(len(text), dtype="int16"), 16000, format="WAV")
+            return out.getvalue()
+
+    monkeypatch.setattr(live, "TTS_CHUNK_CHARS", 5)
+    audio, rate = sf.read(io.BytesIO(live.speak_line(Speaker(), "abcd efgh ij")), dtype="int16")
+    assert rate == 16000 and len(audio) == len("abcd") + len("efgh") + len("ij")
