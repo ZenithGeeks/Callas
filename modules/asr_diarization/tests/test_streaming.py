@@ -236,3 +236,18 @@ def test_unknown_streaming_like_name_gets_a_clear_message(monkeypatch):
             streaming._get_model()
     finally:
         callas_settings.get_settings.cache_clear()
+
+
+def test_speech_right_after_a_pause_still_gets_the_engine_lead_in():
+    fed = []
+
+    class Recorder(FakeEngine):
+        def feed_chunk(self, chunk):
+            fed.append(float(np.abs(chunk).max()))
+            return super().feed_chunk(chunk)
+
+    tr = LiveTranscriber(Recorder)
+    tr.flush()  # what pause() does: the pre-roll is gone
+    run(tr, (1.0, True))
+    lead_in = streaming.ENGINE_LEAD_IN_FRAMES
+    assert fed[:lead_in] == [0.0] * lead_in and fed[lead_in] > 0
