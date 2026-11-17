@@ -42,3 +42,9 @@ eval/results/asr_cache/
 dataset/*.jsonl
 # The balanced split the scam classifier notebook writes (part A), built from dataset/*.jsonl
 data/processed_balanced/
+
+# Raw calls written by Claude Sonnet; scripts/sonnet_calls_to_jsonl.py turns them into dataset/sonnet_*.jsonl
+dataset/sonnet_pilot/
+
+# Charts and tables the classifier notebook writes, one folder per step; shared on Google Drive
+notebooks/figures/

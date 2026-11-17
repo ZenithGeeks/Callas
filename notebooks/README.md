@@ -5,7 +5,7 @@
 - the gate: is this call a scam or not
 - the type: which scam type it is (only for scam calls)
 
-Each model is trained two ways: a simple baseline (TF-IDF + logistic regression) and a fine-tuned PhayaThaiBERT (`clicknext/phayathaibert`). The notebook scores both on the same test set so you can compare them.
+Each model is trained four ways: a simple baseline (TF-IDF + logistic regression) and three fine-tuned encoders, PhayaThaiBERT (`clicknext/phayathaibert`), BGE-M3 (`BAAI/bge-m3`) and WangchanBERTa (`airesearch/wangchanberta-base-att-spm-uncased`). The notebook scores all of them on the same test set so you can compare them. The live app uses PhayaThaiBERT.
 
 ## Setup
 
@@ -35,6 +35,7 @@ Install torch first. The normal Windows wheel has no GPU support.
 | `models/phayathaibert-scam-gate/` | Saved gate model. Not in git. |
 | `models/phayathaibert-scam-type/` | Saved type model. Not in git. |
 | `models/scam_classifier_metrics.json` | All scores from the run. Not in git. |
+| `notebooks/figures/<step>/` | Every chart and table as a png, one folder per step (`models/` for the training curves and per-model scores). Not in git. |
 
 All csv files are UTF-8 with BOM, so Thai text looks right in Excel. The columns `speaker_turns` and `entities` hold JSON text because a csv cell cannot hold a list.
 
@@ -58,6 +59,8 @@ Part A prepares the data. Part B trains and scores.
 | 9. Tokenization | Loads the PhayaThaiBERT tokenizer and checks text length. |
 | 10. Gate model | Fine-tunes PhayaThaiBERT for scam / not scam. |
 | 11. Type model | Fine-tunes PhayaThaiBERT for the scam type. |
+| 11b. BGE-M3 | Fine-tunes BGE-M3 for both tasks, for comparison. |
+| 11c. WangchanBERTa | Fine-tunes WangchanBERTa for both tasks, for comparison. Rows are lowercased: its vocabulary is uncased. |
 | 12. Cross-validation | Trains and scores 5 times on different folds. |
 | 13. Evaluation | Final scores on the test set. |
 | 14. Inference | Loads the saved models and tries two example calls. |
@@ -68,14 +71,11 @@ Train, valid and test have different jobs. The model learns from train. Valid pi
 
 | Setting | Where | What it does |
 |---------|-------|--------------|
-| `DATA_FILE`, `COLUMNS`, `ROLE_TAGS` | Input format cell | Change these when the file name, column names or speaker tags change. |
-| `TYPE_MAP` | Step 4 | Which dataset type goes to which spec type. |
-| `MIN_TYPE_SAMPLES`, `MIN_TYPE_EVAL_SAMPLES` | First cell | How many samples a type needs before the type model trains on it. |
-| `REBUILD_SPLIT` | First cell | `True` makes a new split. `False` keeps the files on disk. |
-| `KEEP_ORIGINAL_TEST` | First cell | With generated data, `True` keeps the hand-written test set. See "Generated data". |
-| `GENERATED_FILE` | Input format cell | The generated csv. Set it to `None` to train on hand-written data only. |
+| `SKIP_TYPES` | Step 4b | Scam types left out of training. |
+| `MAX_TOKENS` | Step 6b | Longest row in tokens; older lines are cut to fit. |
+| `RETRAIN` | Step 10 | `False` loads the saved models instead of training them. |
 | `RUN_BERT_CV`, `N_FOLDS` | Step 12 | Turn PhayaThaiBERT cross-validation on or off. |
-| `GATE_MIN_CONFIDENCE`, `TYPE_MIN_CONFIDENCE` | Step 14 and start of part B | Below these the model answers "unsure". |
+| `GATE_MIN_CONFIDENCE`, `TYPE_MIN_CONFIDENCE` | Step 14 | Below these the model answers "unsure". |
 
 ## Generated data
 
@@ -117,6 +117,6 @@ What this says:
 
 ## When the data changes
 
-- More rows, same format: replace the csv, keep `REBUILD_SPLIT = True`, run all cells. Add new type names to `TYPE_MAP`.
+- More rows, same format: add `dataset/*.jsonl` files and run all cells. Every scam call must name one of the 5 spec types; another name stops step 4.
 - New format: edit the Input format cell. If speakers are marked in a new way, rewrite `parse_dialogue` in that cell.
 - A new split changes which calls are in test. Old scores and new scores cannot be compared, so run every model again.
