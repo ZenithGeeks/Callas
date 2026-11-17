@@ -19,6 +19,10 @@ node_modules/
 # (data/processed/{train,valid,test}.csv is committed so the split stays fixed)
 data/raw/
 data/synthetic/
+# Files scraping/scraping.ipynb writes next to the committed antifakenews_scam.csv
+scraping/data/antifakenews_scam_test.csv
+scraping/data/call_and_convertible.csv
+scraping/data/llm_*_checkpoint.jsonl
 # VachanaTTS2 voice models (about 240 MB), downloaded into ./voices of the folder you run from
 voices/
 *.wav
