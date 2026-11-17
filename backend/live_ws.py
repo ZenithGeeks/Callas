@@ -37,11 +37,21 @@ def live_backend_name(app_runtime) -> str:
     return "real"
 
 
-def make_live_call(app_runtime) -> Any:
-    """The live call for one WebSocket: the real LiveCall, or the scripted demo."""
+def make_live_call(app_runtime, classifier: str | None = None) -> Any:
+    """The live call for one WebSocket: the real LiveCall, or the scripted demo.
+
+    `classifier` is a registry name picked on the page; None keeps the one in use.
+    """
     if live_backend_name(app_runtime) == "real":
+        from nlp_core import registry
         from orchestrator.live import LiveCall
 
+        if classifier:
+            registry.get("classifier", classifier)  # load it now, so a bad model fails here
+            # shortcut: one Runtime for every call, so the last call started picks the models
+            # for all calls in progress; give each LiveCall its own Runtime if two people share
+            # the server.
+            app_runtime.runtime.classifier = classifier
         return LiveCall(app_runtime.sessions)
     return DemoLiveCall(speed=float(os.environ.get("CALLAS_LIVE_SPEED", "1")))
 

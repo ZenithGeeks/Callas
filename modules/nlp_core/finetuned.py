@@ -1,8 +1,9 @@
-"""The fine-tuned PhayaThaiBERT scam classifier, registered as "phayathaibert".
+"""The fine-tuned scam classifiers from notebooks/scam_classifier_phayathaibert.ipynb.
 
-Set NLP_CLASSIFIER=phayathaibert to use it. It loads the gate and type models that
-notebooks/scam_classifier_phayathaibert.ipynb saves in models/, and rewrites the call memory
-text into the rows the models learned from, as each folder's preprocessing.json describes.
+The notebook saves a gate and a type model per encoder in models/<encoder>-scam-gate and
+models/<encoder>-scam-type. Any gate can go with any type (registry.py registers every pair).
+Each model reads the call memory text rewritten into the rows it learned from, as its own
+preprocessing.json describes.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Collection
+from functools import cache
 from pathlib import Path
 
 import torch
@@ -19,8 +21,6 @@ from .entities import extract_entities
 from .text import normalize_text
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
-GATE_DIR = MODELS_DIR / "phayathaibert-scam-gate"
-TYPE_DIR = MODELS_DIR / "phayathaibert-scam-type"
 
 # The notebook's TYPE_MIN_CONFIDENCE (first cell of part B) and GATE_MIN_CONFIDENCE (step 14).
 # Retune them there, then copy them here.
@@ -35,51 +35,72 @@ PREPROCESSING_KEYS = ("row_text", "speaker_letters", "masked_labels", "space_tok
 _LINE = re.compile(r"^(\S+): (.*)$")
 
 
-class PhayaThaiBertClassifier:
-    """Scam gate and scam type models, fed the same text the notebook trained them on."""
+class FineTunedModel:
+    """One saved model with its own tokenizer and the row format it was trained on."""
 
-    def __init__(self, gate_dir: Path = GATE_DIR, type_dir: Path = TYPE_DIR) -> None:
-        self.pre = read_preprocessing(gate_dir)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(gate_dir)
-        self.gate = self._load(gate_dir)
-        # The notebook skips the type model when fewer than 2 types have enough data.
-        self.type = None
-        if type_dir.exists():
-            if read_preprocessing(type_dir) != self.pre:
-                raise ValueError(f"{type_dir} and {gate_dir} were saved by different notebook runs")
-            self.type = self._load(type_dir)
-        # The first forward pass sets up CUDA (about 5 s); do it here, not on a live turn.
-        self.predict("Caller: สวัสดีครับ")
-
-    def predict(self, text: str) -> tuple[bool, str | None, float]:
-        """Return (label_scam, label_type, confidence); (True, None, 0.0) when unsure."""
-        row = model_text(text, self.pre, self._count_tokens)
-        gate = self._probabilities(self.gate, row)
-        confidence = float(gate.max())
-        if confidence < GATE_MIN_CONFIDENCE:
-            return True, None, 0.0
-        is_scam = self.gate.config.id2label[int(gate.argmax())] == "scam"
-        label_type = None
-        if is_scam and self.type is not None:
-            types = self._probabilities(self.type, row)
-            if float(types.max()) >= TYPE_MIN_CONFIDENCE:
-                label_type = self.type.config.id2label[int(types.argmax())]
-        return is_scam, label_type, confidence
-
-    def _load(self, model_dir: Path):
+    def __init__(self, model_dir: Path, device: str) -> None:
+        self.pre = read_preprocessing(model_dir)
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
         model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-        return model.to(self.device).eval()
+        self.model = model.to(device).eval()
 
-    def _count_tokens(self, text: str) -> int:
-        return len(self.tokenizer(text)["input_ids"])
+    def top_label(self, text: str) -> tuple[str, float]:
+        """The most likely label for the call memory text, and its probability."""
+        row = model_text(text, self.pre, self._count_tokens)
+        probabilities = self._probabilities(row)
+        best = int(probabilities.argmax())
+        return self.model.config.id2label[best], float(probabilities[best])
+
+    def _count_tokens(self, row: str) -> int:
+        return len(self.tokenizer(row)["input_ids"])
 
     @torch.inference_mode()
-    def _probabilities(self, model, row: str) -> torch.Tensor:
+    def _probabilities(self, row: str) -> torch.Tensor:
         inputs = self.tokenizer(
             row, truncation=True, max_length=self.pre["max_length"], return_tensors="pt"
         ).to(self.device)
-        return model(**inputs).logits.float().softmax(dim=-1)[0].cpu()
+        return self.model(**inputs).logits.float().softmax(dim=-1)[0].cpu()
+
+
+class FineTunedClassifier:
+    """A scam gate model and a scam type model, each fed the text it was trained on."""
+
+    def __init__(self, gate_dir: Path, type_dir: Path) -> None:
+        self.gate = _load(gate_dir)
+        # The notebook skips the type model when fewer than 2 types have enough data.
+        self.type = _load(type_dir) if type_dir.exists() else None
+        # The first forward pass sets up CUDA (about 5 s); do it here, not on a live turn.
+        self.predict("Caller: สวัสดีครับ")
+
+    @classmethod
+    def from_encoders(cls, gate: str, type_: str) -> FineTunedClassifier:
+        """The saved gate model of encoder `gate` and type model of encoder `type_`."""
+        return cls(model_dir(gate, "gate"), model_dir(type_, "type"))
+
+    def predict(self, text: str) -> tuple[bool, str | None, float]:
+        """Return (label_scam, label_type, confidence); (True, None, 0.0) when unsure."""
+        gate_label, confidence = self.gate.top_label(text)
+        if confidence < GATE_MIN_CONFIDENCE:
+            return True, None, 0.0
+        is_scam = gate_label == "scam"
+        label_type = None
+        if is_scam and self.type is not None:
+            type_label, type_confidence = self.type.top_label(text)
+            if type_confidence >= TYPE_MIN_CONFIDENCE:
+                label_type = type_label
+        return is_scam, label_type, confidence
+
+
+def model_dir(encoder: str, task: str) -> Path:
+    """models/<encoder>-scam-<task>, the folder name the notebook's fine_tune() saves to."""
+    return MODELS_DIR / f"{encoder.replace('_', '-')}-scam-{task}"
+
+
+@cache
+def _load(path: Path) -> FineTunedModel:
+    """Each model loads once, however many gate and type pairs share it."""
+    return FineTunedModel(path, "cuda" if torch.cuda.is_available() else "cpu")
 
 
 def read_preprocessing(model_dir: Path) -> dict:
@@ -116,10 +137,10 @@ def model_text(text: str, pre: dict, count_tokens: Callable[[str], int]) -> str:
             continue
         letter = pre["speaker_letters"][role] if role else speaker
         lines.append(f"{letter}: {mask(normalize_text(words), pre['masked_labels'])}")
-    row = _spaced("\n".join(lines), pre["space_token"])
+    row = _encoded("\n".join(lines), pre)
     while len(lines) > 1 and count_tokens(row) > pre["max_length"]:
         lines.pop(0)
-        row = _spaced("\n".join(lines), pre["space_token"])
+        row = _encoded("\n".join(lines), pre)
     return row
 
 
@@ -131,7 +152,11 @@ def mask(text: str, labels: Collection[str]) -> str:
     return text
 
 
-def _spaced(text: str, space_token: str | None) -> str:
-    """The notebook's to_model_text: one space for every run of whitespace, then the token."""
+def _encoded(text: str, pre: dict) -> str:
+    """The notebook's Backbone.encode: one space per whitespace run, lowercased for an uncased
+    vocabulary, then each space written as the space token."""
     text = " ".join(text.split())
-    return text.replace(" ", space_token) if space_token else text
+    # Models saved before the lowercase key existed were all cased.
+    if pre.get("lowercase", False):
+        text = text.lower()
+    return text.replace(" ", pre["space_token"]) if pre["space_token"] else text

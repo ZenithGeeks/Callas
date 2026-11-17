@@ -34,6 +34,11 @@ VAD_RMS_THRESHOLD = 0.015
 FRAME_S = 0.02  # VAD frame length
 PREROLL_S = 0.3  # silence kept before speech starts so the first syllable is not clipped
 PREROLL_FRAMES = int(PREROLL_S / FRAME_S)
+# Silence the engine gets before a turn's first speech, the pre-roll included. Typhoon Nemotron
+# drops the first syllable of speech that starts within its first chunks after reset(): with no
+# lead-in it heard "ฮัลโหล" as "โหล" and lost "เป็น" and "แต่"; 0.5 s brought them back. A turn
+# right after resume() has no pre-roll at all, and a TTS line has no silence of its own.
+ENGINE_LEAD_IN_FRAMES = int(0.5 / FRAME_S)
 
 # Every pythaiasr model that can stream is a Typhoon FastConformer or a Typhoon Nemotron, and all
 # their names contain one of these. Checking the name first means a Whisper or Wav2Vec2 setting
@@ -148,6 +153,9 @@ class LiveTranscriber:
         """Start a turn at the first speech frame, replaying the kept silence into the engine."""
         self._turn_open = True
         self._turn_start = max(0.0, frame_start - len(self._preroll) * FRAME_S)
+        silence = np.zeros(self._frame_len, dtype=np.float32)
+        for _ in range(ENGINE_LEAD_IN_FRAMES - len(self._preroll)):
+            self._feed_engine(silence)
         for frame in self._preroll:
             self._feed_engine(frame)
         self._preroll.clear()

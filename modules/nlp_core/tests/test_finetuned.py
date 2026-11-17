@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from nlp_core.phayathaibert import mask, model_text, read_preprocessing
+from nlp_core import registry
+from nlp_core.finetuned import mask, model_text, read_preprocessing
 
 # What the current notebook writes to preprocessing.json.
 PRE = {
@@ -45,6 +46,21 @@ def test_oldest_lines_are_cut_and_the_newest_stays():
     text = "Caller: หนึ่ง สอง สาม\nagent: สี่ ห้า\nCaller: หก"
     pre = {**PRE, "max_length": 5}
     assert model_text(text, pre, word_count) == "A:<_>สี่<_>ห้า<_>B:<_>หก"
+
+
+def test_an_uncased_model_gets_a_lowercased_row():
+    pre = {**PRE, "lowercase": True}
+    row = model_text("Caller: โทรกลับเบอร์ 081-234-5678 ทาง LINE", pre, word_count)
+    assert row == "b:<_>โทรกลับเบอร์<_>[phone]<_>ทาง<_>line"
+
+
+def test_fine_tuned_names_give_a_gate_and_a_type_encoder():
+    assert registry.fine_tuned_pair("best") == registry.BEST_FINE_TUNED
+    assert registry.fine_tuned_pair("bge_m3") == ("bge_m3", "bge_m3")
+    assert registry.fine_tuned_pair("wangchanberta+bge_m3") == ("wangchanberta", "bge_m3")
+    assert registry.fine_tuned_pair("llm") is None
+    assert registry.fine_tuned_pair("bge_m3+llm") is None
+    assert "bge_m3+phayathaibert" in registry.available("classifier")
 
 
 def test_a_newest_line_over_the_limit_is_kept():

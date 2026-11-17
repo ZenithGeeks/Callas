@@ -85,6 +85,42 @@ class AppRuntime:
             self._agent = agents.build_analyst_agent()  # not cached if this raises
         return agents.explain(text, agent=self._agent)
 
+    def models(self) -> list[tuple[str, str]]:
+        """(feature, model) for every model a call goes through, as the settings choose them."""
+        if self.is_demo:
+            return [("Every feature", "scripted demo parts, no models")]
+        from callas_settings import get_settings
+        from nlp_core import registry
+
+        s = get_settings()
+        llm = s.vllm_model or "vLLM (VLLM_MODEL not set)"
+
+        def part(kind: str, name: str | None) -> str:
+            name = name or registry.default_name(kind)
+            return {"llm": llm, "rules": "rules (regex)"}.get(name, name)
+
+        classifier = self.runtime.classifier or registry.default_name("classifier")
+        pair = registry.fine_tuned_pair(classifier)
+        if pair:
+            gate, type_ = (f"fine-tuned {registry.FINE_TUNED[e]}" for e in pair)
+        else:
+            gate = type_ = part("classifier", classifier)
+        spelling = {"off": "off", "pythainlp": "PyThaiNLP"}[s.autocorrect]
+        if s.autocorrect != "off" and s.spell_repair == "on":
+            spelling += " + WangchanBERTa repair"
+        return [
+            ("Speech to text", s.asr_model),
+            ("Speaker split (recordings)", s.diarizer),
+            ("Spelling fix", spelling),
+            ("Entities", part("ner", self.runtime.ner)),
+            ("Scam gate", gate),
+            ("Scam type", type_),
+            ("Summary", part("summarizer", self.runtime.summarizer)),
+            ("Reply", f"{llm} ({s.reply_engine})"),
+            ("Leak judge", f"{llm} (DSPy)" if s.leak_judge == "on" else "rules only"),
+            ("Voice", f"PyThaiTTS {s.tts_pretrained}, speaker {s.tts_speaker}"),
+        ]
+
     def close(self) -> None:
         """End every call still in memory and put the original ASR function back."""
         for call_id in list(self.runtime.states):

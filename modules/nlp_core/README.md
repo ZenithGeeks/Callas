@@ -9,7 +9,7 @@ Text work shared by the web system, the classifier notebook and the data pipelin
 | `entities.py` | `extract_entities`: rule-based phone, bank account, OTP, URL and money |
 | `registry.py` | Swappable NER, classifier and summarizer, chosen by `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` |
 | `parts.py` | The built-in parts: `RulesNER`, `LLMClassifier`, `LLMSummarizer` (also importable from `registry.py`) |
-| `phayathaibert.py` | `PhayaThaiBertClassifier`, registry name `phayathaibert`: the notebook's gate and type models, fed the live call the way the notebook wrote its rows |
+| `finetuned.py` | `FineTunedClassifier`: the notebook's gate and type models, each fed the live call the way the notebook wrote its rows. Registry names `best` (WangchanBERTa gate, PhayaThaiBERT type), `phayathaibert`, `wangchanberta`, `bge_m3`, or any `<gate>+<type>` pair such as `bge_m3+phayathaibert` |
 | `interfaces.py` | The three protocols a fine-tuned model has to implement |
 | `analyzer.py` | `Analyzer`: rule NER plus one LLM for the summary and the scam label |
 | `types.py` | `Entity`, `NLPResult`, `SCAM_TYPES`, `ENTITY_LABELS` |

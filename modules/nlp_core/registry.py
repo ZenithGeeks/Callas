@@ -3,7 +3,8 @@
     register("classifier", "mymodel", lambda: MyClassifier(...))
     # then set NLP_CLASSIFIER=mymodel in .env
 
-The fine-tuned PhayaThaiBERT classifier is registered as "phayathaibert" (phayathaibert.py).
+The fine-tuned classifiers (finetuned.py) are registered as "<gate encoder>+<type encoder>",
+as "<encoder>" for both models of one encoder, and as "best".
 
 Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"): the
 process environment first, read at each `get()`, then .env. Each (kind, name) instance is
@@ -12,6 +13,7 @@ built once and cached.
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from collections.abc import Callable
@@ -22,6 +24,8 @@ from .parts import LLMSummarizer as LLMSummarizer
 from .parts import RulesNER as RulesNER
 from .types import NLPResult
 
+log = logging.getLogger(__name__)
+
 KINDS: tuple[str, ...] = ("ner", "classifier", "summarizer")
 ENV_VARS: dict[str, str] = {
     "ner": "NLP_NER",
@@ -29,6 +33,18 @@ ENV_VARS: dict[str, str] = {
     "summarizer": "NLP_SUMMARIZER",
 }
 DEFAULT_NAMES: dict[str, str] = {"ner": "rules", "classifier": "llm", "summarizer": "llm"}
+
+# Encoders the notebook fine-tunes, as models/<encoder>-scam-{gate,type}, and their display names.
+FINE_TUNED: dict[str, str] = {
+    "phayathaibert": "PhayaThaiBERT",
+    "wangchanberta": "WangchanBERTa",
+    "bge_m3": "BGE-M3",
+}
+# From models/scam_classifier_metrics.json (run of 2026-11-17, test split):
+# gate: WangchanBERTa macro-F1 0.950 vs PhayaThaiBERT 0.947 (McNemar p 0.31), but it raises the
+#   alarm before the scam starts in 5.6% of scam calls against 12.9%, and catches more of them.
+# type: PhayaThaiBERT 0.889, BGE-M3 0.889, WangchanBERTa 0.872; PhayaThaiBERT is the smaller of the tie.
+BEST_FINE_TUNED: tuple[str, str] = ("wangchanberta", "phayathaibert")
 
 _FACTORIES: dict[str, dict[str, Callable[[], Any]]] = {k: {} for k in KINDS}
 _INSTANCES: dict[tuple[str, str], Any] = {}
@@ -82,16 +98,29 @@ def get(kind: str, name: str | None = None) -> Any:
         return _INSTANCES[(kind, name)]
 
 
-def _phayathaibert():
-    # Imported here: torch and transformers load only when this classifier is chosen.
-    from .phayathaibert import PhayaThaiBertClassifier
+def fine_tuned_pair(name: str) -> tuple[str, str] | None:
+    """(gate encoder, type encoder) of a fine-tuned classifier name, or None for another name."""
+    if name == "best":
+        return BEST_FINE_TUNED
+    gate, _, type_ = name.partition("+")
+    type_ = type_ or gate
+    return (gate, type_) if gate in FINE_TUNED and type_ in FINE_TUNED else None
 
-    return PhayaThaiBertClassifier()
+
+def _fine_tuned(gate: str, type_: str) -> Callable[[], Any]:
+    def build():
+        # Imported here: torch and transformers load only when a fine-tuned model is chosen.
+        from .finetuned import FineTunedClassifier
+
+        return FineTunedClassifier.from_encoders(gate, type_)
+
+    return build
 
 
 register("ner", "rules", RulesNER)
 register("classifier", "llm", LLMClassifier)
-register("classifier", "phayathaibert", _phayathaibert)
+for _name in ["best", *FINE_TUNED, *(f"{g}+{t}" for g in FINE_TUNED for t in FINE_TUNED)]:
+    register("classifier", _name, _fine_tuned(*fine_tuned_pair(_name)))
 register("summarizer", "llm", LLMSummarizer)
 
 
@@ -101,9 +130,17 @@ def analyze_with_tools(
     classifier: str | None = None,
     summarizer: str | None = None,
 ) -> NLPResult:
-    """Run the selected NER, summarizer and classifier and combine them into an NLPResult."""
+    """Run the selected NER, summarizer and classifier and combine them into an NLPResult.
+
+    A failed summary leaves the summary empty: the scam label must not depend on the LLM
+    when the classifier is a local model.
+    """
     entities = get("ner", ner).extract(text)
-    summary = get("summarizer", summarizer).summarize(text)
+    try:
+        summary = get("summarizer", summarizer).summarize(text)
+    except Exception as exc:  # never log the call text
+        log.warning("summary failed (%s), going on without one", type(exc).__name__)
+        summary = ""
     label_scam, label_type, confidence = get("classifier", classifier).predict(text)
     return NLPResult(
         entities=entities,

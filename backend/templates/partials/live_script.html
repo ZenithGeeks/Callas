@@ -1,7 +1,7 @@
 {# The script part of the live page's "Read this call aloud" section (backend/test_calls.py).
    GET /live/script swaps it for another call. live.js marks the line to read next. #}
 {% if call %}
-<ol class="script" lang="th" data-script-lines>
+<ol class="script" lang="th" data-script-lines data-call-id="{{ call.call_id }}">
   {% for line in call.caller_lines %}
   <li>{{ line }}</li>
   {% endfor %}

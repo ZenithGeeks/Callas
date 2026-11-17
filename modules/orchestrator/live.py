@@ -145,6 +145,8 @@ class LiveCall:
                 self._events.put(
                     {"type": "error", "turn": n, "message": f"{type(exc).__name__}: turn failed"}
                 )
+            # The live page's TTS caller waits for this before it says the next line.
+            self._events.put({"type": "done", "turn": n})
 
     def _process(self, n: int, turn: Turn, merged: list[int]) -> None:
         """Run one turn through the graph and queue its events: node, verdict, reply."""

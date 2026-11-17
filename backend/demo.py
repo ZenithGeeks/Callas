@@ -82,7 +82,7 @@ def fake_pipeline_run(audio_path: str, *args, **kwargs) -> Transcript:
 class FakeSpeaker:
     """Stands in for tts_voice_agent.speech.Speaker: every reply is a short silent WAV."""
 
-    def synthesize_bytes(self, text: str) -> bytes:
+    def synthesize_bytes(self, text: str, check_leaks: bool = True) -> bytes:
         return SILENT_WAV
 
 
