@@ -18,9 +18,8 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from .entities import extract_entities
+from .registry import model_dir
 from .text import normalize_text
-
-MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 
 # The notebook's TYPE_MIN_CONFIDENCE (first cell of part B) and GATE_MIN_CONFIDENCE (step 14).
 # Retune them there, then copy them here.
@@ -90,11 +89,6 @@ class FineTunedClassifier:
             if type_confidence >= TYPE_MIN_CONFIDENCE:
                 label_type = type_label
         return is_scam, label_type, confidence
-
-
-def model_dir(encoder: str, task: str) -> Path:
-    """models/<encoder>-scam-<task>, the folder name the notebook's fine_tune() saves to."""
-    return MODELS_DIR / f"{encoder.replace('_', '-')}-scam-{task}"
 
 
 @cache

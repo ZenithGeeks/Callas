@@ -115,3 +115,26 @@ def test_a_failed_summary_still_gives_the_scam_label():
     registry.register("summarizer", "down", DownSummarizer)
     r = registry.analyze_with_tools("x", "r", "c", "down")
     assert (r.label_scam, r.label_type, r.summary) == (True, "romance", "")
+
+
+def save_model(encoder, task):
+    folder = registry.model_dir(encoder, task)
+    folder.mkdir(parents=True)
+    (folder / "preprocessing.json").write_text("{}", encoding="utf-8")
+
+
+def test_the_built_in_classifier_is_best_once_both_models_are_saved():
+    gate, type_ = registry.BEST_FINE_TUNED
+    assert registry.default_name("classifier") == "llm"  # a fresh clone has no models/
+    save_model(gate, "gate")
+    assert registry.default_name("classifier") == "llm"  # the type model is still missing
+    save_model(type_, "type")
+    assert registry.default_name("classifier") == "best"
+
+
+def test_a_set_classifier_wins_over_the_saved_models(monkeypatch):
+    gate, type_ = registry.BEST_FINE_TUNED
+    save_model(gate, "gate")
+    save_model(type_, "type")
+    monkeypatch.setenv("NLP_CLASSIFIER", "llm")
+    assert registry.default_name("classifier") == "llm"

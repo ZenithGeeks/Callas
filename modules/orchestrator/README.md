@@ -81,7 +81,7 @@ The three parts are protocols in `nlp_core/interfaces.py`. The registry is `nlp_
 | Kind | Method | Variable | Built-in names (default first) |
 |---|---|---|---|
 | `ner` | `extract(text) -> list[Entity]` | `NLP_NER` | `rules` |
-| `classifier` | `predict(text) -> (label_scam, label_type, confidence)` | `NLP_CLASSIFIER` | `llm` |
+| `classifier` | `predict(text) -> (label_scam, label_type, confidence)` | `NLP_CLASSIFIER` | `best` when its models are in `models/`, else `llm` |
 | `summarizer` | `summarize(text) -> str` | `NLP_SUMMARIZER` | `llm` |
 
 The fine-tuned classifiers from [`notebooks/README.md`](../../notebooks/README.md) (`models/<encoder>-scam-gate` and `-scam-type`, not in git) are registered too: `best`, `phayathaibert`, `wangchanberta`, `bge_m3` and every `<gate>+<type>` pair (`nlp_core/finetuned.py`). Steps to connect another model:

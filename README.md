@@ -9,7 +9,7 @@ Callas checks Thai phone calls and text messages for scams. It turns a call into
 
 Callas works in Thai only. It does not connect to LINE, Messenger, Instagram or a real phone line. You use it through a web demo.
 
-Status: the full pipeline and the web demo work. The summary uses the LLM. The scam check uses the LLM by default, or the fine-tuned classifiers (see [`notebooks/README.md`](notebooks/README.md)) with `NLP_CLASSIFIER=best`; the `/live` page then has a dropdown for the gate and the type model.
+Status: the full pipeline and the web demo work. The summary uses the LLM. The scam check uses the fine-tuned classifiers (see [`notebooks/README.md`](notebooks/README.md)) when their models are in `models/`, and the LLM otherwise; with the fine-tuned models the `/live` page has a dropdown for the gate and the type model.
 
 ## Where to read more
 
@@ -121,7 +121,7 @@ All settings come from `.env` (copy `.env.example`). Never commit `.env`. The de
 | `TTS_SPEAKER` | `thai_som` | Voice |
 | `REPLY_ENGINE` | `prompt` | How the reply is written: `prompt` or `dspy` |
 | `LEAK_JUDGE` | `off` | `on` adds a DSPy leak judge after the leak rules. It can only block more replies |
-| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`, `llm`, `llm`) | Which model fills each nlp-core slot, by registry name. `NLP_CLASSIFIER=best` uses the fine-tuned models in `models/` (other names in `modules/nlp_core/README.md`). A real environment variable wins over `.env` |
+| `NLP_NER`, `NLP_CLASSIFIER`, `NLP_SUMMARIZER` | empty (built-in: `rules`; `best` when the fine-tuned models are in `models/`, else `llm`; `llm`) | Which model fills each nlp-core slot, by registry name. `best` is the fine-tuned WangchanBERTa gate and PhayaThaiBERT type; set `NLP_CLASSIFIER=llm` to use the LLM even when they are saved (other names in `modules/nlp_core/README.md`). A real environment variable wins over `.env` |
 | `TRACING` | `off` | `phoenix` sends traces to a local Phoenix server; see [Tracing](#tracing) |
 | `PHOENIX_COLLECTOR_ENDPOINT` | `http://localhost:6006` | Where traces go. Must be localhost, 127.0.0.1 or ::1, or startup fails |
 | `TRACE_CALL_TEXT` | `off` | `on` keeps prompts and answers in web traces; see [Tracing](#tracing) |

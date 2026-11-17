@@ -146,7 +146,7 @@ Turn 3 → MONEY  "1,500 บาท"
 | `phishing_otp` | Asks for an OTP, a password or account data, or sends a fake link |
 | `lottery` | Says you won a prize, but you must pay first |
 
-**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) plugs in behind the same function with `NLP_CLASSIFIER=best` (`nlp_core/finetuned.py`).
+**Technique.** Zero-shot text classification with a prompt. This is what runs today. A fine-tuned PhayaThaiBERT classifier (`notebooks/scam_classifier_phayathaibert.ipynb`, saved in `models/`, which is not in git) plugs in behind the same function, and is the default once its models are saved (`nlp_core/finetuned.py`).
 
 For our example, turn 3 should get `fake_authority`.
 

@@ -5,7 +5,7 @@
 - the gate: is this call a scam or not
 - the type: which scam type it is (only for scam calls)
 
-Each model is trained four ways: a simple baseline (TF-IDF + logistic regression) and three fine-tuned encoders, PhayaThaiBERT (`clicknext/phayathaibert`), BGE-M3 (`BAAI/bge-m3`) and WangchanBERTa (`airesearch/wangchanberta-base-att-spm-uncased`). The notebook scores all of them on the same test set so you can compare them. The live app uses the WangchanBERTa gate and the PhayaThaiBERT type model by default (`NLP_CLASSIFIER=best`); the `/live` page can pick any gate and type.
+Each model is trained four ways: a simple baseline (TF-IDF + logistic regression) and three fine-tuned encoders, PhayaThaiBERT (`clicknext/phayathaibert`), BGE-M3 (`BAAI/bge-m3`) and WangchanBERTa (`airesearch/wangchanberta-base-att-spm-uncased`). The notebook scores all of them on the same test set so you can compare them. Once both are saved, the live app uses the WangchanBERTa gate and the PhayaThaiBERT type model by default (`best`); the `/live` page can pick any gate and type.
 
 ## Setup
 
@@ -39,7 +39,7 @@ Install torch first. The normal Windows wheel has no GPU support.
 
 All csv files are UTF-8 with BOM, so Thai text looks right in Excel. The columns `speaker_turns` and `entities` hold JSON text because a csv cell cannot hold a list.
 
-Each model folder also has `preprocessing.json`. It lists the text steps the model was trained with: the row text, the speaker letters, the masked entity labels, the space token and the length limit. `modules/nlp_core/finetuned.py` reads it to write the live call the same way, and refuses a model saved by an older notebook. With `NLP_CLASSIFIER=best` (or another name from `nlp_core/README.md`) the web demo uses the saved models; the `/live` page then shows a test-split call to read aloud.
+Each model folder also has `preprocessing.json`. It lists the text steps the model was trained with: the row text, the speaker letters, the masked entity labels, the space token and the length limit. `modules/nlp_core/finetuned.py` reads it to write the live call the same way, and refuses a model saved by an older notebook. The web demo uses the saved models by default (`NLP_CLASSIFIER` picks another name from `nlp_core/README.md`); the `/live` page then shows a test-split call to read aloud.
 
 ## Steps
 

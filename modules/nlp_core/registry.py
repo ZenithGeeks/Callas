@@ -6,9 +6,9 @@
 The fine-tuned classifiers (finetuned.py) are registered as "<gate encoder>+<type encoder>",
 as "<encoder>" for both models of one encoder, and as "best".
 
-Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("llm"), NLP_SUMMARIZER ("llm"): the
-process environment first, read at each `get()`, then .env. Each (kind, name) instance is
-built once and cached.
+Defaults come from NLP_NER ("rules"), NLP_CLASSIFIER ("best" when its models are saved in
+models/, else "llm"), NLP_SUMMARIZER ("llm"): the process environment first, read at each
+`get()`, then .env. Each (kind, name) instance is built once and cached.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .parts import LLMClassifier as LLMClassifier  # moved to parts.py, still importable from here
@@ -33,6 +34,8 @@ ENV_VARS: dict[str, str] = {
     "summarizer": "NLP_SUMMARIZER",
 }
 DEFAULT_NAMES: dict[str, str] = {"ner": "rules", "classifier": "llm", "summarizer": "llm"}
+# models/ is not in git: a fresh clone has no fine-tuned models until the notebook saves them.
+MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 
 # Encoders the notebook fine-tunes, as models/<encoder>-scam-{gate,type}, and their display names.
 FINE_TUNED: dict[str, str] = {
@@ -78,7 +81,22 @@ def default_name(kind: str) -> str:
     # Settings has one field per kind: nlp_ner, nlp_classifier, nlp_summarizer.
 
     from_process_env = os.environ.get(ENV_VARS[kind], "").strip()
-    return from_process_env or getattr(get_settings(), f"nlp_{kind}").strip() or DEFAULT_NAMES[kind]
+    return from_process_env or getattr(get_settings(), f"nlp_{kind}").strip() or _built_in(kind)
+
+
+def _built_in(kind: str) -> str:
+    """DEFAULT_NAMES, except the classifier is "best" once both of its models are saved."""
+    gate, type_ = BEST_FINE_TUNED
+    saved = all(
+        (model_dir(encoder, task) / "preprocessing.json").exists()
+        for encoder, task in ((gate, "gate"), (type_, "type"))
+    )
+    return "best" if kind == "classifier" and saved else DEFAULT_NAMES[kind]
+
+
+def model_dir(encoder: str, task: str) -> Path:
+    """models/<encoder>-scam-<task>, the folder name the notebook's fine_tune() saves to."""
+    return MODELS_DIR / f"{encoder.replace('_', '-')}-scam-{task}"
 
 
 def get(kind: str, name: str | None = None) -> Any:
